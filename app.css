@@ -172,3 +172,11 @@ details.state summary { cursor:pointer; font-weight:600; font-size:13px; } detai
 .mgrid.wide { grid-template-columns:repeat(6,minmax(0,1fr)); max-width:980px; }
 .article { background:#fff; border:1px solid var(--line); border-radius:6px; padding:8px 24px 20px; }
 @media (max-width:900px) { .cal { grid-template-columns:repeat(7,minmax(40px,1fr)); overflow-x:auto; } .cal-p { font-size:0; height:8px; padding:0; } .mgrid.wide { grid-template-columns:repeat(2,1fr); } }
+
+/* MH-12: suggested copy changes on the Google Variants tab */
+.tbl.sugg td.rm { color:#9b1c24; min-width:170px; }
+.sugg-how { margin:0 0 12px; padding-left:18px; line-height:1.5; } .sugg-how li { margin:2px 0; }
+.tbl.sugg td.ad { color:#14653a; font-weight:550; min-width:170px; }
+.tbl.sugg td.ad .sub { font-weight:400; }
+.tile.out { border-color:#f0b7bb; background:#fffafa; }
+.tile.out h3 { text-decoration:line-through; text-decoration-color:rgba(155,28,36,.45); }

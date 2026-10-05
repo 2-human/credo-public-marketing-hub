@@ -611,12 +611,15 @@
     var assets = AM && AM.google.ads[a.id] ? AM.google.ads[a.id].assets : [], combos = AM && AM.google.ads[a.id] ? AM.google.ads[a.id].combos : [];
     var byText = {}, byId = {}; assets.forEach(function (x) { byText[x.field + '|' + x.text] = x; byId[x.id] = x; });
     var totalImpr = assets.filter(function (x) { return x.field === 'HEADLINE'; }).reduce(function (t, x) { return t + (x.impr || 0); }, 0);
+    var sg = AM && AM.google.suggest ? AM.google.suggest[a.id] : null, flag = {};
+    if (sg) sg.items.forEach(function (it) { flag[it.field + '|' + it.remove.text] = it; });
     function card(field, t, i) {
-      var m = byText[field + '|' + t] || null, pin = (a.pins.filter(function (x) { return x[0] === t; })[0] || [])[1];
-      return '<button class="tile text"' + dr(function (el) { el.classList.add('sel'); drawerAsset(a, field, t, m, totalImpr, pin); }) + '><p>' + (field === 'HEADLINE' ? 'Headline ' : 'Description ') + (i + 1) + ' · ' + t.length + ' chars' + (pin ? ' · pinned ' + esc(pin) : '') + '</p>' +
-        '<h3>' + esc(t) + '</h3><div class="meta">' + (m && m.impr != null ? n0(m.impr) + ' impr. · ' + n0(m.clicks) + ' clicks · ' + n1(m.conv) + ' conv.' : 'no impressions recorded') + '</div></button>';
+      var m = byText[field + '|' + t] || null, pin = (a.pins.filter(function (x) { return x[0] === t; })[0] || [])[1], it = flag[field + '|' + t];
+      return '<button class="tile text' + (it ? ' out' : '') + '"' + dr(function (el) { el.classList.add('sel'); if (it) drawerSuggest(a, it, m, totalImpr); else drawerAsset(a, field, t, m, totalImpr, pin); }) + '><p>' + (field === 'HEADLINE' ? 'Headline ' : 'Description ') + (i + 1) + ' · ' + t.length + ' chars' + (pin ? ' · pinned ' + esc(pin) : '') + '</p>' +
+        '<h3>' + esc(t) + '</h3><div class="meta">' + (m && m.impr != null ? n0(m.impr) + ' impr. · ' + n0(m.clicks) + ' clicks · ' + n1(m.conv) + ' conv.' : 'no impressions recorded') + '</div>' +
+        (it ? '<div class="meta"><span class="chip red">remove · ' + esc(it.remove.kind === 'risk' ? 'risky claim' : 'weak performer') + '</span></div>' : '') + '</button>';
     }
-    var h = '<h2>Headlines (' + a.headlines.length + ')</h2><div class="tiles">' + a.headlines.map(function (t, i) { return card('HEADLINE', t, i); }).join('') + '</div>' +
+    var h = suggestHtml(a, sg, byText, totalImpr) + '<h2>Headlines (' + a.headlines.length + ')</h2><div class="tiles">' + a.headlines.map(function (t, i) { return card('HEADLINE', t, i); }).join('') + '</div>' +
       '<h2>Descriptions (' + a.descriptions.length + ')</h2><div class="tiles">' + a.descriptions.map(function (t, i) { return card('DESCRIPTION', t, i); }).join('') + '</div>';
     h += '<h2>Top combinations shown · last 90 days</h2>' + (combos.length ? '<div class="tiles">' + combos.map(function (cb, i) {
       var parts = cb.assets.map(function (x) { var as = byId[x[0]]; return as ? [x[1], as.text] : null; }).filter(Boolean);
@@ -625,6 +628,37 @@
         esc(parts.filter(function (x) { return /DESCRIPTION/.test(x[0]); }).map(function (x) { return x[1]; }).join(' ')) + '</div></button>';
     }).join('') + '</div>' : '<p class="empty">No combination reached 10 impressions in the last 90 days.</p>');
     return h;
+  }
+  /* MH-12: suggested copy changes (tools/marketing-hub/suggest-copy.mjs). Drafts only; nothing is changed in Google Ads. */
+  function suggestHtml(a, sg, byText, totalImpr) {
+    if (!sg) return '';
+    var nH = sg.items.filter(function (x) { return x.field === 'HEADLINE'; }).length, nD = sg.items.length - nH;
+    var cnt = function (n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); };
+    var h = '<h2>Suggested changes</h2>';
+    if (!sg.items.length) return h + '<p class="note">Nothing to replace: no risky claims, and no line clearly below this ad’s median.' + (sg.notes.length ? ' ' + esc(sg.notes.join(' ')) : '') + '</p>';
+    h += '<p class="lead">Replace ' + cnt(nH, 'headline') + ' and ' + cnt(nD, 'description') + '. <b>Drafts for attorney review; nothing has been changed in Google Ads.</b></p><ul class="note sugg-how">' +
+      '<li>What goes: every risky claim, then the weakest lines (fewest conversions per 1,000 impressions, all time, clearly below this ad’s median) until 3 headlines and 1 description are replaced.</li>' +
+      '<li>What comes in: the copy recommended for the searches this ad group gets (' + esc(sg.intents.slice(0, 3).map(function (x) { return x.label; }).join(', ')) + ').</li>' +
+      '<li>Editing an ad makes Google treat it as a new ad with fresh statistics. You can instead add the changed version as a second ad in the group, and pause this one once the new ad has data.</li>' +
+      sg.notes.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>';
+    h += '<div class="scroll"><table class="tbl sugg"><thead><tr><th></th><th>Remove</th><th>Why</th><th>Add</th><th class="num">Chars</th></tr></thead><tbody>' + sg.items.map(function (it) {
+      var m = byText[it.field + '|' + it.remove.text] || null;
+      return '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); drawerSuggest(a, it, m, totalImpr); }) + '><td class="sub">' + (it.field === 'HEADLINE' ? 'Headline' : 'Description') + (it.remove.pin ? '<br>pinned ' + esc(it.remove.pin) : '') + '</td>' +
+        '<td class="rm">' + esc(it.remove.text) + '</td><td class="sub"><span class="chip ' + (it.remove.kind === 'risk' ? 'red' : 'warn') + '">' + (it.remove.kind === 'risk' ? 'risky claim' : 'weak performer') + '</span><div>' + esc(it.remove.short) + '</div></td>' +
+        '<td class="ad">' + (it.add ? esc(it.add.text) + '<div class="sub">' + esc(it.add.intentLabel) + '</div>' : '<span class="dim">no replacement yet</span>') + '</td><td class="num">' + (it.add ? it.add.chars + ' / ' + (it.field === 'HEADLINE' ? 30 : 90) : '') + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+    return h;
+  }
+  function drawerSuggest(a, it, m, totalImpr) {
+    var lim = it.field === 'HEADLINE' ? 30 : 90;
+    var h = '<h3>Remove</h3><div class="copy">' + esc(it.remove.text) + '</div>' + kv([['Field', it.field.toLowerCase()], ['Reason', (it.remove.kind === 'risk' ? 'risky claim' : 'weak performer') + '. ' + esc(it.remove.why)], ['Pinned', esc(it.remove.pin || 'no')]]) +
+      '<h3>Add</h3>' + (it.add ? '<div class="copy">' + esc(it.add.text) + '</div>' + kv([['Length', it.add.chars + ' of ' + lim + ' characters'], ['From', 'the copy recommended for “' + esc(it.add.intentLabel) + '” searches (search-term review, 30 Sep)'],
+        ['Pin', esc(it.add.pin ? 'takes over ' + it.add.pin : 'none')], ['Status', 'draft for attorney review; not in Google Ads']]) : '<p class="note">No replacement left in the recommended copy for this ad group. Remove only if the ad keeps at least 3 headlines and 2 descriptions.</p>');
+    var mh = '<h3>The line to remove · all time · asset view</h3>' + (m && m.impr != null ? '<div class="mgrid">' + mt('Impressions', n0(m.impr)) + mt('Clicks', n0(m.clicks)) + mt('CTR', pct(m.clicks, m.impr)) +
+      mt('Spend', usd(m.cost)) + mt('Conversions', n1(m.conv)) + mt('Conv. / 1,000 impr.', m.impr ? (m.conv / m.impr * 1000).toFixed(1) : '–') + '</div>' +
+      (it.remove.median != null ? '<p class="note">Median for this ad’s ' + (it.field === 'HEADLINE' ? 'headlines' : 'descriptions') + ': ' + it.remove.median.toFixed(1) + ' conversions per 1,000 impressions.</p>' : '') : '<p class="note">No impressions recorded for this line.</p>') +
+      '<p class="note">The new line has no data yet.</p>';
+    openDrawer('Suggested change', [['Basic info', h], ['Metrics', mh]]);
   }
   function drawerAsset(a, field, t, m, totalImpr, pin) {
     var h = '<div class="copy">' + esc(t) + '</div>' + kv([['Field', field.toLowerCase()], ['Length', t.length + ' characters'], ['Pinned', esc(pin || 'no')], ['Asset id', esc(m ? m.id : '')]]);
