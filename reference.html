@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow">
+<title>Reference · Marketing Hub</title>
+<link rel="stylesheet" href="hub.css">
+</head>
+<body>
+<div id="hub-header"></div>
+<main>
+  <h1>Reference</h1>
+  <p class="lead">The rules the pages, ads and posts are built to. Items marked legacy open on the old mirrors until they are moved in; repo paths are for the private repository.</p>
+  <div class="cards" id="cards"></div>
+</main>
+<script src="data/registry.js"></script>
+<script src="hub.js"></script>
+<script>
+(function () {
+  var H = window.HUB, f = Hub.fmt, L = H.legacy;
+  Hub.init({ page: 'reference', sub: 'statute map · brand · disclaimer · methods · plans' });
+  var items = [
+    ['Statute map', 'Every claim and question on the landing pages mapped to 15 U.S.C. § 1692.', L.lp + 'statute-map.html', 'legacy'],
+    ['Legal knowledge base', 'content/reference/legal-knowledge-base.md', null, 'repo'],
+    ['NY attorney-advertising disclaimer rule', 'Advertising vs educational, matching snippet, which phone number: brand/ny-attorney-advertising-disclaimer.md. Applies to every post and article.', null, 'repo'],
+    ['Brand', 'Logo lockup, colours, type (brand/).', null, 'repo'],
+    ['Design system', 'Tokens, components, before/after for the staging pages.', L.lp + 'design-system.html', 'legacy'],
+    ['Content-writing methodology', 'Cross-project writing guide: methodologies/content-writing/.', null, 'repo'],
+    ['Google Ads campaign plan', 'content/campaigns/google-ads/CAMPAIGN-PLAN.md, copy by ad group, keyword lists, improvement plans.', null, 'repo'],
+    ['Meta Ads campaign plan', 'content/campaigns/meta-ads/: architecture v3, copy, creative spec, lead-form spec, landing-page map.', null, 'repo'],
+    ['Nextdoor playbook', 'content/campaigns/nextdoor/nextdoor-ui-playbook.md and the campaign manifest.', null, 'repo'],
+    ['Angle clusters record', 'content/research/lp-angle-clusters-2026-10-02.md: the clusters table with scores and the funnel columns.', null, 'repo'],
+    ['Marketing Hub plan', 'content/research/review-hub-structure-2026-10-03.md and .claude/decisions/2026-10-03-marketing-hub.md.', null, 'repo'],
+    ['Handoff packages', 'content/campaigns/handoff/: ads handoff July 2026, hosted manifests.', null, 'repo'],
+    ['Proposal hub', 'Client-facing Prota Studios proposal; separate audience, linked only.', 'https://2-human.github.io/credo-public-hub/', 'separate']
+  ];
+  document.getElementById('cards').innerHTML = items.map(function (i) { return '<div class="card"><h3>' + i[0] + ' <span class="tag">' + i[3] + '</span></h3><p>' + f.esc(i[1]) + '</p>' + (i[2] ? '<a class="go" href="' + i[2] + '" target="_blank" rel="noopener">Open →</a>' : '') + '</div>'; }).join('');
+})();
+</script>
+</body>
+</html>

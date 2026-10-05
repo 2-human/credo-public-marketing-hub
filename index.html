@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow">
+<title>Overview · Marketing Hub</title>
+<link rel="stylesheet" href="hub.css">
+</head>
+<body>
+<div id="hub-header"></div>
+<main>
+  <h1>Overview</h1>
+  <p class="lead">How the funnel is doing in the chosen period, what needs attention, and where everything lives. Every figure's definition is in <a href="tracking.html#dictionary">Tracking → dictionary</a>.</p>
+  <div class="steps" id="kpi"></div>
+  <h2>Needs attention</h2>
+  <div id="alerts"></div>
+  <h2>Sections</h2>
+  <div class="cards" id="sections"></div>
+  <h2>Legacy hubs (to be moved in, then retired)</h2>
+  <div class="cards" id="legacy"></div>
+</main>
+<script src="data/registry.js"></script>
+<script src="data/metrics.js"></script>
+<script src="hub.js"></script>
+<script>
+(function () {
+  var H = window.HUB, f = Hub.fmt, P = Hub.period();
+  Hub.init({ page: 'index', sub: 'ads → landing page → lead → client' });
+
+  /* KPI strip for the period */
+  var kpi = document.getElementById('kpi');
+  if (!P) kpi.innerHTML = '<div class="step"><div class="k">Metrics</div><div class="v">locked</div><div class="r">unlock the metrics tier to see the funnel</div></div>';
+  else {
+    var t = {}, steps;
+    if (P.level === 'ad') {
+      var F = P.funnel; t = { cost: 0, impr: 0, clicks: 0, sessions: 0, formStart: 0, form: 0, calls: 0, sa_sent: 0, sa_signed: 0, enrolled: 0, paid: 0 };
+      F.ads.forEach(function (a) { t.cost += a.cost; t.impr += a.impr; t.clicks += a.clicks; Hub.CONV.forEach(function (c) { t[c] += a.conv[c] || 0; }); });
+      F.visits.forEach(function (v) { t.sessions += v.sessions; t.formStart += v.formStart; });
+      steps = [['Spend', f.usd(t.cost), 'Google Ads'], ['Clicks', f.n0(t.clicks), f.pct(t.clicks, t.impr) + ' of impressions'], ['Sessions', f.n0(t.sessions), f.pct(t.sessions, t.clicks) + ' of clicks'],
+        ['Form starts', f.n0(t.formStart), f.pct(t.formStart, t.sessions) + ' of sessions'], ['Leads (forms + calls)', f.n0(t.form + t.calls), f.pct(t.form + t.calls, t.clicks) + ' of clicks · ' + f.per(t.cost, t.form + t.calls) + ' each'],
+        ['Agreement sent', f.n1(t.sa_sent), f.pct(t.sa_sent, t.form + t.calls) + ' of leads'], ['Signed', f.n1(t.sa_signed), f.pct(t.sa_signed, t.sa_sent) + ' of sent · ' + f.per(t.cost, t.sa_signed) + ' each'],
+        ['Enrolled', f.n1(t.enrolled), f.pct(t.enrolled, t.sa_signed) + ' of signed'], ['First payment', f.n1(t.paid), f.pct(t.paid, t.enrolled) + ' of enrolled · ' + f.per(t.cost, t.paid) + ' each']];
+    } else {
+      t = { spend: 0, visits: 0, starts: 0, submits: 0, sent: 0, signed: 0, enrolled: 0, paid: 0 };
+      Object.keys(P.pages).forEach(function (s) { var r = P.pages[s]; Object.keys(t).forEach(function (k) { t[k] += r[k] || 0; }); });
+      steps = [['Spend', f.usd(t.spend), 'Google Ads, pages with a page on the start site'], ['Visits', f.n0(t.visits), 'Analytics, from Google ads'], ['Form starts', f.n0(t.starts), f.pct(t.starts, t.visits) + ' of visits'],
+        ['Form submits', f.n0(t.submits), f.pct(t.submits, t.visits) + ' of visits · ' + f.per(t.spend, t.submits) + ' each'], ['Agreement sent', f.n1(t.sent), f.pct(t.sent, t.submits) + ' of submits'],
+        ['Signed', f.n1(t.signed), f.pct(t.signed, t.sent) + ' of sent · ' + f.per(t.spend, t.signed) + ' each'], ['Enrolled', f.n1(t.enrolled), f.pct(t.enrolled, t.signed) + ' of signed'], ['First payment', f.n1(t.paid), f.pct(t.paid, t.enrolled) + ' of enrolled · ' + f.per(t.spend, t.paid) + ' each']];
+    }
+    kpi.innerHTML = steps.map(function (s) { return '<div class="step"><div class="k">' + s[0] + '</div><div class="v">' + s[1] + '</div><div class="r">' + s[2] + '</div></div>'; }).join('');
+  }
+
+  document.getElementById('alerts').innerHTML = Hub.alerts().map(function (a) {
+    return '<a class="alert ' + a.kind + '" href="' + a.href + '" style="text-decoration:none;color:inherit"><div class="n">' + a.n + '</div><div><b>' + f.esc(a.title) + '</b><div class="meta">' + f.esc(a.detail) + '</div></div></a>';
+  }).join('') || '<div class="alert ok"><div>Nothing waiting.</div></div>';
+
+  var landing = H.pages.filter(function (p) { return p.kind === 'landing'; }), g = H.ads.filter(function (a) { return a.platform === 'google'; });
+  var cards = [
+    ['Funnel', 'funnel.html', (P ? P.label : 'metrics locked'), 'Every ad next to its page with the stages from click to first payment; grouped by ad, page, cluster, debt type, campaign or platform.'],
+    ['Microsites', 'microsites.html', landing.length + ' landing pages · ' + H.angles.length + ' angles × ' + H.debts.length + ' debt types', 'The cluster matrix, each page with its score, status and numbers. Page detail follows.'],
+    ['Ads', 'ads.html', g.length + ' Google ads (' + g.filter(function (a) { return a.running; }).length + ' running) · ' + H.ads.filter(function (a) { return a.platform === 'meta'; }).length + ' Meta ads (repo) · Nextdoor · Bing placeholder', 'Per platform: campaigns, ad groups, ads, where they point, phone numbers, sitelinks.'],
+    ['Organic', 'organic.html', H.organic.filter(function (o) { return o.channel !== 'nextdoor'; }).length + ' social posts · ' + H.organic.filter(function (o) { return o.channel === 'nextdoor'; }).length + ' Nextdoor posts · ' + H.blog.length + ' articles', 'Calendar across channels, Nextdoor page, blog, short links.'],
+    ['Tracking', 'tracking.html', H.connections.filter(function (c) { return /connected/.test(c.state); }).length + ' of ' + H.connections.length + ' sources connected · ' + H.gaps.filter(function (x) { return /open/.test(x.status); }).length + ' open gaps', 'Where each number comes from, what is connected, what is broken.'],
+    ['Work', 'work.html', 'backlog, decisions, rules, reviews, changelog', 'What is being changed and why.'],
+    ['Reference', 'reference.html', 'statute map, brand, disclaimer rule, methods', 'The rules the pages and posts are built to.']
+  ];
+  document.getElementById('sections').innerHTML = cards.map(function (c) { return '<div class="card"><h3>' + c[0] + '</h3><div class="n" style="font-size:13px;font-weight:600">' + f.esc(c[2]) + '</div><p>' + f.esc(c[3]) + '</p><a class="go" href="' + c[1] + '">Open →</a></div>'; }).join('');
+  var L = H.legacy, leg = [['LP Review Hub', L.lp, 'review, statute map, ads and phone maps, blog, design system, staging backlog, search terms'], ['Ad Review Hub', L.ads, 'Meta creatives, Google builder'], ['Nextdoor Business Page', L.nextdoor, 'posts, calendar, engagement, ads'], ['Social Hub', L.social, 'articles and derived posts, calendar'], ['Main-site prototype', L.main, 'resources, rights, services']];
+  document.getElementById('legacy').innerHTML = leg.map(function (c) { return '<div class="card"><h3>' + c[0] + '</h3><p>' + f.esc(c[2]) + '</p><a class="go" href="' + c[1] + '" target="_blank" rel="noopener">Open (public mirror) →</a></div>'; }).join('');
+})();
+</script>
+</body>
+</html>

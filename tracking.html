@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow">
+<title>Tracking · Marketing Hub</title>
+<link rel="stylesheet" href="hub.css">
+</head>
+<body>
+<div id="hub-header"></div>
+<main>
+  <h1>Tracking</h1>
+  <p class="lead">Where every number comes from, which sources are connected, what is known to be broken, and when the data was last pulled.</p>
+  <h2 id="connections">Connections</h2>
+  <div class="wrap"><table id="conn"></table></div>
+  <h2 id="gaps">Known gaps</h2>
+  <div class="wrap"><table id="gapt"></table></div>
+  <h2 id="dictionary">Data dictionary</h2>
+  <div class="wrap"><table id="dict"></table></div>
+  <h2 id="conventions">Conventions</h2>
+  <div class="cards">
+    <div class="card"><h3>UTM</h3><p>Paid Google: <code>utm_source=google&amp;utm_medium=cpc&amp;utm_campaign={_campaign}&amp;utm_term={_adgroup}&amp;utm_content={creative}</code> (All-States uses static values and no utm_content: gap G1). Organic: <code>utm_source=&lt;network&gt;&amp;utm_medium=social&amp;utm_campaign=credo_nd_organic_v1&amp;utm_term=&lt;cluster&gt;&amp;utm_content=&lt;post key&gt;</code>. Meta: <code>utm_source=meta&amp;utm_medium=paid_social</code>.</p></div>
+    <div class="card"><h3>Phone numbers</h3><p>One number per campaign × ad group × platform in <code>content/campaigns/campaign-phone-numbers.csv</code>; the page swaps its number by <code>utm_source</code> (shared code in Webflow site settings). New pages without an entry show the default (718) 865-8350.</p></div>
+    <div class="card"><h3>Joins</h3><p>Ad ↔ page on the page address (slug). Analytics ↔ ad on the ad id in <code>utm_content</code> (Google’s own creative id from the next refresh). Organic ↔ Analytics on <code>utm_content</code>. CRM ↔ ad through the Google Ads uploads (click id).</p></div>
+  </div>
+  <h2 id="snapshots">Snapshots</h2>
+  <p class="meta">Reconciliation rule: ad figures must equal the account totals exactly; Analytics row sums may differ from the property total by up to 0.1% (the API omits rows below its reporting threshold). The 28-day snapshot sums to 7,569 sessions against 7,571 in the property.</p>
+  <div class="wrap"><table id="snap"></table></div>
+  <h2>Metrics tier</h2>
+  <p class="lead">Spend, visits and client stages live in a separate file (<code>data/metrics.js</code>) that is never mirrored in plaintext. Planned: an encrypted sibling surface decrypted in the browser after one password entry per session (operator holds the password). Until then the hub is local only.</p>
+</main>
+<script src="data/registry.js"></script>
+<script src="data/metrics.js"></script>
+<script src="hub.js"></script>
+<script>
+(function () {
+  var H = window.HUB, f = Hub.fmt, M = window.HUB_METRICS;
+  Hub.init({ page: 'tracking', sub: 'sources, definitions, gaps, snapshots' });
+  var st = function (s) { return /connected/.test(s) ? '<span class="tag on">' + f.esc(s) + '</span>' : /placeholder|not/.test(s) ? '<span class="tag off">' + f.esc(s) + '</span>' : '<span class="tag warn">' + f.esc(s) + '</span>'; };
+  document.getElementById('conn').innerHTML = '<thead><tr><th>Source</th><th>Via</th><th>State</th><th>Gives</th><th>Missing</th></tr></thead><tbody>' + H.connections.map(function (c) { return '<tr><td><b>' + f.esc(c.name) + '</b></td><td>' + f.esc(c.via) + '</td><td>' + st(c.state) + '</td><td>' + f.esc(c.gives) + '</td><td>' + f.esc(c.missing) + '</td></tr>'; }).join('') + '</tbody>';
+  document.getElementById('gapt').innerHTML = '<thead><tr><th>#</th><th>Gap</th><th>Detail and fix</th><th>Owner</th><th>Status</th></tr></thead><tbody>' + H.gaps.map(function (g) { return '<tr><td>' + g.id + '</td><td><b>' + f.esc(g.title) + '</b></td><td>' + f.esc(g.detail) + '</td><td>' + f.esc(g.owner) + '</td><td>' + (/open/.test(g.status) ? '<span class="tag warn">' : '<span class="tag">') + f.esc(g.status) + '</span></td></tr>'; }).join('') + '</tbody>';
+  document.getElementById('dict').innerHTML = '<thead><tr><th>Column</th><th>Source</th><th>Counting rule</th><th>Caveat</th></tr></thead><tbody>' + H.dictionary.map(function (d) { return '<tr id="d-' + d.key + '"><td><b>' + f.esc(d.name) + '</b></td><td>' + f.esc(d.source) + '</td><td>' + f.esc(d.rule) + '</td><td>' + f.esc(d.caveat) + '</td></tr>'; }).join('') + '</tbody>';
+  var rows = [];
+  if (M) Object.keys(M.periods).forEach(function (k) { var p = M.periods[k]; var ch = p.funnel && p.funnel.meta.checks; rows.push([p.label, p.from + ' → ' + p.to, p.level === 'ad' ? 'ad level (Google Ads + Analytics)' : 'page level (Google Ads + Analytics)', M.built, ch ? 'ads account totals: ' + f.n0(ch.adsAccountTotals.impr) + ' impr · ' + f.n0(ch.adsAccountTotals.clicks) + ' clicks · $' + f.n0(ch.adsAccountTotals.cost) + '; Analytics sessions ' + f.n0(ch.analyticsSessionsTotal) : (p.note || '')]); });
+  else rows.push(['—', '—', 'metrics tier not loaded', '—', '']);
+  document.getElementById('snap').innerHTML = '<thead><tr><th>Period</th><th>Dates</th><th>Level</th><th>Built</th><th>Reconciliation</th></tr></thead><tbody>' + rows.map(function (r) { return '<tr>' + r.map(function (c) { return '<td>' + c + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody>';
+})();
+</script>
+</body>
+</html>

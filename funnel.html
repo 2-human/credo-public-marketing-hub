@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex, nofollow">
+<title>Funnel · Marketing Hub</title>
+<link rel="stylesheet" href="hub.css">
+<style>
+  table.f { min-width:1420px; }
+  table.f th, table.f td { text-align:right; white-space:nowrap; }
+  table.f th:first-child, table.f td:first-child { text-align:left; white-space:normal; min-width:300px; position:sticky; left:0; background:var(--card); }
+  table.f thead th { cursor:pointer; user-select:none; }
+  table.f thead tr.grp th { cursor:default; text-align:center; color:var(--ink); border-bottom:0; }
+  .g-ad { background:var(--ad); } .g-page { background:var(--page); } .g-lead { background:var(--lead); } .g-client { background:var(--client); }
+  tbody tr.row { cursor:pointer; } tbody tr.row:hover td { background:#fafbfc; } tbody tr.row:hover td.g-ad { background:#e6edf9; }
+  .name { font-weight:600; }
+  tr.detail td { background:#fafbfc; text-align:left; white-space:normal; padding:12px 16px 16px 26px; position:static; }
+  tr.detail table { min-width:0; width:auto; margin-top:6px; } tr.detail th, tr.detail td { position:static; background:none; padding:4px 14px 4px 0; min-width:0; font-size:13px; } tr.detail th { cursor:default; }
+  .links a { margin-right:14px; }
+  label.chk { color:var(--mute); display:inline-flex; gap:6px; align-items:center; cursor:pointer; margin-left:14px; }
+</style>
+</head>
+<body>
+<div id="hub-header"></div>
+<main>
+  <h1>Funnel</h1>
+  <p class="lead" id="lead"></p>
+  <div id="controls"></div>
+  <div class="wrap"><table id="t" class="f"></table></div>
+  <div class="notes" id="notes"></div>
+</main>
+<script src="data/registry.js"></script>
+<script src="data/metrics.js"></script>
+<script src="hub.js"></script>
+<script>
+(function () {
+  var f = Hub.fmt, esc = f.esc, n0 = f.n0, n1 = f.n1, usd = f.usd, pct = f.pct;
+  var P = Hub.period(), M = window.HUB_METRICS;
+  Hub.init({ page: 'funnel', sub: 'every ad next to its landing page, click to first payment' });
+  var lead = document.getElementById('lead');
+  if (!P) { lead.textContent = 'The metrics tier is not loaded.'; return; }
+  if (P.level !== 'ad') {
+    var adKey = Object.keys(M.periods).filter(function (k) { return M.periods[k].level === 'ad'; })[0];
+    lead.innerHTML = 'The period <b>' + esc(P.label) + '</b> has page-level data only (see <a href="microsites.html">Microsites</a>). The ad-level funnel exists for: ' + (adKey ? '<a href="#" id="sw">' + esc(M.periods[adKey].label) + '</a>' : 'no period') + '.';
+    var sw = document.getElementById('sw'); if (sw) sw.addEventListener('click', function (e) { e.preventDefault(); try { localStorage.setItem('mh-period', adKey); } catch (x) {} location.reload(); });
+    return;
+  }
+  var F = P.funnel, ANG = F.clusters.angles, PG = F.clusters.pages, CONV = Hub.CONV;
+  lead.textContent = 'Google Ads ' + P.label + '. One row is one ad and the page it points to; group by page, cluster, debt type, campaign or platform. Click a row for its ads, phone number and where its visitors landed.';
+  var MODES = [['ad', 'Ad'], ['page', 'Landing page'], ['cluster', 'Angle cluster'], ['debt', 'Debt type'], ['campaign', 'Campaign'], ['platform', 'Platform']];
+  var state = { mode: 'ad', sort: 'cost', dir: -1, open: {} };
+  document.getElementById('controls').innerHTML = '<div class="seg" id="group">' + MODES.map(function (m) { return '<button data-mode="' + m[0] + '">' + m[1] + '</button>'; }).join('') + '</div>' +
+    '<label class="chk"><input type="checkbox" id="running"> Running ads only</label><label class="chk"><input type="checkbox" id="empty" checked> Show pages with no ad</label>';
+
+  var ADS = {}; F.ads.forEach(function (a) { ADS[a.id] = a; });
+  var taggedAds = {}; F.visits.forEach(function (v) { if (v.tagged) taggedAds[v.ad] = 1; });
+  function untaggedOwners(page) { return F.ads.filter(function (a) { return a.slug === page && !taggedAds[a.id] && a.host === 'start.credolegal.com'; }); }
+  var NOISE = { '(not set)': 1, 'page/thank-you': 1 };
+  function landKind(a, page) { if (page === a.slug) return 'own'; if (NOISE[page]) return 'noise'; return a.sitelinks.indexOf(page) >= 0 ? 'link' : 'other'; }
+  function landing(a) {
+    var L = { own: 0, link: 0, other: 0, noise: 0 };
+    F.visits.forEach(function (v) { if (v.ad === a.id) L[landKind(a, v.page)] += v.sessions; });
+    L.tagged = L.own + L.link + L.other; L.off = L.link + L.other; L.sitelinkClicks = a.mix ? (a.mix.sitelink || 0) : null;
+    L.excess = L.sitelinkClicks == null ? 0 : Math.max(0, L.off - L.sitelinkClicks); L.flag = L.excess >= 30 && L.off > 1.25 * L.sitelinkClicks; return L;
+  }
+  function blank(label) { var r = { label: label, meta: '', tags: [], ads: [], visits: [], impr: 0, clicks: 0, cost: 0, sessions: null, engaged: null, formStart: null, formSubmit: null, own: 0, tagged: 0 }; CONV.forEach(function (c) { r[c] = 0; }); return r; }
+  function addAd(r, a) { r.ads.push(a); var L = landing(a); r.own += L.own; r.tagged += L.tagged; if (L.flag) r.flag = 1; r.impr += a.impr; r.clicks += a.clicks; r.cost += a.cost; CONV.forEach(function (c) { r[c] += a.conv[c] || 0; }); }
+  function addVisit(r, v) { r.visits.push(v); ['sessions', 'engaged', 'formStart', 'formSubmit'].forEach(function (k) { r[k] = (r[k] || 0) + v[k]; }); }
+  function runTags(r) { if (r.key === 'zz') return; if (!r.ads.length) { r.tags.push(['No ad', '']); return; } var on = r.ads.filter(function (a) { return a.running; }).length; r.tags.push(on === r.ads.length ? ['Running', 'on'] : on ? [on + ' of ' + r.ads.length + ' running', 'on'] : ['Paused', '']); }
+
+  function build() {
+    var ads = F.ads.filter(function (a) { return !document.getElementById('running').checked || a.running; });
+    var ids = {}; ads.forEach(function (a) { ids[a.id] = a; });
+    var rows = {}, get = function (k, label) { if (!rows[k]) { rows[k] = blank(label); rows[k].key = k; } return rows[k]; };
+    var m = state.mode;
+    if (m === 'ad') {
+      ads.forEach(function (a) {
+        var r = get(a.id, a.slug || a.host); addAd(r, a); r.meta = a.campaign + ' › ' + a.adGroup + ' · ad ' + a.id;
+        F.visits.forEach(function (v) { if (v.ad === a.id) addVisit(r, v); });
+        if (a.host !== 'start.credolegal.com') r.tags.push(['Outside start site', 'warn']);
+        else if (!taggedAds[a.id]) { var own = untaggedOwners(a.slug); r.tags.push(['No ad id in link' + (own.length > 1 ? ' · page visits shared by ' + own.length + ' ads' : ''), 'warn']); r.shared = F.visits.filter(function (v) { return v.page === a.slug && v.ad === '(not set)'; }); }
+        if (r.flag) r.tags.push(['Landing mismatch', 'warn']);
+        runTags(r);
+      });
+      F.visits.forEach(function (v) { if (!ids[v.ad]) addVisit(get('zz', 'Visits with no matching ad id'), v); });
+      if (rows.zz) rows.zz.meta = 'Counted per page only. Open to see the pages.';
+    } else {
+      var keyOf = function (slug, a) {
+        var c = PG[slug];
+        if (m === 'page') return [slug || '(other)', slug || '(other)'];
+        if (m === 'cluster') return c ? ['c' + c[0], c[0] + ' · ' + ANG[c[0] - 1]] : ['zz', 'Outside the clusters'];
+        if (m === 'debt') return c ? [c[1], c[1]] : ['zz', 'Outside the clusters'];
+        if (m === 'campaign') return a ? [a.campaign, a.campaign] : ['zz', 'No matching ad'];
+        return a ? [a.platform, a.platform[0].toUpperCase() + a.platform.slice(1)] : ['zz', 'No matching ad'];
+      };
+      ads.forEach(function (a) { var k = keyOf(a.host === 'start.credolegal.com' ? a.slug : '', a); if (m === 'page' && a.host !== 'start.credolegal.com') k = [a.host, a.host + ' (outside start site)']; addAd(get(k[0], k[1]), a); });
+      F.visits.forEach(function (v) {
+        var a = ids[v.ad], k;
+        if (m === 'campaign' || m === 'platform') { if (!a) { var own = untaggedOwners(v.page).filter(function (o) { return ids[o.id]; }); a = v.ad === '(not set)' ? own[0] : null; } k = keyOf(v.page, a); }
+        else k = keyOf(PG[v.page] || m === 'page' ? v.page : '', null);
+        if (m === 'page' && !PG[v.page] && !rows[v.page]) k = ['zz', 'Other pages (home, thank-you, not set)'];
+        addVisit(get(k[0], k[1]), v);
+      });
+      if (m !== 'campaign' && m !== 'platform' && document.getElementById('empty').checked) Object.keys(PG).forEach(function (s) { var k = keyOf(s, null); var r = get(k[0], k[1]); r.pages = (r.pages || 0) + 1; });
+      Object.keys(rows).forEach(function (k) { var r = rows[k], c = PG[k]; if (m === 'page' && c) r.meta = c[1] + ' · ' + c[0] + ' ' + ANG[c[0] - 1]; if (m !== 'page' && r.pages) r.meta = r.pages + ' pages on staging · ' + r.ads.length + (r.ads.length === 1 ? ' ad' : ' ads'); runTags(r); });
+    }
+    return Object.keys(rows).map(function (k) { return rows[k]; });
+  }
+  var COLS = [
+    ['impr', 'Impr.', 'ad', function (r) { return n0(r.impr); }, function (r) { return r.impr; }],
+    ['clicks', 'Clicks', 'ad', function (r) { return n0(r.clicks); }, function (r) { return r.clicks; }],
+    ['ctr', 'Click rate', 'ad', function (r) { return pct(r.clicks, r.impr); }, function (r) { return r.impr ? r.clicks / r.impr : 0; }],
+    ['cost', 'Cost', 'ad', function (r) { return r.ads.length ? usd(r.cost) : usd(null); }, function (r) { return r.cost; }],
+    ['sessions', 'Sessions', 'page', function (r) { return n0(r.sessions); }, function (r) { return r.sessions || 0; }],
+    ['eng', 'Engaged', 'page', function (r) { return pct(r.engaged, r.sessions); }, function (r) { return r.sessions ? r.engaged / r.sessions : 0; }],
+    ['own', 'On the ad’s page', 'page', function (r) { return r.tagged ? pct(r.own, r.tagged) : pct(null, 0); }, function (r) { return r.tagged ? r.own / r.tagged : 2; }],
+    ['formStart', 'Form starts', 'lead', function (r) { return n0(r.formStart); }, function (r) { return r.formStart || 0; }],
+    ['formSubmit', 'Form sent (Analytics)', 'lead', function (r) { return n0(r.formSubmit); }, function (r) { return r.formSubmit || 0; }],
+    ['form', 'Form leads (Ads)', 'lead', function (r) { return r.ads.length ? n1(r.form) : n1(null); }, function (r) { return r.form; }],
+    ['calls', 'Calls (Ads)', 'lead', function (r) { return r.ads.length ? n1(r.calls) : n1(null); }, function (r) { return r.calls; }],
+    ['cpl', 'Cost / lead', 'lead', function (r) { return usd(r.form + r.calls ? r.cost / (r.form + r.calls) : null); }, function (r) { return r.form + r.calls ? r.cost / (r.form + r.calls) : 1e12; }],
+    ['sa_sent', 'Agreement sent', 'client', function (r) { return r.ads.length ? n1(r.sa_sent) : n1(null); }, function (r) { return r.sa_sent; }],
+    ['sa_signed', 'Signed', 'client', function (r) { return r.ads.length ? n1(r.sa_signed) : n1(null); }, function (r) { return r.sa_signed; }],
+    ['enrolled', 'Enrolled', 'client', function (r) { return r.ads.length ? n1(r.enrolled) : n1(null); }, function (r) { return r.enrolled; }],
+    ['paid', 'First payment', 'client', function (r) { return r.ads.length ? n1(r.paid) : n1(null); }, function (r) { return r.paid; }],
+    ['cps', 'Cost / signed', 'client', function (r) { return usd(r.sa_signed ? r.cost / r.sa_signed : null); }, function (r) { return r.sa_signed ? r.cost / r.sa_signed : 1e12; }]
+  ];
+  function detail(r) {
+    var h = '', slugs = {}; r.ads.forEach(function (a) { if (a.host === 'start.credolegal.com') slugs[a.slug] = 1; });
+    if (state.mode === 'page' && PG[r.key]) slugs[r.key] = 1;
+    var s = Object.keys(slugs);
+    if (s.length && s.length <= 3) h += '<div class="links">' + s.map(function (x) { return '<a href="https://start.credolegal.com/' + x + '" target="_blank" rel="noopener">Live page: ' + x + '</a><a href="https://staging.credolegal.com/' + (Hub.pageByLive[x] ? Hub.pageByLive[x].slug : x) + '" target="_blank" rel="noopener">New site' + (Hub.pageByLive[x] && Hub.pageByLive[x].renamed ? ': ' + Hub.pageByLive[x].slug : '') + '</a>'; }).join('') + '</div>';
+    if (r.ads.length) h += '<table><tr><th>Ad</th><th>Points to</th><th class="num">Phone</th><th class="num">Clicks</th><th class="num">Cost</th><th class="num">Form leads</th><th class="num">Calls</th><th class="num">Signed</th></tr>' +
+      r.ads.map(function (a) { return '<tr><td>' + esc(a.campaign + ' › ' + a.adGroup) + ' · ' + a.id + (a.running ? '' : ' <span class="tag">Paused</span>') + '</td><td>' + esc(a.slug || a.host) + '</td><td class="num">' + (a.phone || '–') + '</td><td class="num">' + n0(a.clicks) + '</td><td class="num">' + usd(a.cost) + '</td><td class="num">' + n1(a.conv.form || 0) + '</td><td class="num">' + n1(a.conv.calls || 0) + '</td><td class="num">' + n1(a.conv.sa_signed || 0) + '</td></tr>'; }).join('') + '</table>';
+    if (state.mode === 'ad' && r.ads[0] && r.ads[0].mix) {
+      var a0 = r.ads[0], mx = a0.mix, L = landing(a0);
+      h += '<div class="meta" style="margin-top:10px"><b>Clicks by what was clicked (Google Ads):</b> headline ' + n0(mx.headline || 0) + ' · links under the ad ' + n0(mx.sitelink || 0) + ' · call button ' + n0(mx.call || 0) + ' · other ' + n0(mx.other || 0) + '</div>' +
+        '<div class="meta"><b>Visits by where they landed (Analytics):</b> the ad’s page ' + n0(L.own) + ' · a page linked under the ad ' + n0(L.link) + ' · another page ' + n0(L.other) + (L.flag ? ' · <b style="color:#8a5200">' + n0(L.excess) + ' more off-page visits than the ' + n0(L.sitelinkClicks) + ' link clicks explain</b>' : '') + '</div>';
+    }
+    var vs = (r.visits.length ? r.visits : (r.shared || [])).slice().sort(function (a, b) { return b.sessions - a.sessions; });
+    if (vs.length) h += (r.shared && !r.visits.length ? '<div class="meta" style="margin-top:10px">Visits to this page with no ad id (shared with the other ad pointing here):</div>' : '') +
+      '<table><tr><th>Where visitors landed</th><th>Ad id in link</th><th>Landing</th><th class="num">Sessions</th><th class="num">Engaged</th><th class="num">Form starts</th><th class="num">Form sent</th></tr>' +
+      vs.slice(0, 12).map(function (v) { return '<tr><td>' + esc(v.page) + '</td><td>' + esc(v.ad) + '</td><td>' + (ADS[v.ad] ? { own: 'Ad’s page', link: 'Linked under the ad', other: 'Not explained', noise: '–' }[landKind(ADS[v.ad], v.page)] : '–') + '</td><td class="num">' + n0(v.sessions) + '</td><td class="num">' + pct(v.engaged, v.sessions) + '</td><td class="num">' + n0(v.formStart) + '</td><td class="num">' + n0(v.formSubmit) + '</td></tr>'; }).join('') +
+      (vs.length > 12 ? '<tr><td colspan="7" class="meta">+ ' + (vs.length - 12) + ' smaller rows</td></tr>' : '') + '</table>';
+    return h || '<span class="meta">No ad and no visits in this period.</span>';
+  }
+  function render() {
+    var rows = build(), col = COLS.filter(function (c) { return c[0] === state.sort; })[0];
+    rows.sort(function (a, b) { if ((a.key === 'zz') !== (b.key === 'zz')) return a.key === 'zz' ? 1 : -1; var d = (col[4](a) - col[4](b)) * state.dir; return d || a.label.localeCompare(b.label); });
+    var span = function (g) { return COLS.filter(function (c) { return c[2] === g; }).length; };
+    var h = '<thead><tr class="grp"><th></th><th class="g-ad" colspan="' + span('ad') + '">Ad</th><th class="g-page" colspan="' + span('page') + '">Page</th><th class="g-lead" colspan="' + span('lead') + '">Lead</th><th class="g-client" colspan="' + span('client') + '">Client</th></tr><tr><th>' + MODES.filter(function (x) { return x[0] === state.mode; })[0][1] + '</th>' +
+      COLS.map(function (c) { return '<th class="g-' + c[2] + '" data-sort="' + c[0] + '" title="definition in Tracking → dictionary">' + c[1] + (state.sort === c[0] ? (state.dir < 0 ? ' ↓' : ' ↑') : '') + '</th>'; }).join('') + '</tr></thead><tbody>';
+    var tot = blank('Total'); tot.key = 'tot';
+    rows.forEach(function (r) {
+      r.ads.forEach(function (a) { addAd(tot, a); }); r.visits.forEach(function (v) { addVisit(tot, v); });
+      h += '<tr class="row" data-key="' + esc(r.key) + '"><td><span class="name">' + esc(r.label) + '</span>' + r.tags.map(function (t) { return '<span class="tag ' + t[1] + '">' + esc(t[0]) + '</span>'; }).join('') + (r.meta ? '<div class="meta">' + esc(r.meta) + '</div>' : '') + '</td>' + COLS.map(function (c) { return '<td class="g-' + c[2] + '">' + c[3](r) + '</td>'; }).join('') + '</tr>';
+      if (state.open[state.mode + r.key]) h += '<tr class="detail"><td colspan="' + (COLS.length + 1) + '">' + detail(r) + '</td></tr>';
+    });
+    h += '<tr class="total"><td>Total</td>' + COLS.map(function (c) { return '<td>' + c[3](tot) + '</td>'; }).join('') + '</tr></tbody>';
+    document.getElementById('t').innerHTML = h;
+  }
+  function press() { [].forEach.call(document.querySelectorAll('#group button'), function (b) { b.setAttribute('aria-pressed', String(b.dataset.mode === state.mode)); }); }
+  document.getElementById('group').addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; state.mode = b.dataset.mode; press(); render(); });
+  document.getElementById('running').addEventListener('change', render); document.getElementById('empty').addEventListener('change', render);
+  document.getElementById('t').addEventListener('click', function (e) {
+    var th = e.target.closest('th[data-sort]'); if (th) { if (state.sort === th.dataset.sort) state.dir = -state.dir; else { state.sort = th.dataset.sort; state.dir = -1; } return render(); }
+    var tr = e.target.closest('tr.row'); if (!tr || e.target.closest('a')) return; var k = state.mode + tr.dataset.key; state.open[k] = !state.open[k]; render();
+  });
+  document.getElementById('notes').innerHTML = '<h2>How to read this</h2><ul>' +
+    '<li><b>Ad</b> columns come from Google Ads. <b>Page</b> columns and the two form columns marked Analytics come from Google Analytics for visits to start.credolegal.com from Google ads.</li>' +
+    '<li><b>Form leads, calls and the Client columns</b> are Google Ads conversions credited to the ad. Client stages are the CRM stages uploaded to Google Ads: fractions, weeks of lag, and SA Sent counts once per click while the later stages count every upload (Tracking → gaps G3, G4).</li>' +
+    '<li><b>Form sent (Analytics)</b> counts sessions with at least one form send; Analytics records about four send events per lead.</li>' +
+    '<li><b>On the ad’s page</b> is the share of an ad’s visits that landed on the page the ad points to. <b>Landing mismatch</b> marks an ad whose off-page visits exceed its sitelink clicks by 25% and at least 30.</li>' +
+    '<li>Ads tagged “No ad id in link” do not pass their id to Analytics, so their visits are counted per page only.</li>' +
+    '<li>All figures describe the live start.credolegal.com pages; rows match on the page address, so they carry over when ads point to the new site.</li></ul>';
+  press(); render();
+})();
+</script>
+</body>
+</html>
