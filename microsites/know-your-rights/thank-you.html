@@ -1695,7 +1695,7 @@ h1.heading-46 em {
         const originalHref = link.getAttribute("href");
 
         try {
-          const finalUrl = new URL(originalHref, window.location.origin);
+          const finalUrl = new URL(originalHref, window.location.href);
           const query = new URLSearchParams(finalUrl.search);
 
           // Add stored or fallback tracking params

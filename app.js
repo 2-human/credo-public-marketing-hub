@@ -55,13 +55,13 @@
                 ['cookie-policy', 'Cookie policy', 'legal'], ['thank-you', 'Thank you', 'system']];
   var sites = S.sites.map(function (s) {
     var pages = SHARED.map(function (x) {
-      return { id: x[0], label: x[1], kind: x[2], file: '/microsites/' + s.angle + '/' + x[0] + '.html',
+      return { id: x[0], label: x[1], kind: x[2], file: 'microsites/' + s.angle + '/' + x[0] + '.html',
                staging: STAGING + (x[0] === 'index' ? s.angle : x[0]), live: null, liveSlug: null, inMenu: null };
     });
     s.types.forEach(function (t) {
       t.pages.forEach(function (p) {
         var reg = Hub.pageBy[p.slug] || null;
-        pages.push({ id: 'services/' + p.slug, label: p.slug, kind: 'service', debt: t.label, file: '/microsites/' + s.angle + '/services/' + p.slug + '.html',
+        pages.push({ id: 'services/' + p.slug, label: p.slug, kind: 'service', debt: t.label, file: 'microsites/' + s.angle + '/services/' + p.slug + '.html',
           staging: STAGING + p.slug, live: reg && reg.live ? reg.liveUrl : null, liveSlug: p.live, inMenu: t.pick === p.slug, reason: t.reason, by: t.by,
           running: p.running, hadAd: p.hadAd, reg: reg });
       });
