@@ -6,7 +6,7 @@
  * Data: registry.js (HUB), metrics.js (HUB_METRICS, local), microsites.js, ads-tree.js (HUB_ADS), ads-metrics.js. */
 (function () {
   var H = window.HUB, M = window.HUB_METRICS || null, S = window.HUB_MICROSITES, A = window.HUB_ADS, AM = window.HUB_ADS_METRICS || null;
-  var B = window.BACKLOG || null, W = window.HUB_WORK || null, RV = window.HUB_REVIEWS || null, ST = window.HUB_STATUTES || null, O = window.HUB_ORGANIC || null;
+  var B = window.BACKLOG || null, W = window.HUB_WORK || null, RV = window.HUB_REVIEWS || null, PM = window.HUB_PHONEMAP || null, ST = window.HUB_STATUTES || null, O = window.HUB_ORGANIC || null;
   var TAB = null;
   /* review comments (MH-11 D3): the shared review database the old hubs' widget wrote to (credo-712c4, /comments).
    * Each comment is mapped to the entity it was left on; new comments from the hub are written with page
@@ -272,6 +272,7 @@
       .map(function (x) { return { label: x[1], href: '#/more/' + x[0] }; });
     return [{ sec: 'Website', label: 'All microsites', href: '#/website', count: sites.length, children: web },
             { sec: 'Ads', label: 'All platforms', href: '#/ads', count: plats.length, children: ads },
+            { label: 'Ads → pages → phones', href: '#/ads/phones', count: PM ? PM.rows.length : 0 },
             { sec: 'Organic' }].concat(organicNav(), [{ sec: 'Work' }], work, [{ sec: 'Reference' }, { label: 'Statutes', href: '#/reference/statutes', count: ST ? ST.statutes.length : 0 }], [{ sec: 'More' }], more);
   }
   function adLabel(p, a) { return p.key === 'google' ? (a.headlines[0] || a.name) : p.key === 'meta' ? (a.version + ' · ' + a.name.split('-').slice(0, -1).join('-').replace(/^DD_/, '')) : a.name; }
@@ -715,6 +716,58 @@
     return h;
   }
 
+  /* ───────────── ads → pages → phones (MH-18) ───────────── */
+  var PLAT = { google: 'Google', meta: 'Meta', nextdoor: 'Nextdoor' };
+  function hubPage(slug) { return slug === '' ? '#/website/default/index' : slug == null ? null : pageHref(slug); }
+  function slugTxt(s) { return s === '' ? '/' : s == null ? '' : '/' + s; }
+  var MCHIP = { same: '<span class="chip ok">same</span>', differs: '<span class="chip red">differs</span>', 'no page number': '<span class="chip warn">no page number</span>', 'no call number': '<span class="chip warn">no call number</span>', 'no landing page': '<span class="chip">no landing page</span>', 'n/a': '<span class="chip">page number only</span>' };
+  function viewPhoneMap() {
+    var tabs = [['all', 'All', PM.rows.length]].concat(['google', 'meta', 'nextdoor'].map(function (k) { return [k, PLAT[k], PM.rows.filter(function (r) { return r.platform === k; }).length]; }),
+      [['differs', 'Numbers differ', PM.rows.filter(function (r) { return r.match === 'differs'; }).length], ['nocall', 'No call number', PM.rows.filter(function (r) { return r.match === 'no call number'; }).length], ['running', 'Running now', PM.rows.filter(function (r) { return r.running; }).length]]);
+    var cur = tabs.map(function (t) { return t[0]; }).indexOf(TAB) >= 0 ? TAB : 'all';
+    var rows = PM.rows.filter(function (r) { return cur === 'all' || r.platform === cur || (cur === 'differs' && r.match === 'differs') || (cur === 'nocall' && r.match === 'no call number') || (cur === 'running' && r.running); });
+    var n = function (f) { return PM.rows.filter(f).length; };
+    var h = '<h1>Ads → pages → phones</h1><p class="lead">Every ad group (Google) and ad set (Meta, Nextdoor), the page its ads open and the phone numbers involved. Click a row for details.</p>' +
+      '<details class="state"><summary>How the numbers work</summary><p>A Google ad shows its own call number (a call asset on the ad group or the campaign). A click on any ad opens its landing page, ' +
+      'which shows the number of its row in the site’s phone table for the visitor’s source (utm_source, or the ad click id). That page keeps the number for 90 days, so every later page of the visit shows the same one (PBI-42). ' +
+      'Meta and Nextdoor ads have no number of their own. Numbers on the page: ' + esc(PM.stagingTableFrom) + '; the ads land on start.credolegal.com until the domain switch.</p></details>' +
+      '<div class="tiles kpis">' + [['Rows (ad group × page)', PM.rows.length], ['Running now', n(function (r) { return r.running; })], ['Call number ≠ page number', n(function (r) { return r.match === 'differs'; })],
+        ['Google, no call number', n(function (r) { return r.match === 'no call number'; })], ['Page not on staging', n(function (r) { return r.staging === 'not on staging'; })]]
+        .map(function (t) { return '<div class="tile static"><p>' + esc(t[0]) + '</p><div class="big">' + t[1] + '</div></div>'; }).join('') + '</div>' +
+      '<nav class="mtabs" aria-label="Filter">' + tabs.map(function (t) { return '<a href="#/ads/phones' + (t[0] === 'all' ? '' : '?tab=' + t[0]) + '"' + (t[0] === cur ? ' aria-current="page"' : '') + '>' + esc(t[1]) + ' <span class="cnt">' + t[2] + '</span></a>'; }).join('') + '</nav>' +
+      '<div class="scroll"><table class="tbl"><thead><tr><th>Platform</th><th>Campaign › ad group</th><th class="num">Ads</th><th>Landing page (live → staging)</th><th>Ad’s call number</th><th>Number on the page</th><th>Match</th><th>Key sent</th></tr></thead><tbody>';
+    rows.forEach(function (r) {
+      h += '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); drawerPhoneRow(r); }) + '><td>' + esc(PLAT[r.platform] || r.platform) + '</td>' +
+        '<td>' + esc(r.campaign) + ' › <b>' + esc(r.group) + '</b>' + (r.running ? ' <span class="chip ok">running</span>' : '') + '</td><td class="num">' + r.ads.length + '</td>' +
+        '<td>' + (r.url ? '<code>' + esc(slugTxt(r.liveSlug)) + '</code>' + (r.staging === 'renamed' ? ' → <code>' + esc(slugTxt(r.stagingSlug)) + '</code>' : r.staging === 'not on staging' ? ' <span class="chip red">not on staging</span>' : '') : dash) + '</td>' +
+        '<td>' + (r.callPhone ? esc(r.callPhone) + '<div class="sub">' + esc(r.callLevel) + '</div>' : dash) + '</td>' +
+        '<td>' + (r.sitePhone ? esc(r.sitePhone) + '<div class="sub">source ' + esc(r.source) + '</div>' : dash) + '</td><td>' + (MCHIP[r.match] || esc(r.match)) + '</td>' +
+        '<td>' + (/^yes/.test(r.sendsKey) ? '<span class="chip ok">yes</span>' : '<span class="chip warn">no</span>') + '</td></tr>';
+    });
+    return h + '</tbody></table></div><p class="note">Match compares the Google ad’s call number with the number its landing page shows Google visitors. Meta and Nextdoor ads have no call number of their own: the page’s number is the only one. ' +
+      'Ads land on start.credolegal.com until the domain switch; staging shows the numbers of the site being built.</p>';
+  }
+  function drawerPhoneRow(r) {
+    var hp = hubPage(r.stagingSlug), ad = function (a) { var f = findAd(r.pk, r.ck, r.gk, a.key); var sub = f.a && (f.a.headlines || [])[0] ? '<div class="sub">' + esc(f.a.headlines[0]) + '</div>' : f.a && f.a.headline ? '<div class="sub">' + esc(f.a.headline) + '</div>' : '';
+      return (f.a ? '<a href="' + adHref(f.p, f.c, f.g, f.a) + '">' + esc(a.name) + '</a>' : esc(a.name)) + sub; };
+    var basic = kv([['Platform', esc(PLAT[r.platform] || r.platform)], ['Campaign', esc(r.campaign) + (r.campaignStatus ? '<div class="sub">' + esc(r.campaignStatus) + '</div>' : '')],
+      [r.platform === 'google' ? 'Ad group' : 'Ad set', esc(r.group) + (r.groupId ? '<div class="sub">id ' + esc(r.groupId) + '</div>' : '') + (r.groupStatus ? '<div class="sub">' + esc(r.groupStatus) + '</div>' : '')],
+      ['Running now', r.running ? '<span class="chip ok">yes</span>' : 'no'], ['Ads', String(r.ads.length)], ['Landing page (live)', r.url ? link(r.url) : dash],
+      ['On staging', r.stagingSlug != null ? link('https://staging.credolegal.com' + slugTxt(r.stagingSlug)) + '<div class="sub">' + esc(r.staging) + '</div>' : esc(r.staging)],
+      ['Ad’s call number', r.callPhone ? esc(r.callPhone) + '<div class="sub">' + esc(r.callLevel) + ' call asset</div>' : dash], ['Number on the page', r.sitePhone ? esc(r.sitePhone) + '<div class="sub">utm_source ' + esc(r.source) + '</div>' : dash],
+      ['Match', MCHIP[r.match] || esc(r.match)]]);
+    var srcRows = r.sitePhones ? '<table class="tbl"><thead><tr><th>Visitor’s source</th><th>Number shown</th></tr></thead><tbody>' + Object.keys(r.sitePhones).map(function (k) {
+      return '<tr' + (k === r.source || (k === 'default' && r.source === '(none sent)') ? ' class="sel"' : '') + '><td>' + esc(k) + '</td><td>' + esc(r.sitePhones[k]) + '</td></tr>'; }).join('') + '</tbody></table>' : '';
+    var phone = '<p>' + (r.platform === 'google' ? 'The ad shows its own call number in Google (call asset at ' + esc(r.callLevel || 'no') + ' level). A click opens the landing page, which shows the number of its phone-table row for the visitor’s source.' :
+        'Meta and Nextdoor ads carry no phone number; the landing page shows the number of its phone-table row for the visitor’s source.') + ' The page the ad opened saves that number for 90 days and every later page of the visit shows it (PBI-42).</p>' +
+      kv([['Phone-table row', esc(r.phoneRow)], ['Source the ads send', esc(r.source)], ['Ad-group key', r.key ? '<code>' + esc(r.key) + '</code>' : dash], ['Ads send the key', esc(r.sendsKey)],
+        ['Planned number for the key', r.planned ? esc(r.planned) + '<div class="sub">per ad group lookup (proposal, not live)</div>' : dash], ['Bing number (call-tracking sheet)', esc(r.bingSheet)], ['Notes', esc(r.notes)]]) + srcRows;
+    var adsTab = '<table class="tbl"><thead><tr><th>Ad</th><th>Type</th><th>Status</th></tr></thead><tbody>' + r.ads.map(function (a) { return '<tr><td>' + ad(a) + '</td><td>' + esc(a.type || '') + '</td><td>' + esc(a.status || '') + '</td></tr>'; }).join('') + '</tbody></table>';
+    var page = kv([['Live (where the ads land today)', r.url ? link(r.url) : dash], ['Staging (the site being built)', r.stagingSlug != null ? link('https://staging.credolegal.com' + slugTxt(r.stagingSlug)) : esc(r.staging)],
+      ['In the hub', hp ? '<a href="' + hp + '">Open the page in Website</a>' : '<span class="note">not part of a microsite</span>']]);
+    openDrawer(r.campaign + ' › ' + r.group, [['Basic info', basic], ['Phone', phone], ['Ads', adsTab], ['Page', page]]);
+  }
+
   /* ───────────── work: the staging plan board (MH-11 D1) ───────────── */
   function pbiState(p) {
     var st = p.tasks.map(function (t) { return t[1]; });
@@ -789,7 +842,7 @@
     var active = B.pbis.filter(function (p) { return pbiState(p) === 'doing'; }), done = B.pbis.filter(function (p) { return pbiState(p) === 'done'; }), blocked = B.pbis.filter(function (p) { return p.blocked; });
     var card = function (k, v) { return '<div class="tile static"><p>' + esc(k) + '</p><div class="big">' + v + '</div></div>'; };
     var h = '<h1>Board</h1><p class="lead">' + esc(B.site ? B.site.name + ' · ' + B.site.domain : '') + ' · updated ' + esc(B.updated) + '. One row per backlog item; click a row for its details, tasks, review and change-log entry.</p>' +
-      '<div class="tiles">' + card('In progress (WIP 1)', active.length ? esc(active.map(function (p) { return p.id; }).join(', ')) : 'none') + card('Items done', done.length + ' / ' + B.pbis.length) + card('Waiting on a decision', String(blocked.length)) + '</div>' +
+      '<div class="tiles kpis">' + card('In progress (WIP 1)', active.length ? esc(active.map(function (p) { return p.id; }).join(', ')) : 'none') + card('Items done', done.length + ' / ' + B.pbis.length) + card('Waiting on a decision', String(blocked.length)) + '</div>' +
       (active.length > 1 ? '<div class="warnbox">WIP limit broken: ' + active.length + ' rows have tasks in Doing (' + esc(active.map(function (p) { return p.id; }).join(', ')) + ').</div>' : '') +
       (B.state ? '<details class="state"><summary>Current state</summary><p>' + esc(B.state) + '</p></details>' : '') +
       '<div class="scroll"><table class="tbl"><thead><tr><th>Item</th><th>State</th><th>By</th><th class="num">To do</th><th class="num">Doing</th><th class="num">Done</th><th>Review</th><th>Blocked by</th></tr></thead><tbody>';
@@ -846,63 +899,235 @@
   }
   function viewDoc(path) { return '<h1>' + esc(path.replace(/^review\//, '')) + '</h1>' + docBody(path); }
 
-  /* ───────────── organic (MH-11 D4): posts, articles, the Nextdoor business page and engagement ───────────── */
-  var CH = { linkedin: 'LinkedIn', facebook: 'Facebook', nextdoor: 'Nextdoor' };
+  /* ───────────── organic (MH-11 D4; v2 6 Oct 2026): the four-platform calendar, approvals, Buffer, Nextdoor page and engagement ─────────────
+   * The calendar works like the legacy Nextdoor feed calendar (week grid that opens on today, a card per post with
+   * image, slot time, topic, badges and metrics; click → the post as it appears on the platform, copy the text), in the
+   * hub's layout: the post opens in the drawer. Campaign posts start as drafts. Approve / Request changes writes to the
+   * shared review database (page "organic-approval", anchor "org-<post id>"); tools/marketing-hub/organic-sync.mjs reads
+   * those records, schedules approved posts (Nextdoor: into calendar-posts.js for the daily task; FB, IG, LinkedIn: the
+   * Buffer queue). */
+  var CH = { nextdoor: 'Nextdoor', facebook: 'Facebook', instagram: 'Instagram', linkedin: 'LinkedIn' }, CHS = ['nextdoor', 'facebook', 'instagram', 'linkedin'];
+  var OC = O && O.campaign, DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  var todayIso = (function () { var n = new Date(); return n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0'); })();
+  var chFilter = (function () { try { return JSON.parse(localStorage.getItem('mh-org-ch')) || CHS.slice(); } catch (e) { return CHS.slice(); } })();
+  var dU = function (s) { var p = s.split('-'); return new Date(Date.UTC(+p[0], +p[1] - 1, +p[2])); }, isoU = function (d) { return d.toISOString().slice(0, 10); };
+  var addDays = function (s, n) { var d = dU(s); d.setUTCDate(d.getUTCDate() + n); return isoU(d); };
+  var monday = function (s) { var d = dU(s); return addDays(s, -((d.getUTCDay() + 6) % 7)); };
+  var fmtDay = function (s) { var d = dU(s); return DOW[(d.getUTCDay() + 6) % 7] + ' ' + d.getUTCDate() + ' ' + MON[d.getUTCMonth()]; };
+  var fmtTime = function (t) { if (!t) return ''; var h = +t.slice(0, 2); return ((h % 12) || 12) + ':' + t.slice(3, 5) + ' ' + (h < 12 ? 'AM' : 'PM'); };
+  var chChip = function (c) { return '<span class="ch ch-' + c + '">' + esc(CH[c] || c) + '</span>'; };
+  var imgUrl = function (p) { return p.img || ''; };
+
+  /* approvals: the latest record per post in the shared database; built status wins once a post is scheduled or published */
+  function apprOf(p) {
+    if (!COMMENTS) return null; var best = null;
+    Object.keys(COMMENTS).forEach(function (k) { var c = COMMENTS[k]; if (c.page === 'organic-approval' && c.anchor === 'org-' + p.id && (!best || (c.timestamp || 0) > (best.timestamp || 0))) best = c; });
+    return best;
+  }
+  function stOf(p) {
+    if (p.status === 'published' || p.status === 'scheduled') return p.status;
+    if (p.status === 'approved' || p.status === 'changes') { var a0 = apprOf(p); if (!a0 || a0.status === p.status) return p.status; }
+    var a = apprOf(p); if (a && a.status !== 'draft') return a.status === 'approved' ? 'approved' : 'changes';
+    return p.status || 'draft';
+  }
+  var ST_LABEL = { published: 'published', scheduled: 'scheduled', approved: 'approved · to sync', changes: 'changes requested', draft: 'draft' };
+  var ST_CLS = { published: 'ok', scheduled: 'ok', approved: 'ok', changes: 'red', draft: 'warn' };
+  var stChip = function (p) { var s = stOf(p); return '<span class="chip ' + ST_CLS[s] + '">' + esc(ST_LABEL[s]) + '</span>'; };
+  var typeChip = function (p) { return p.type === 'ad' ? '<span class="chip">landing page</span>' : '<span class="chip">education</span>'; };
+  function postApprove(p, status, note) {
+    var who = (function () { try { return localStorage.getItem('credo_reviewer'); } catch (x) { return null; } })() || (window.prompt('Your name:', '') || '').trim();
+    if (!who) return Promise.reject('no name'); try { localStorage.setItem('credo_reviewer', who); } catch (x) {}
+    var rec = { page: 'organic-approval', anchor: 'org-' + p.id, author: who, status: status, comment: note || '', channel: p.channel, date: p.date, timestamp: Date.now() };
+    return fetch(RTDB + '.json', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rec) }).then(function (r) { if (!r.ok) throw 0; return r.json(); })
+      .then(function (d) { COMMENTS = COMMENTS || {}; COMMENTS[d.name] = rec; return rec; });
+  }
+
   function organicNav() {
     if (!O) return [];
     var n = function (c) { return O.posts.filter(function (p) { return p.channel === c; }).length; };
-    return [{ label: 'Calendar', href: '#/organic', count: O.posts.length }, { label: 'Nextdoor', href: '#/organic/nextdoor', count: n('nextdoor') },
-      { label: 'LinkedIn', href: '#/organic/linkedin', count: n('linkedin') }, { label: 'Facebook', href: '#/organic/facebook', count: n('facebook') },
-      { label: 'Articles', href: '#/organic/articles', count: O.articles.length, children: O.articles.map(function (a) { return { label: a.title, href: '#/organic/articles/' + enc(a.slug) }; }) }];
+    var drafts = O.posts.filter(function (p) { return stOf(p) === 'draft'; }).length;
+    return [{ label: 'Calendar', href: '#/organic', count: O.posts.length }, { label: 'Campaign', href: '#/organic/campaign', count: drafts ? drafts + ' to approve' : null }]
+      .concat(CHS.map(function (c) { return { label: CH[c], href: '#/organic/' + c, count: n(c) }; }))
+      .concat([{ label: 'Articles', href: '#/organic/articles', count: O.articles.length, children: O.articles.map(function (a) { return { label: a.title, href: '#/organic/articles/' + enc(a.slug) }; }) }]);
   }
-  var chChip = function (c) { return '<span class="ch ch-' + c + '">' + esc(CH[c] || c) + '</span>'; };
+
+  /* the post as it appears on the platform */
+  function linkify(s) { return esc(s).replace(/((?:https?:\/\/)?(?:credolegal\.s\.gy|staging\.credolegal\.com)[\w\/?=&.-]*)/g, function (m) { return '<a href="' + (m.indexOf('http') ? 'https://' + m : m) + '" target="_blank" rel="noopener">' + m + '</a>'; })
+    .replace(/(#[A-Za-z]\w+)/g, '<span class="pv-tag">$1</span>'); }
+  function ocPreview(p) {
+    var body = linkify(p.text || ''), disc = p.disclaimer ? '<div class="pv-disc">' + esc(p.disclaimer) + '</div>' : '', im = imgUrl(p) ? '<img class="pv-img" src="' + esc(imgUrl(p)) + '" alt="">' : '';
+    var when = fmtDay(p.date) + (p.time ? ' · ' + fmtTime(p.time) + ' ET' : '');
+    if (p.channel === 'nextdoor') return '<div class="pv pv-nd"><div class="pv-hd"><span class="pv-av nd"><img src="assets/organic/credo-mark.png" alt=""></span><span><b>Credo Legal Services Professional Corporation</b><small>Business post · ' + esc(when) + '</small></span></div>' +
+      '<div class="pv-tx">' + body + disc + '</div>' + im + '<div class="pv-ft"><span>Thank</span><span>Reply</span><span>Share</span></div></div>';
+    if (p.channel === 'facebook') return '<div class="pv pv-fb"><div class="pv-hd"><span class="pv-av">C</span><span><b>Crēdo Legal</b><small>' + esc(when) + ' · Public</small></span></div>' +
+      '<div class="pv-tx">' + body + disc + '</div>' + im + (p.link ? '<div class="pv-card"><small>CREDOLEGAL.S.GY</small><b>Free case review · Crēdo Legal</b></div>' : '') + '<div class="pv-ft"><span>Like</span><span>Comment</span><span>Share</span></div></div>';
+    if (p.channel === 'instagram') return '<div class="pv pv-ig"><div class="pv-hd"><span class="pv-av ig">C</span><span><b>credolegal</b></span></div>' + im +
+      '<div class="pv-icons">♡ &nbsp;💬&nbsp; ➤</div><div class="pv-tx"><b>credolegal</b> ' + body + disc + '</div><div class="pv-when">' + esc(when) + '</div></div>';
+    return '<div class="pv pv-li"><div class="pv-hd"><span class="pv-av li">C</span><span><b>Crēdo Legal</b><small>1,100 followers · ' + esc(when) + '</small></span></div>' +
+      '<div class="pv-tx">' + body + disc + '</div>' + im + '<div class="pv-ft"><span>Like</span><span>Comment</span><span>Repost</span><span>Send</span></div></div>';
+  }
+  function actionsHtml(p) {
+    var s = stOf(p), canAppr = p.campaign === 'v2' && (s === 'draft' || s === 'changes' || s === 'approved');
+    return '<div class="toolbar pv-acts"><button class="btn" data-copy="' + esc(p.id) + '">Copy post text</button>' +
+      (canAppr && s !== 'approved' ? '<button class="btn dl" data-appr="' + esc(p.id) + '">Approve</button>' : '') +
+      (canAppr ? '<button class="btn" data-chg="' + esc(p.id) + '">Request changes</button>' : '') +
+      (p.url ? link(p.url, 'Open post ↗') : '') + (p.insights ? link(p.insights, 'Insights ↗') : '') + '<span class="sub" data-msg></span></div>' +
+      '<form class="cform chg-form" data-chgf="' + esc(p.id) + '" hidden><label>What should change?</label><textarea rows="3" required></textarea><button class="btn" type="submit">Send</button></form>';
+  }
   function drawerPost(p) {
-    var art = p.article && O.articles.filter(function (a) { return a.slug === p.article; })[0];
-    var info = kv([['Channel', chChip(p.channel)], ['Date', esc(p.date)], ['Status', p.status === 'published' ? '<span class="chip ok">published</span>' : '<span class="chip">' + esc(p.status) + '</span>'],
-      ['Kind', esc(p.kind || 'post')], ['Article', art ? '<a href="#/organic/articles/' + enc(art.slug) + '">' + esc(art.title) + '</a>' : ''], ['Pillar', esc(p.pillar || '')],
-      ['Links to', p.link ? link(p.link) : p.lp ? link(p.lp) : ''], ['Post', p.url ? link(p.url, 'open on Nextdoor ↗') : ''], ['Insights', p.insights ? link(p.insights, 'Nextdoor insights ↗') : '']]);
-    var text = (p.img ? media(p.img, p.title) : '') + '<div class="copy">' + esc(p.text || '') + '</div>';
-    var met = p.metrics ? '<div class="mgrid">' + mt('Views', n0(p.metrics.views)) + mt('Reactions', n0(p.metrics.reactions)) + mt('Comments', n0(p.metrics.comments)) + '</div><p class="note">As of ' + esc(p.metrics.asOf || '') + ' (Nextdoor insights).</p>'
-      : '<p class="note">' + (p.channel === 'nextdoor' ? 'No metrics recorded yet.' : 'No metrics: ' + esc(CH[p.channel]) + ' is not connected (short-link clicks per post come from short.io when tracked).') + '</p>';
-    openDrawer(p.title || p.id, [['Basic info', info], ['Text', text], ['Metrics', met]]);
+    var a = apprOf(p), s = p.short && p.short[p.channel];
+    var info = kv([['Channel', chChip(p.channel)], ['Campaign', p.campaign === 'v2' ? esc('Week ' + p.week + ' · ' + p.theme) : 'Nextdoor, first campaign (Aug–Sep)'],
+      ['Date', esc(fmtDay(p.date) + ' ' + p.date.slice(0, 4)) + (p.time ? ' · ' + esc(fmtTime(p.time)) + ' ET' : '') + (p.postedAt ? ' · posted ' + esc(p.postedAt.slice(0, 16).replace('T', ' ')) + ' UTC' : '')],
+      ['Status', stChip(p) + (a ? ' <span class="sub">' + esc(a.author + ' · ' + new Date(a.timestamp).toISOString().slice(0, 10)) + (a.comment ? ': ' + esc(a.comment) : '') + '</span>' : '')],
+      ['Kind', esc(p.kind || '')], ['Topic', esc(p.title || '')], ['Headline on image', esc([p.head, p.sub].filter(Boolean).join(' · '))],
+      ['Landing page', p.lp ? link(p.lp) : ''], ['Short link', s ? link(s.url) + (s.planned ? ' <span class="chip warn">created on approval</span>' : s.asOf ? ' · <b>' + n0(s.clicks) + '</b> clicks as of ' + esc(s.asOf) : '') : p.channel === 'instagram' && p.type === 'ad' ? 'Link in bio: credolegal.s.gy/ig-bio' : ''],
+      ['Destination', s && s.dest ? '<span class="sub">' + esc(s.dest) + '</span>' : ''], ['Image', esc(p.imgNote || '') + (imgUrl(p) ? ' · ' + link(imgUrl(p), 'file ↗') : '')],
+      ['Length', p.full ? esc(p.full.length + (p.limit ? ' / ' + p.limit : '') + ' characters' + (p.disclaimer ? ' incl. disclaimer' : '')) : ''], ['Disclaimer', esc(p.why || '')]]);
+    var m = p.metrics, met = m ? '<div class="mgrid">' + mt('Views', n0(m.views)) + mt('Reactions', n0(m.reactions)) + mt('Comments', n0(m.comments)) + (s && s.asOf ? mt('Link clicks', n0(s.clicks)) : '') + '</div><p class="note">As of ' + esc(m.asOf || '') + ' (Nextdoor insights).</p>'
+      : '<p class="note">' + (p.channel === 'nextdoor' ? 'Metrics arrive after the daily task publishes the post (views from the insights page, reactions and comments from the post).' : 'Metrics arrive once the post is published through Buffer (Buffer post analytics); link clicks come from short.io.') + '</p>';
+    var buf = p.buffer ? kv([['Service', esc(CH[p.channel])], ['Scheduled for', esc(p.buffer.scheduledAt)], ['Image URL', p.buffer.media ? link(p.buffer.media.photo, 'public file ↗') : ''], ['Link', p.buffer.link ? link(p.buffer.link) : 'none (Instagram: link in bio)'],
+      ['Queued', p.buffer.queued ? esc(p.buffer.queued.id + ' · ' + p.buffer.queued.at) : '<span class="chip">not queued</span> queued by Claude through the Buffer connector after approval, once Credo’s Buffer account is connected']]) +
+      '<h3>Payload</h3><pre class="code">' + esc(JSON.stringify(p.buffer, null, 1)) + '</pre>'
+      : '<p class="note">Nextdoor is not a Buffer channel. Approved Nextdoor posts are copied into the Nextdoor feed calendar and published by the daily Chrome task at their slot.</p>';
+    openDrawer((p.title || p.id) + ' · ' + (CH[p.channel] || ''), [['Preview', actionsHtml(p) + ocPreview(p)], ['Basic info', info], ['Metrics', met], ['Buffer', buf], ['Comments', commentsTab('org-' + p.id)]], true);
   }
-  function postRow(p, cols) {
-    return '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); drawerPost(p); }) + '><td>' + esc(p.date) + '</td><td>' + chChip(p.channel) + '</td><td>' + esc(p.title || '') + '<div class="sub">' + esc((p.text || '').slice(0, 110)) + ((p.text || '').length > 110 ? '…' : '') + '</div></td><td>' +
-      (p.status === 'published' ? '<span class="chip ok">published</span>' : '<span class="chip">' + esc(p.status) + '</span>') + '</td>' + (cols || '') + '</tr>';
+  /* drawer actions: copy, approve, request changes */
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-copy],[data-appr],[data-chg]'); if (!b || !O) return;
+    var id = b.getAttribute('data-copy') || b.getAttribute('data-appr') || b.getAttribute('data-chg'), p = O.posts.filter(function (x) { return x.id === id; })[0]; if (!p) return;
+    var msg = b.parentNode.querySelector('[data-msg]');
+    if (b.hasAttribute('data-copy')) { navigator.clipboard.writeText(p.full || p.text || '').then(function () { msg.textContent = 'Copied.'; }); return; }
+    if (b.hasAttribute('data-chg')) { var f = document.querySelector('[data-chgf="' + id + '"]'); f.hidden = !f.hidden; if (!f.hidden) f.querySelector('textarea').focus(); return; }
+    msg.textContent = 'Saving…'; postApprove(p, 'approved').then(function () { drawerPost(p); refreshOrganic(); }).catch(function () { msg.textContent = 'Not saved.'; });
+  });
+  document.addEventListener('submit', function (e) {
+    var f = e.target.closest('[data-chgf]'); if (!f || !O) return; e.preventDefault(); e.stopPropagation();
+    var p = O.posts.filter(function (x) { return x.id === f.getAttribute('data-chgf'); })[0], note = f.querySelector('textarea').value.trim(); if (!p || !note) return;
+    postApprove(p, 'changes', note).then(function () { drawerPost(p); refreshOrganic(); });
+  }, true);
+  function refreshOrganic() { if (location.hash.indexOf('#/organic') !== 0) return; var y = $('app-main').scrollTop; DR = []; $('app-main').innerHTML = organicHtml(); $('app-main').scrollTop = y; renderTree(); }
+
+  /* calendar */
+  function visible(p) { return chFilter.indexOf(p.channel) >= 0; }
+  function ocCard(p, compact) {
+    var m = p.metrics, ratio = p.channel === 'facebook' || p.channel === 'instagram' ? '4/5' : (/1x1|bold/.test(p.img) || p.campaign === 'v2' ? '1/1' : '16/9');
+    return '<button class="oc st-' + stOf(p) + '"' + dr(function (el) { el.classList.add('sel'); drawerPost(p); }) + '>' +
+      (imgUrl(p) ? '<span class="oc-img" style="aspect-ratio:' + ratio + '"><img src="' + esc(imgUrl(p)) + '" alt="" loading="lazy"></span>' : '<span class="oc-img none">no image</span>') +
+      '<span class="oc-when">' + chChip(p.channel) + ' ' + esc(p.time ? fmtTime(p.time) : p.status === 'published' ? 'posted' : '') + '</span>' +
+      '<span class="oc-t">' + esc(p.title || '') + '</span>' + (compact ? '' : '<span class="oc-pv">' + esc((p.text || '').slice(0, 140)) + '</span>') +
+      '<span class="oc-b">' + stChip(p) + typeChip(p) + '</span>' +
+      (m ? '<span class="oc-m"><b>' + n0(m.views) + '</b> views · ' + n0(m.reactions) + ' reactions · ' + n0(m.comments) + ' comments</span>' : '') + '</button>';
+  }
+  function filterBar() {
+    return '<span class="seg oc-seg">' + CHS.map(function (c) { return '<button data-och="' + c + '" aria-pressed="' + (chFilter.indexOf(c) >= 0) + '">' + esc(CH[c]) + '</button>'; }).join('') + '</span>';
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-och]'); if (b) { var c = b.getAttribute('data-och'), i = chFilter.indexOf(c);
+      if (i >= 0 && chFilter.length > 1) chFilter.splice(i, 1); else if (i < 0) chFilter.push(c);
+      try { localStorage.setItem('mh-org-ch', JSON.stringify(chFilter)); } catch (x) {} DR = []; $('app-main').innerHTML = organicHtml(); return; }
+    var w = e.target.closest('[data-apprweek]'); if (w) { var ps = O.posts.filter(function (p) { return p.campaign === 'v2' && visible(p) && stOf(p) === 'draft' && p.date >= w.getAttribute('data-apprweek') && p.date <= addDays(w.getAttribute('data-apprweek'), 6); });
+      if (!ps.length || !window.confirm('Approve ' + ps.length + ' draft post' + (ps.length > 1 ? 's' : '') + ' (' + chFilter.map(function (c) { return CH[c]; }).join(', ') + ') for this week?')) return;
+      w.disabled = true; w.textContent = 'Saving…'; ps.reduce(function (pr, p) { return pr.then(function () { return postApprove(p, 'approved'); }); }, Promise.resolve()).then(refreshOrganic, refreshOrganic); }
+  });
+  function weekHead(mon) {
+    var wk = OC && OC.weeks.filter(function (w) { return w.from === mon; })[0];
+    return wk ? '<div class="oc-week"><b>Week ' + wk.n + ' · ' + esc(wk.theme) + '</b> <span class="chip">' + esc(wk.cluster) + '</span><p>' + esc(wk.why) + '</p></div>' : '';
   }
   function viewCalendar() {
-    var months = O.posts.map(function (p) { return p.date.slice(0, 7); }).filter(function (x, i, a) { return a.indexOf(x) === i; }).sort();
-    var now = new Date().toISOString().slice(0, 7), cur = TAB && months.indexOf(TAB) >= 0 ? TAB : (months.indexOf(now) >= 0 ? now : months[months.length - 1]);
-    var i = months.indexOf(cur), y = +cur.slice(0, 4), m = +cur.slice(5, 7) - 1, first = new Date(Date.UTC(y, m, 1)), days = new Date(Date.UTC(y, m + 1, 0)).getUTCDate(), lead = (first.getUTCDay() + 6) % 7;
-    var label = first.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
-    var h = '<h1>Calendar</h1><p class="lead">Every organic post across LinkedIn, Facebook and Nextdoor. Click a post for its text, links and metrics.</p><div class="toolbar">' +
-      (i > 0 ? '<a class="btn" href="#/organic?tab=' + months[i - 1] + '">← ' + months[i - 1] + '</a>' : '') + '<b class="cal-m">' + esc(label) + '</b>' + (i < months.length - 1 ? '<a class="btn" href="#/organic?tab=' + months[i + 1] + '">' + months[i + 1] + ' →</a>' : '') +
-      '<span class="sub">' + ['linkedin', 'facebook', 'nextdoor'].map(chChip).join(' ') + '</span></div><div class="cal"><div class="cal-hd">Mon</div><div class="cal-hd">Tue</div><div class="cal-hd">Wed</div><div class="cal-hd">Thu</div><div class="cal-hd">Fri</div><div class="cal-hd">Sat</div><div class="cal-hd">Sun</div>';
-    for (var k = 0; k < lead; k++) h += '<div class="cal-d empty"></div>';
-    for (var d = 1; d <= days; d++) {
-      var ds = cur + '-' + (d < 10 ? '0' : '') + d, ps = O.posts.filter(function (p) { return p.date === ds; });
-      h += '<div class="cal-d' + (ds === new Date().toISOString().slice(0, 10) ? ' today' : '') + '"><div class="cal-n">' + d + '</div>' + ps.map(function (p) {
-        return '<button class="cal-p ch-' + p.channel + (p.status !== 'published' ? ' sched' : '') + '"' + dr(function (el) { el.classList.add('sel'); drawerPost(p); }) + ' title="' + esc(p.title || '') + '">' + esc(p.title || p.id) + '</button>'; }).join('') + '</div>';
+    var mode = TAB && TAB[0] === 'm' ? 'month' : 'week';
+    var first = O.posts[0].date, last = O.posts[O.posts.length - 1].date;
+    var counts = {}; O.posts.filter(function (p) { return p.campaign === 'v2'; }).forEach(function (p) { var s = stOf(p); counts[s] = (counts[s] || 0) + 1; });
+    var h = '<div class="pagehead"><h1>Calendar</h1><span class="sub">' + ['draft', 'changes', 'approved', 'scheduled', 'published'].filter(function (s) { return counts[s]; }).map(function (s) { return counts[s] + ' ' + ST_LABEL[s]; }).join(' · ') + '</span></div>' +
+      '<p class="lead">Every organic post on Nextdoor, Facebook, Instagram and LinkedIn. The campaign (12 Oct – 8 Nov) follows the Nextdoor logic: education posts alternate with landing-page posts, one theme a week. Posts start as drafts; open one to see it as it will appear, copy it, approve it or ask for changes. Approved posts are scheduled by the sync (Nextdoor: the daily task; the others: Buffer).</p>';
+    if (mode === 'month') {
+      var months = O.posts.map(function (p) { return p.date.slice(0, 7); }).filter(function (x, i, a) { return a.indexOf(x) === i; }).sort();
+      var cur = TAB.slice(1), i = months.indexOf(cur); if (i < 0) { cur = months.indexOf(todayIso.slice(0, 7)) >= 0 ? todayIso.slice(0, 7) : months[months.length - 1]; i = months.indexOf(cur); }
+      var y = +cur.slice(0, 4), mo = +cur.slice(5, 7) - 1, fd = new Date(Date.UTC(y, mo, 1)), nd = new Date(Date.UTC(y, mo + 1, 0)).getUTCDate(), lead = (fd.getUTCDay() + 6) % 7;
+      h += '<div class="toolbar"><span class="seg"><a class="btn" href="#/organic?tab=w' + monday(todayIso) + '">Week</a><a class="btn" aria-pressed="true" href="#/organic?tab=m' + cur + '">Month</a></span>' +
+        (i > 0 ? '<a class="btn" href="#/organic?tab=m' + months[i - 1] + '">←</a>' : '') + '<b class="cal-m">' + esc(fd.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })) + '</b>' + (i < months.length - 1 ? '<a class="btn" href="#/organic?tab=m' + months[i + 1] + '">→</a>' : '') + filterBar() + '</div>' +
+        '<div class="cal">' + DOW.map(function (d) { return '<div class="cal-hd">' + d + '</div>'; }).join('');
+      for (var k = 0; k < lead; k++) h += '<div class="cal-d empty"></div>';
+      for (var d = 1; d <= nd; d++) {
+        var ds = cur + '-' + (d < 10 ? '0' : '') + d, ps = O.posts.filter(function (p) { return p.date === ds && visible(p); });
+        h += '<div class="cal-d' + (ds === todayIso ? ' today' : '') + '"><div class="cal-n">' + d + '</div>' + ps.map(function (p) {
+          return '<button class="cal-p ch-' + p.channel + ' st-' + stOf(p) + '"' + dr(function (el) { el.classList.add('sel'); drawerPost(p); }) + ' title="' + esc(CH[p.channel] + ' · ' + (p.title || '') + ' · ' + ST_LABEL[stOf(p)]) + '">' + esc(p.title || p.id) + '</button>'; }).join('') + '</div>';
+      }
+      return h + '</div>';
     }
-    return h + '</div>';
+    var mon = TAB && /^w\d{4}-\d{2}-\d{2}$/.test(TAB) ? TAB.slice(1) : monday(todayIso >= first && todayIso <= last ? todayIso : (todayIso < first ? first : last));
+    var prev = addDays(mon, -7), next = addDays(mon, 7), days = [0, 1, 2, 3, 4, 5, 6].map(function (n) { return addDays(mon, n); });
+    var wkPosts = O.posts.filter(function (p) { return p.date >= mon && p.date <= days[6] && visible(p); }), drafts = wkPosts.filter(function (p) { return p.campaign === 'v2' && stOf(p) === 'draft'; }).length;
+    h += '<div class="toolbar"><span class="seg"><a class="btn" aria-pressed="true" href="#/organic?tab=w' + mon + '">Week</a><a class="btn" href="#/organic?tab=m' + mon.slice(0, 7) + '">Month</a></span>' +
+      (prev >= monday(first) ? '<a class="btn" href="#/organic?tab=w' + prev + '">← ' + esc(fmtDay(prev)) + '</a>' : '') + '<b class="cal-m">' + esc(fmtDay(mon) + ' – ' + fmtDay(days[6])) + '</b>' +
+      (next <= last ? '<a class="btn" href="#/organic?tab=w' + next + '">' + esc(fmtDay(next)) + ' →</a>' : '') + '<a class="btn" href="#/organic?tab=w' + monday(todayIso) + '">Today</a>' + filterBar() +
+      (drafts ? '<button class="btn dl" data-apprweek="' + mon + '">Approve ' + drafts + ' draft' + (drafts > 1 ? 's' : '') + ' this week</button>' : '') + '</div>' + weekHead(mon) +
+      '<div class="oc-grid">' + days.map(function (ds) {
+        var ps = wkPosts.filter(function (p) { return p.date === ds; }).sort(function (a, b) { return CHS.indexOf(a.channel) - CHS.indexOf(b.channel); });
+        return '<div class="oc-day' + (ds === todayIso ? ' today' : '') + (ps.length ? '' : ' empty') + '"><div class="oc-dh"><b>' + esc(fmtDay(ds)) + '</b>' + (ds === todayIso ? '<span class="chip red">today</span>' : '') + '</div>' +
+          ps.map(function (p) { return ocCard(p, ps.length > 2); }).join('') + '</div>'; }).join('') + '</div>' +
+      (wkPosts.length ? '' : '<p class="empty">No posts this week for the selected platforms.</p>');
+    return h;
   }
-  function viewChannel(c) {
-    var ps = O.posts.filter(function (p) { return p.channel === c; }).slice().reverse();
-    return '<h1>' + esc(CH[c]) + '</h1><p class="lead">' + ps.length + ' posts derived from the blog articles. Click a post for its text and links.</p><div class="scroll"><table class="tbl"><thead><tr><th>Date</th><th>Channel</th><th>Post</th><th>Status</th></tr></thead><tbody>' +
-      ps.map(function (p) { return postRow(p); }).join('') + '</tbody></table></div>';
+
+  /* campaign: logic, weeks, mix, workflow, visuals */
+  function viewOrgCampaign() {
+    var cp = O.posts.filter(function (p) { return p.campaign === 'v2'; }), cnt = function (f) { return cp.filter(f).length; };
+    var h = '<h1>Campaign · ' + esc(OC.name) + '</h1><p class="lead">' + esc(fmtDay(OC.start) + ' – ' + fmtDay(OC.end) + ' 2026') + '. The Nextdoor campaign’s logic on four platforms: education posts (a right, a warning, how something works; no offer, no landing page, no disclaimer) alternate with landing-page posts (one right, a free case review and a tracked link; attorney advertising, so the disclaimer is added). One theme a week; each platform tells it in its own voice. Landing pages are on staging.credolegal.com.</p>' +
+      '<div class="tiles kpis">' + [['Posts', cp.length], ['Drafts to approve', cnt(function (p) { return stOf(p) === 'draft'; })], ['Changes requested', cnt(function (p) { return stOf(p) === 'changes'; })], ['Approved, to sync', cnt(function (p) { return stOf(p) === 'approved'; })],
+        ['Scheduled', cnt(function (p) { return stOf(p) === 'scheduled'; })], ['Published', cnt(function (p) { return stOf(p) === 'published'; })]].map(function (x) { return '<div class="tile static"><p>' + x[0] + '</p><div class="big">' + x[1] + '</div></div>'; }).join('') + '</div>' +
+      '<h2>Weeks</h2><div class="scroll"><table class="tbl"><thead><tr><th>Week</th><th>Theme</th><th>Why</th>' + CHS.map(function (c) { return '<th class="num">' + CH[c] + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      OC.weeks.map(function (w) { return '<tr class="clk" onclick="location.hash=\'#/organic?tab=w' + w.from + '\'"><td>' + w.n + ' · ' + esc(fmtDay(w.from)) + '</td><td><b>' + esc(w.theme) + '</b><div class="sub">' + esc(w.cluster) + '</div></td><td class="sub">' + esc(w.why) + '</td>' +
+        CHS.map(function (c) { var ps = cp.filter(function (p) { return p.week === w.n && p.channel === c; }); return '<td class="num">' + ps.length + '<div class="sub">' + ps.filter(function (p) { return p.type === 'edu'; }).length + ' edu · ' + ps.filter(function (p) { return p.type === 'ad'; }).length + ' LP</div></td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>' +
+      '<h2>Platforms</h2><div class="tiles">' + CHS.map(function (c) { var v = OC.voice[c]; return '<a class="tile" style="text-decoration:none" href="#/organic/' + c + '?tab=voice"><h3>' + chChip(c) + ' ' + esc(v.role) + '</h3><p>' + esc(v.cadence) + '</p><p>' + esc(v.length + ' · ' + v.mix) + '</p></a>'; }).join('') + '</div>' +
+      '<h2>Workflow</h2><ol class="notes"><li><b>Draft.</b> Posts, images and disclaimers come from <code>content/campaigns/organic/campaign-2026-10.js</code> (images baked by <code>scripts/organic/bake.py</code> from the Higgsfield bases).</li>' +
+      '<li><b>Approve</b> each post in its drawer, or a whole week from the Calendar. “Request changes” records a note; the post is revised and returns as a draft. Every landing-page post needs the responsible attorney’s pre-approval (NY 7.1(k)).</li>' +
+      '<li><b>Sync</b> (<code>node tools/marketing-hub/organic-sync.mjs</code>, run by Claude): creates the short links on credolegal.s.gy, schedules approved Nextdoor posts in the Nextdoor feed calendar (the daily task publishes them at the slot), and queues approved Facebook, Instagram and LinkedIn posts in Buffer.</li>' +
+      '<li><b>Measure.</b> Nextdoor metrics come back from the insights pages, the others from Buffer analytics; link clicks from short.io (utm_campaign ' + esc(OC.utmCampaign) + ', utm_medium social).</li></ol>' +
+      '<div class="warnbox">Buffer: the Buffer connector in this workspace belongs to another organization (Izobilje), so nothing is queued yet. Connect Credo’s Buffer account (Facebook Page, Instagram business account, LinkedIn Page) and the sync queues approved posts. Instagram captions cannot link; set the profile link to credolegal.s.gy/ig-bio.</div>' +
+      '<h2>Visuals</h2><p class="note">Higgsfield (GPT Image 2.5, 4:5, text-free bases), headlines baked per platform. Bold concepts carry the landing-page posts (the Nextdoor Bold campaign look); documentary photos carry the education posts.</p><div class="thumbs">' +
+      Object.keys(OC.concepts).map(function (k) { var ex = cp.filter(function (p) { return p.concept === k && p.channel === 'instagram'; })[0] || cp.filter(function (p) { return p.concept === k; })[0];
+        return ex ? '<button class="thumb"' + dr(function (el) { el.classList.add('sel'); drawerPost(ex); }) + '><img src="' + esc(ex.img) + '" alt=""><div class="cap">' + esc(OC.concepts[k].note) + '<small>' + esc(OC.concepts[k].style) + ' · used in ' + cp.filter(function (p) { return p.concept === k; }).length + ' posts</small></div></button>' : ''; }).join('') + '</div>';
+    return h;
+  }
+
+  /* a platform: posts (+ Nextdoor page and engagement), voice, Buffer queue */
+  function postRow(p, cols) {
+    return '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); drawerPost(p); }) + '><td class="oc-tt">' + (imgUrl(p) ? '<img src="' + esc(imgUrl(p)) + '" alt="" loading="lazy">' : '') + '</td><td>' + esc(fmtDay(p.date)) + '<div class="sub">' + esc(p.time ? fmtTime(p.time) + ' ET' : '') + '</div></td><td>' + esc(p.title || '') + '<div class="sub">' + esc((p.text || '').slice(0, 110)) + ((p.text || '').length > 110 ? '…' : '') + '</div></td><td>' +
+      typeChip(p) + '</td><td>' + stChip(p) + '</td>' + (cols || '') + '</tr>';
   }
   function queueFor(id) { return COMMENTS ? Object.keys(COMMENTS).map(function (k) { return COMMENTS[k]; }).filter(function (x) { return x.page === 'nd-engagement-queue' && x.anchor === 'nd-engage-' + id; }) : []; }
-  function viewNextdoor() {
-    var ND = O.nextdoor, ps = O.posts.filter(function (p) { return p.channel === 'nextdoor'; }).slice().reverse(), snap = ND.snapshots[ND.snapshots.length - 1];
-    var h = '<h1>Nextdoor</h1><p class="lead">The Crēdo Legal business page on Nextdoor (live since ' + esc(ND.liveSince) + '): its posts, the page’s metrics and the daily engagement scans.</p>' +
-      tabsBar('#/organic/nextdoor', [['posts', 'Posts', ps.length], ['page', 'Business page', ND.snapshots.length], ['engagement', 'Engagement', ND.days.length]], TAB);
-    if (TAB === 'page') return h + '<div class="mgrid wide">' + mt('Page views', n0(snap.pageViews)) + mt('Post views', n0(snap.postViews)) + mt('Engagements', n0(snap.engagements)) + mt('Faves', n0(snap.faves)) + mt('Recommendations', n0(snap.recs)) + mt('Messages', n0(snap.messages)) + '</div>' +
-      '<p class="note">Latest snapshot ' + esc(snap.asOf) + '.</p><div class="scroll"><table class="tbl"><thead><tr><th>As of</th><th class="num">Page views</th><th class="num">Posts</th><th class="num">Post views</th><th class="num">Engagements</th><th>Note</th></tr></thead><tbody>' +
-      ND.snapshots.slice().reverse().map(function (x) { return '<tr><td>' + esc(x.asOf) + '</td><td class="num">' + n0(x.pageViews) + '</td><td class="num">' + n0(x.postsPublished) + '</td><td class="num">' + n0(x.postViews) + '</td><td class="num">' + n0(x.engagements) + '</td><td class="sub">' + esc(x.note || '') + '</td></tr>'; }).join('') + '</tbody></table></div>';
-    if (TAB === 'engagement') return h + '<p class="note">Each day’s scan of the neighbourhood feed: the candidate posts for a reaction or comment, and what the queue did with them (engaged, skipped, pending; read live from the shared queue).</p><div class="scroll"><table class="tbl"><thead><tr><th>Day</th><th class="num">Feed posts</th><th class="num">Candidates</th><th class="num">Engaged</th><th class="num">Skipped</th><th class="num">Excluded</th></tr></thead><tbody>' +
-      ND.days.slice().reverse().map(function (d) { var q = d.candidates.map(function (c) { return (queueFor(c.id)[0] || {}).status; });
+  function voiceHtml(c) {
+    var v = OC.voice[c]; return '<div class="kv"><dt>Role</dt><dd><b>' + esc(v.role) + '</b></dd><dt>Cadence</dt><dd>' + esc(v.cadence) + '</dd><dt>Length</dt><dd>' + esc(v.length) + '</dd><dt>Mix</dt><dd>' + esc(v.mix) + '</dd></div>' +
+      '<ul class="notes">' + v.rules.map(function (r) { return '<li>' + esc(r) + '</li>'; }).join('') + '</ul><p class="note">All platforms follow brand/voice.md: plain and mechanical, second person, no emojis or exclamation marks, “our attorneys”.</p>';
+  }
+  function bufferHtml(c) {
+    var ps = O.posts.filter(function (p) { return p.channel === c && p.buffer; }), ok = ps.filter(function (p) { var s = stOf(p); return s === 'approved' || s === 'scheduled'; });
+    return '<p class="note">Facebook, Instagram and LinkedIn are published through Buffer. Approved posts are queued by Claude through the Buffer connector (channel, time, text with disclaimer, image, link); the export below is the same queue as a file.</p>' +
+      '<div class="toolbar"><button class="btn" data-bufx="' + c + '"' + (ok.length ? '' : ' disabled') + '>Download Buffer queue (' + ok.length + ' approved)</button></div>' +
+      '<div class="scroll"><table class="tbl"><thead><tr><th></th><th>Date</th><th>Post</th><th>Kind</th><th>Status</th><th>Buffer</th></tr></thead><tbody>' +
+      ps.map(function (p) { return postRow(p, '<td>' + (p.buffer.queued ? '<span class="chip ok">queued</span>' : '<span class="chip">not queued</span>') + '</td>'); }).join('') + '</tbody></table></div>';
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-bufx]'); if (!b) return; var c = b.getAttribute('data-bufx');
+    var q = O.posts.filter(function (p) { var s = stOf(p); return p.channel === c && p.buffer && (s === 'approved' || s === 'scheduled'); }).map(function (p) { return Object.assign({ id: p.id }, p.buffer); });
+    var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(q, null, 1)], { type: 'application/json' })); a.download = 'buffer-queue-' + c + '.json'; a.click();
+  });
+  function viewChannel(c) {
+    var ps = O.posts.filter(function (p) { return p.channel === c; }).slice().reverse(), base = '#/organic/' + c, ND = O.nextdoor;
+    var tabs = [['posts', 'Posts', ps.length], ['voice', 'Voice']].concat(c === 'nextdoor' ? [['page', 'Business page', ND.snapshots.length], ['engagement', 'Engagement', ND.days.length]] : [['buffer', 'Buffer']]);
+    var h = '<h1>' + esc(CH[c]) + '</h1><p class="lead">' + (c === 'nextdoor' ? 'The Crēdo Legal business page on Nextdoor (live since ' + esc(ND.liveSince) + '): the first campaign’s posts, the four-platform campaign, the page’s metrics and the daily engagement scans.' :
+      c === 'facebook' ? 'The Crēdo Legal Facebook page (dormant until this campaign). Posts are published through Buffer once approved.' : c === 'instagram' ? 'The Crēdo Legal Instagram account (dormant until this campaign). Posts are published through Buffer once approved; captions cannot link, the profile link carries the clicks.' :
+      'The Crēdo Legal LinkedIn page (about 1,100 followers). Posts are published through Buffer once approved.') + ' The blog-derived posts were removed on 6 Oct.</p>' + tabsBar(base, tabs, TAB);
+    if (TAB === 'voice') return h + voiceHtml(c);
+    if (TAB === 'buffer') return h + bufferHtml(c);
+    if (c === 'nextdoor' && TAB === 'page') { var snap = ND.snapshots[ND.snapshots.length - 1];
+      return h + '<div class="mgrid wide">' + mt('Page views', n0(snap.pageViews)) + mt('Post views', n0(snap.postViews)) + mt('Engagements', n0(snap.engagements)) + mt('Faves', n0(snap.faves)) + mt('Recommendations', n0(snap.recs)) + mt('Messages', n0(snap.messages)) + '</div>' +
+        '<p class="note">Latest snapshot ' + esc(snap.asOf) + '.</p><div class="scroll"><table class="tbl"><thead><tr><th>As of</th><th class="num">Page views</th><th class="num">Posts</th><th class="num">Post views</th><th class="num">Engagements</th><th>Note</th></tr></thead><tbody>' +
+        ND.snapshots.slice().reverse().map(function (x) { return '<tr><td>' + esc(x.asOf) + '</td><td class="num">' + n0(x.pageViews) + '</td><td class="num">' + n0(x.postsPublished) + '</td><td class="num">' + n0(x.postViews) + '</td><td class="num">' + n0(x.engagements) + '</td><td class="sub">' + esc(x.note || '') + '</td></tr>'; }).join('') + '</tbody></table></div>'; }
+    if (c === 'nextdoor' && TAB === 'engagement') return h + '<p class="note">Each day’s scan of the neighbourhood feed: the candidate posts for a reaction or comment, and what the queue did with them (engaged, skipped, pending; read live from the shared queue).</p><div class="scroll"><table class="tbl"><thead><tr><th>Day</th><th class="num">Feed posts</th><th class="num">Candidates</th><th class="num">Engaged</th><th class="num">Skipped</th><th class="num">Excluded</th></tr></thead><tbody>' +
+      ND.days.slice().reverse().map(function (d) { var q = d.candidates.map(function (x) { return (queueFor(x.id)[0] || {}).status; });
         return '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); drawerDay(d); }) + '><td>' + esc(d.date) + '</td><td class="num">' + n0(d.feedPosts) + '</td><td class="num">' + d.candidates.length + '</td><td class="num">' + q.filter(function (x) { return x === 'engaged'; }).length + '</td><td class="num">' + q.filter(function (x) { return x === 'skipped'; }).length + '</td><td class="num">' + d.excluded.length + '</td></tr>'; }).join('') + '</tbody></table></div>';
-    return h + '<div class="scroll"><table class="tbl"><thead><tr><th>Date</th><th>Channel</th><th>Post</th><th>Status</th><th class="num">Views</th><th class="num">Reactions</th><th class="num">Comments</th></tr></thead><tbody>' +
+    return h + '<div class="scroll"><table class="tbl"><thead><tr><th></th><th>Date</th><th>Post</th><th>Kind</th><th>Status</th><th class="num">Views</th><th class="num">Reactions</th><th class="num">Comments</th></tr></thead><tbody>' +
       ps.map(function (p) { var m = p.metrics || {}; return postRow(p, '<td class="num">' + n0(m.views) + '</td><td class="num">' + n0(m.reactions) + '</td><td class="num">' + n0(m.comments) + '</td>'); }).join('') + '</tbody></table></div>';
   }
   function drawerDay(d) {
@@ -915,15 +1140,18 @@
       ['Basic info', kv([['Scanned', esc(d.scannedAt || '')], ['Feed posts', n0(d.feedPosts)], ['Posts from today', n0(d.todayPosts)]])]], true);
   }
   function viewArticles() {
-    return '<h1>Articles</h1><p class="lead">The blog articles the social posts are derived from. Click a row for details; open an article for its text and posts.</p><div class="scroll"><table class="tbl"><thead><tr><th>Article</th><th>Pillar</th><th class="num">Posts</th></tr></thead><tbody>' +
-      O.articles.map(function (a) { return '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); openDrawer(a.title, [['Basic info', kv([['Pillar', esc(a.pillar)], ['Lifecycle stage', esc(a.lifecycle || '')], ['Link', link(a.link)], ['Posts', String(a.postIds.length)]]) + '<div class="toolbar">' + go('#/organic/articles/' + enc(a.slug), 'Open the article') + '</div>']]); }) +
-        '><td><a href="#/organic/articles/' + enc(a.slug) + '">' + esc(a.title) + '</a></td><td>' + esc(a.pillar) + '</td><td class="num">' + a.postIds.length + '</td></tr>'; }).join('') + '</tbody></table></div>';
+    return '<h1>Articles</h1><p class="lead">The blog articles (a library; the social posts that linked to them were removed from the calendar on 6 Oct). Click a row for details; open an article for its text.</p><div class="scroll"><table class="tbl"><thead><tr><th>Article</th><th>Pillar</th></tr></thead><tbody>' +
+      O.articles.map(function (a) { return '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); openDrawer(a.title, [['Basic info', kv([['Pillar', esc(a.pillar)], ['Lifecycle stage', esc(a.lifecycle || '')], ['Link', link(a.link)]]) + '<div class="toolbar">' + go('#/organic/articles/' + enc(a.slug), 'Open the article') + '</div>']]); }) +
+        '><td><a href="#/organic/articles/' + enc(a.slug) + '">' + esc(a.title) + '</a></td><td>' + esc(a.pillar) + '</td></tr>'; }).join('') + '</tbody></table></div>';
   }
-  function viewArticle(a) {
-    var ps = O.posts.filter(function (p) { return p.article === a.slug; });
-    var h = '<h1>' + esc(a.title) + '</h1><p class="lead">' + esc(a.pillar) + ' · ' + link(a.link, 'on the site ↗') + '</p>' + tabsBar('#/organic/articles/' + enc(a.slug), [['article', 'Article'], ['posts', 'Posts', ps.length]], TAB);
-    if (TAB === 'posts') return h + '<div class="scroll"><table class="tbl"><thead><tr><th>Date</th><th>Channel</th><th>Post</th><th>Status</th></tr></thead><tbody>' + ps.map(function (p) { return postRow(p); }).join('') + '</tbody></table></div>';
-    return h + '<div class="mdoc article">' + a.html + '</div>';
+  function viewArticle(a) { return '<h1>' + esc(a.title) + '</h1><p class="lead">' + esc(a.pillar) + ' · ' + link(a.link, 'on the site ↗') + '</p><div class="mdoc article">' + a.html + '</div>'; }
+  var ORG = { crumbs: [] };
+  function organicHtml() {   /* the organic page for the current hash (also used to re-render after an approval) */
+    var parts = location.hash.split('?')[0].replace(/^#\//, '').split('/').map(dec); ORG.crumbs = [['Organic', '#/organic']];
+    if (parts[1] === 'articles') { var ar = parts[2] && O.articles.filter(function (x) { return x.slug === parts[2]; })[0]; ORG.crumbs.push(['Articles', '#/organic/articles']); if (ar) ORG.crumbs.push([ar.title, location.hash]); return ar ? viewArticle(ar) : viewArticles(); }
+    if (parts[1] === 'campaign' && OC) { ORG.crumbs.push(['Campaign', '#/organic/campaign']); return viewOrgCampaign(); }
+    if (CH[parts[1]]) { ORG.crumbs.push([CH[parts[1]], '#/organic/' + parts[1]]); return viewChannel(parts[1]); }
+    return viewCalendar();
   }
 
   /* ───────────── router ───────────── */
@@ -943,15 +1171,14 @@
       }
     } else if (parts[0] === 'ads') {
       crumbs.push(['Ads', '#/ads']);
+      if (parts[1] === 'phones' && PM) { crumbs.push(['Ads → pages → phones', '#/ads/phones']); html = viewPhoneMap(); }
+      else {
       var f = findAd(parts[1], parts[2], parts[3], parts[4]);
       if (f.p) crumbs.push([f.p.label, adHref(f.p)]); if (f.c) crumbs.push([f.c.name, adHref(f.p, f.c)]); if (f.g) crumbs.push([f.g.name, adHref(f.p, f.c, f.g)]); if (f.a) crumbs.push([adLabel(f.p, f.a), hash]);
       AFTER = null; html = f.a ? viewAd(f.p, f.c, f.g, f.a) : f.g ? viewGroup(f.p, f.c, f.g) : f.c ? viewCampaign(f.p, f.c) : f.p ? viewPlatform(f.p) : viewAds(); after = AFTER;
+      }
     } else if (parts[0] === 'organic' && O) {
-      crumbs.push(['Organic', '#/organic']);
-      if (parts[1] === 'articles') { var ar = parts[2] && O.articles.filter(function (x) { return x.slug === parts[2]; })[0]; crumbs.push(['Articles', '#/organic/articles']); if (ar) crumbs.push([ar.title, hash]); html = ar ? viewArticle(ar) : viewArticles(); }
-      else if (parts[1] === 'nextdoor') { crumbs.push(['Nextdoor', hash]); html = viewNextdoor(); }
-      else if (parts[1] === 'linkedin' || parts[1] === 'facebook') { crumbs.push([CH[parts[1]], hash]); html = viewChannel(parts[1]); }
-      else html = viewCalendar();
+      html = organicHtml(); crumbs = crumbs.concat(ORG.crumbs);
     } else if (parts[0] === 'reference') {
       crumbs.push(['Reference', '#/reference/statutes'], ['Statutes', '#/reference/statutes']); html = viewStatutes();
     } else if (parts[0] === 'work' && B) {

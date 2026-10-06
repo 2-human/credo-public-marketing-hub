@@ -4,8 +4,8 @@
  * password, decrypt in the browser (PBKDF2-SHA256 → AES-256-GCM, then gunzip), run the data scripts, start the hub.
  * The derived key (not the password) is kept in sessionStorage for this tab only, so a reload does not ask again. */
 (function () {
-  var FILES = ['registry', 'metrics', 'microsites', 'ads-tree', 'ads-metrics', 'backlog-data', 'work', 'reviews', 'statutes', 'organic'];
-  var APP = ['hub.js?v=12', 'app.js?v=19'];
+  var FILES = ['registry', 'metrics', 'microsites', 'ads-tree', 'ads-metrics', 'phone-map', 'backlog-data', 'work', 'reviews', 'statutes', 'organic'];
+  var APP = ['hub.js?v=12', 'app.js?v=24'];
   var KEY = 'mh-gate-key';
   function load(src) { return new Promise(function (ok, no) { var s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = no; document.head.appendChild(s); }); }
   function run(text) { var s = document.createElement('script'); s.textContent = text; document.head.appendChild(s); }
@@ -44,7 +44,8 @@
     }).catch(function () { g.hidden = false; msg.textContent = 'The hub data is not available.'; form.hidden = true; });
   }
   /* plaintext data present (local): load it all and start; otherwise the gate */
-  load('data/registry.js').then(function () {
-    return Promise.all(FILES.slice(1).map(function (f) { return load('data/' + f + '.js').catch(function () {}); }));
+  var t = '?t=' + Date.now();   /* local plaintext files change with every build: never serve them from the cache */
+  load('data/registry.js' + t).then(function () {
+    return Promise.all(FILES.slice(1).map(function (f) { return load('data/' + f + '.js' + t).catch(function () {}); }));
   }).then(boot, gate);
 })();
