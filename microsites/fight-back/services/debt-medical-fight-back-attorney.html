@@ -2104,6 +2104,57 @@ window.CREDO_PHONES = {
   'debt-garnishment-reduce-exemptions': { google: '17204141751', meta: '17204145055', bing: '17204141751', default: '17204141751' },
   'debt-garnishment-respond-before-it-starts': { google: '17204141751', meta: '17204145055', bing: '17204141751', default: '17204141751' },
 };
+// PBI-44 (6 Oct): tracked number per ad group (Google) and ad set (Meta). Key = utm_source|utm_campaign|utm_term,
+// lower-case: the values the ads send. A visit from such an ad shows this number on every page; other visits use the
+// page table above. Source: content/campaigns/phone-map/campaign-phone-map.json (tools/campaign-phones/build-phone-map.py).
+window.CREDO_AD_PHONES = {
+  'google|s_all_states_2025|garnishment': '19172675502',
+  'google|s_all_states_2025|debt_collector': '16462572720',
+  'google|s_all_states_2025|fdcpa': '17188658350',
+  'google|s_all_states|credit_card': '13474749602',
+  'google|s_all_states|lien': '13474749602',
+  'google|s_all_states|medical': '13474749602',
+  'google|s_creditcard_nw|cc_lawsuit': '16469527380',
+  'google|s_creditcard_nw|cc_branded': '16469527392',
+  'google|s_creditcard_nw|cc_negotiation': '16469527404',
+  'google|s_garnishment_nw|garnishment': '17204141751',
+  'google|s_harassment_nw|creditor_harassment': '12014167080',
+  'google|s_harassment_nw|fdcpa_harassment': '14434834080',
+  'google|s_lawsuit_nw|collection_lawsuit': '12125615902',
+  'google|s_lawsuit_nw|creditor_suing': '13475234568',
+  'google|s_lawsuit_nw|served_papers': '13475234662',
+  'google|s_medicaldebt_nw|medical_lawsuit': '16122609170',
+  'google|s_medicaldebt_nw|medical_rights': '13477449014',
+  'google|s_paydayloan_nw|payday_brand_harassment': '14075120808',
+  'google|s_paydayloan_nw|s_paydayloan_general': '14075120808',
+  'google|s_ny_general_feb_2025|s_general_feb_2025': '12125615902',
+  'google|s_fl_general_feb_2025|s_fl_general_2025': '14075120808',
+  'google|s_nj_general_2025|s_nj_general_2025': '12014167080',
+  'google|s_co_general_2025|s_co_general_2025': '17204141751',
+  'google|s_md_general_2025|s_md_general_2025': '14434834080',
+  'google|s_mn_general_2025|s_mn_general_2025': '16122609170',
+  'google|s_ut_general_2025|s_ut_general_2025': '16122609170',
+  'meta|credo_meta_competitive_v1|as_a1_prove-it': '16122568820',
+  'meta|credo_meta_competitive_v1|as_a2_is-it-yours': '16122568820',
+  'meta|credo_meta_competitive_v1|as_a3_three-things': '16122568820',
+  'meta|credo_meta_competitive_v1|as_a4_before-after': '14076243722',
+  'meta|credo_meta_competitive_v1|as_a5_medical': '18013869050',
+  'meta|credo_meta_competitive_v1|as_a6_in-writing': '16122568820',
+  'meta|credo_meta_competitive_v1|as_dd_cc_lawsuit': '14076243722',
+  'meta|credo_meta_competitive_v1|as_dd_cc_harassment': '14076243722',
+  'meta|credo_meta_competitive_v1|as_dd_cc_negotiation': '14076243722',
+  'meta|credo_meta_competitive_v1|as_dd_collection_lawsuit': '17185214060',
+  'meta|credo_meta_competitive_v1|as_dd_creditor_suing': '17185214060',
+  'meta|credo_meta_competitive_v1|as_dd_served_papers': '17185214060',
+  'meta|credo_meta_competitive_v1|as_dd_creditor_harassment': '16122568820',
+  'meta|credo_meta_competitive_v1|as_dd_fdcpa_harassment': '16122568820',
+  'meta|credo_meta_competitive_v1|as_dd_multiple_collectors': '16122568820',
+  'meta|credo_meta_competitive_v1|as_dd_medical_harassment': '18013869050',
+  'meta|credo_meta_competitive_v1|as_dd_medical_lawsuit': '18013869050',
+  'meta|credo_meta_competitive_v1|as_dd_medical_rights': '18013869050',
+  'meta|credo_meta_competitive_v1|as_dd_pre_judgment_garn': '17204145055',
+  'meta|credo_meta_competitive_v1|as_dd_post_judgment_garn': '17204145055',
+};
 </script>
 <script>
 if (!window.credoSystemPage) {
@@ -2164,6 +2215,10 @@ document.addEventListener("DOMContentLoaded", function() {
   const isAdVisit = adParams.has('utm_source') || Object.keys(CLICK_IDS).some(k => adParams.has(k));
   const savedCall = (document.cookie.split('; ').find(c => c.startsWith('credo_call=')) || '').split('=')[1];
   let number = phones[source];
+  // PBI-44 (6 Oct): an ad that sends its ad group (utm_source, utm_campaign and utm_term) gets that ad group's number
+  // (window.CREDO_AD_PHONES); ads without the three values keep this page's number for their source.
+  const adKey = ['utm_source', 'utm_campaign', 'utm_term'].map(k => (adParams.get(k) || '').trim().toLowerCase()).join('|');
+  if (window.CREDO_AD_PHONES && /^1\d{10}$/.test(window.CREDO_AD_PHONES[adKey] || '')) number = window.CREDO_AD_PHONES[adKey];
   if (isAdVisit) {
     document.cookie = 'credo_call=' + number + '; max-age=' + (90 * 24 * 3600) + '; path=/; SameSite=Lax';
   } else if (savedCall && /^\d{11}$/.test(savedCall)) {
