@@ -56,7 +56,7 @@
   var sites = S.sites.map(function (s) {
     var pages = SHARED.map(function (x) {
       return { id: x[0], label: x[1], kind: x[2], file: 'microsites/' + s.angle + '/' + x[0] + '.html',
-               staging: STAGING + (x[0] === 'index' ? s.angle : x[0]), live: null, liveSlug: null, inMenu: null };
+               staging: STAGING + (x[0] === 'index' ? (s.home != null ? s.home : s.angle) : x[0]), live: null, liveSlug: null, inMenu: null };
     });
     s.types.forEach(function (t) {
       t.pages.forEach(function (p) {
@@ -66,7 +66,7 @@
           running: p.running, hadAd: p.hadAd, reg: reg });
       });
     });
-    return { angle: s.angle, label: s.label, homeCopy: s.homeCopy, pages: pages, types: s.types };
+    return { angle: s.angle, home: s.home != null ? s.home : s.angle, label: s.label, homeCopy: s.homeCopy, pages: pages, types: s.types };   /* home: staging address of the home (PBI-43: '' for the default site) */
   });
   var siteBy = {}; sites.forEach(function (s) { siteBy[s.angle] = s; });
 
@@ -307,7 +307,7 @@
     return { spend: b.total.cost, visits: b.total.sessions, formSubmit: b.total.formSubmit, sa_signed: b.total.sa_signed };
   }
   function viewWebsite() {
-    var h = '<h1>Website</h1><p class="lead">The seven cluster microsites, mirrored 1:1 from staging.credolegal.com (local only). Each has a home page, about and legal pages, ' +
+    var h = '<h1>Website</h1><p class="lead">The default site (staging’s root domain: the home page and six Defense Services pages) and the seven cluster microsites, mirrored 1:1 from staging.credolegal.com (local only). Each has a home page, about and legal pages, ' +
       'a thank-you page and its cluster’s landing pages under Services. Choose a microsite on the left to see its pages; click a card here for details and metrics.</p><div class="tiles">';
     sites.forEach(function (s) {
       var m = siteSum(s), svc = s.pages.filter(function (p) { return p.kind === 'service'; }).length;
@@ -318,7 +318,7 @@
   }
   function viewSite(s) {
     var h = '<h1>' + esc(s.label) + '</h1><p class="lead">Microsite <code>' + esc(s.angle) + '</code> · ' + s.pages.length + ' pages. Click a row for details and metrics; ' +
-      'click a page name to open it.</p><div class="toolbar">' + go('#/website/' + s.angle + '/index', 'Open the home page') + link(STAGING + s.angle, 'Home on staging ↗') + '</div>' +
+      'click a page name to open it.</p><div class="toolbar">' + go('#/website/' + s.angle + '/index', 'Open the home page') + link(STAGING + s.home, 'Home on staging ↗') + '</div>' +
       '<div class="scroll"><table class="tbl"><thead><tr><th>Page</th><th>Kind</th><th>Services menu</th><th class="num">Spend*</th><th class="num">Sessions</th><th class="num">Form sends</th><th class="num">Signed*</th></tr></thead><tbody>';
     s.pages.forEach(function (p) {
       var m = pageNums(p.liveSlug);
@@ -382,7 +382,7 @@
     fitFrame();
   }
   function drawerSite(s) {
-    var m = siteSum(s), h = kv([['Microsite', '<code>' + esc(s.angle) + '</code>'], ['Home on staging', link(STAGING + s.angle)], ['Home copy', esc(s.homeCopy)], ['Pages', String(s.pages.length)]]);
+    var m = siteSum(s), h = kv([['Microsite', '<code>' + esc(s.angle) + '</code>'], ['Home on staging', link(STAGING + s.home)], ['Home copy', esc(s.homeCopy)], ['Pages', String(s.pages.length)]]);
     h += '<h3>Services menu</h3><table class="tbl"><thead><tr><th>Debt type</th><th>Page in the menu</th></tr></thead><tbody>' + s.types.map(function (t) {
       return '<tr><td>' + esc(t.label) + '</td><td><a href="#/website/' + s.angle + '/' + enc('services/' + t.pick) + '">' + esc(t.pick) + '</a><div class="sub">' + esc(t.reason) + '</div></td></tr>'; }).join('') + '</tbody></table>';
     var mh = '<h3>Metrics · ' + esc(periodLabel()) + ' (landing pages summed)</h3>' + (m.any ? '<div class="mgrid">' + mt('Spend*', usd(m.spend)) + mt('Sessions', n0(m.visits)) + mt('Signed*', n1(m.sa_signed)) + '</div><p class="note">* allocated to the pages by each ad’s share of sessions (estimate).</p>' : '<p class="note">No paid traffic in this period.</p>');
