@@ -728,23 +728,24 @@
     var rows = PM.rows.filter(function (r) { return cur === 'all' || r.platform === cur || (cur === 'differs' && r.match === 'differs') || (cur === 'nocall' && r.match === 'no call number') || (cur === 'running' && r.running); });
     var n = function (f) { return PM.rows.filter(f).length; };
     var h = '<h1>Ads → pages → phones</h1><p class="lead">Every ad group (Google) and ad set (Meta, Nextdoor), the page its ads open and the phone numbers involved. Click a row for details.</p>' +
-      '<details class="state"><summary>How the numbers work</summary><p>A Google ad shows its own call number (a call asset on the ad group or the campaign). A click on any ad opens its landing page, ' +
-      'which shows the number of its row in the site’s phone table for the visitor’s source (utm_source, or the ad click id). That page keeps the number for 90 days, so every later page of the visit shows the same one (PBI-42). ' +
-      'Meta and Nextdoor ads have no number of their own. Numbers on the page: ' + esc(PM.stagingTableFrom) + '; the ads land on start.credolegal.com until the domain switch.</p></details>' +
+      '<details class="state"><summary>How the numbers work</summary><p>A Google ad shows its own call number (a call asset on the ad group or the campaign). When a visitor clicks an ad, the site reads the ad’s ' +
+      'utm_source, utm_campaign and utm_term (together they name the ad group or ad set; the term alone is not enough: “garnishment” is used by two campaigns with two numbers) and shows that ad group’s number from its ad-group table (PBI-44). ' +
+      'Ads that do not send the three values get the landing page’s number for their source (utm_source or the ad click id). Either number is kept for 90 days, so every later page of the visit shows the same one (PBI-42). ' +
+      'Meta and Nextdoor ads have no number of their own. Numbers: ' + esc(PM.stagingTableFrom) + '; the ads land on start.credolegal.com until the domain switch.</p></details>' +
       '<div class="tiles kpis">' + [['Rows (ad group × page)', PM.rows.length], ['Running now', n(function (r) { return r.running; })], ['Call number ≠ page number', n(function (r) { return r.match === 'differs'; })],
         ['Google, no call number', n(function (r) { return r.match === 'no call number'; })], ['Page not on staging', n(function (r) { return r.staging === 'not on staging'; })]]
         .map(function (t) { return '<div class="tile static"><p>' + esc(t[0]) + '</p><div class="big">' + t[1] + '</div></div>'; }).join('') + '</div>' +
       '<nav class="mtabs" aria-label="Filter">' + tabs.map(function (t) { return '<a href="#/ads/phones' + (t[0] === 'all' ? '' : '?tab=' + t[0]) + '"' + (t[0] === cur ? ' aria-current="page"' : '') + '>' + esc(t[1]) + ' <span class="cnt">' + t[2] + '</span></a>'; }).join('') + '</nav>' +
-      '<div class="scroll"><table class="tbl"><thead><tr><th>Platform</th><th>Campaign › ad group</th><th class="num">Ads</th><th>Landing page (live → staging)</th><th>Ad’s call number</th><th>Number on the page</th><th>Match</th><th>Key sent</th></tr></thead><tbody>';
+      '<div class="scroll"><table class="tbl"><thead><tr><th>Platform</th><th>Campaign › ad group</th><th class="num">Ads</th><th>Landing page (live → staging)</th><th>Ad’s call number</th><th>Number shown (every page)</th><th>Match</th><th>Key sent</th></tr></thead><tbody>';
     rows.forEach(function (r) {
       h += '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); drawerPhoneRow(r); }) + '><td>' + esc(PLAT[r.platform] || r.platform) + '</td>' +
         '<td>' + esc(r.campaign) + ' › <b>' + esc(r.group) + '</b>' + (r.running ? ' <span class="chip ok">running</span>' : '') + '</td><td class="num">' + r.ads.length + '</td>' +
         '<td>' + (r.url ? '<code>' + esc(slugTxt(r.liveSlug)) + '</code>' + (r.staging === 'renamed' ? ' → <code>' + esc(slugTxt(r.stagingSlug)) + '</code>' : r.staging === 'not on staging' ? ' <span class="chip red">not on staging</span>' : '') : dash) + '</td>' +
         '<td>' + (r.callPhone ? esc(r.callPhone) + '<div class="sub">' + esc(r.callLevel) + '</div>' : dash) + '</td>' +
-        '<td>' + (r.sitePhone ? esc(r.sitePhone) + '<div class="sub">source ' + esc(r.source) + '</div>' : dash) + '</td><td>' + (MCHIP[r.match] || esc(r.match)) + '</td>' +
+        '<td>' + (r.shownPhone ? esc(r.shownPhone) + '<div class="sub">' + esc(r.shownBy) + '</div>' : dash) + '</td><td>' + (MCHIP[r.match] || esc(r.match)) + '</td>' +
         '<td>' + (/^yes/.test(r.sendsKey) ? '<span class="chip ok">yes</span>' : '<span class="chip warn">no</span>') + '</td></tr>';
     });
-    return h + '</tbody></table></div><p class="note">Match compares the Google ad’s call number with the number its landing page shows Google visitors. Meta and Nextdoor ads have no call number of their own: the page’s number is the only one. ' +
+    return h + '</tbody></table></div><p class="note">Match compares the Google ad’s call number with the number shown to its visitors on every page. Meta and Nextdoor ads have no call number of their own. ' +
       'Ads land on start.credolegal.com until the domain switch; staging shows the numbers of the site being built.</p>';
   }
   function drawerPhoneRow(r) {
@@ -754,14 +755,17 @@
       [r.platform === 'google' ? 'Ad group' : 'Ad set', esc(r.group) + (r.groupId ? '<div class="sub">id ' + esc(r.groupId) + '</div>' : '') + (r.groupStatus ? '<div class="sub">' + esc(r.groupStatus) + '</div>' : '')],
       ['Running now', r.running ? '<span class="chip ok">yes</span>' : 'no'], ['Ads', String(r.ads.length)], ['Landing page (live)', r.url ? link(r.url) : dash],
       ['On staging', r.stagingSlug != null ? link('https://staging.credolegal.com' + slugTxt(r.stagingSlug)) + '<div class="sub">' + esc(r.staging) + '</div>' : esc(r.staging)],
-      ['Ad’s call number', r.callPhone ? esc(r.callPhone) + '<div class="sub">' + esc(r.callLevel) + ' call asset</div>' : dash], ['Number on the page', r.sitePhone ? esc(r.sitePhone) + '<div class="sub">utm_source ' + esc(r.source) + '</div>' : dash],
+      ['Ad’s call number', r.callPhone ? esc(r.callPhone) + '<div class="sub">' + esc(r.callLevel) + ' call asset</div>' : dash], ['Number shown on every page', r.shownPhone ? esc(r.shownPhone) + '<div class="sub">' + esc(r.shownBy) + '</div>' : dash],
       ['Match', MCHIP[r.match] || esc(r.match)]]);
     var srcRows = r.sitePhones ? '<table class="tbl"><thead><tr><th>Visitor’s source</th><th>Number shown</th></tr></thead><tbody>' + Object.keys(r.sitePhones).map(function (k) {
       return '<tr' + (k === r.source || (k === 'default' && r.source === '(none sent)') ? ' class="sel"' : '') + '><td>' + esc(k) + '</td><td>' + esc(r.sitePhones[k]) + '</td></tr>'; }).join('') + '</tbody></table>' : '';
-    var phone = '<p>' + (r.platform === 'google' ? 'The ad shows its own call number in Google (call asset at ' + esc(r.callLevel || 'no') + ' level). A click opens the landing page, which shows the number of its phone-table row for the visitor’s source.' :
-        'Meta and Nextdoor ads carry no phone number; the landing page shows the number of its phone-table row for the visitor’s source.') + ' The page the ad opened saves that number for 90 days and every later page of the visit shows it (PBI-42).</p>' +
-      kv([['Phone-table row', esc(r.phoneRow)], ['Source the ads send', esc(r.source)], ['Ad-group key', r.key ? '<code>' + esc(r.key) + '</code>' : dash], ['Ads send the key', esc(r.sendsKey)],
-        ['Planned number for the key', r.planned ? esc(r.planned) + '<div class="sub">per ad group lookup (proposal, not live)</div>' : dash], ['Bing number (call-tracking sheet)', esc(r.bingSheet)], ['Notes', esc(r.notes)]]) + srcRows;
+    var phone = '<p>' + (r.platform === 'google' ? 'The ad shows its own call number in Google (call asset at ' + esc(r.callLevel || 'no') + ' level). ' : 'Meta and Nextdoor ads carry no phone number. ') +
+        (r.shownBy === 'ad group (key)' ? 'Its ads send utm_source, utm_campaign and utm_term, so the site shows this ad group’s number from its ad-group table on every page of the visit.' :
+         'Its ads do not send all three of utm_source, utm_campaign and utm_term (or the site has no number for the key), so the site shows the landing page’s number for the source.') +
+        ' The number is kept for 90 days on every later page (PBI-42).</p>' +
+      kv([['Number shown', r.shownPhone ? esc(r.shownPhone) + '<div class="sub">' + esc(r.shownBy) + '</div>' : dash], ['Ad-group key', r.key ? '<code>' + esc(r.key) + '</code>' : dash], ['Ads send the key', esc(r.sendsKey)],
+        ['Ad group’s number on the site', r.adPhone ? esc(r.adPhone) : r.key ? 'not in the site’s ad-group table' : dash], ['Landing page’s number (source ' + esc(r.source) + ')', esc(r.sitePhone)], ['Phone-table row', esc(r.phoneRow)],
+        ['Bing number (call-tracking sheet)', esc(r.bingSheet)], ['Notes', esc(r.notes)]]) + '<h3>The landing page’s number by source</h3>' + srcRows;
     var adsTab = '<table class="tbl"><thead><tr><th>Ad</th><th>Type</th><th>Status</th></tr></thead><tbody>' + r.ads.map(function (a) { return '<tr><td>' + ad(a) + '</td><td>' + esc(a.type || '') + '</td><td>' + esc(a.status || '') + '</td></tr>'; }).join('') + '</tbody></table>';
     var page = kv([['Live (where the ads land today)', r.url ? link(r.url) : dash], ['Staging (the site being built)', r.stagingSlug != null ? link('https://staging.credolegal.com' + slugTxt(r.stagingSlug)) : esc(r.staging)],
       ['In the hub', hp ? '<a href="' + hp + '">Open the page in Website</a>' : '<span class="note">not part of a microsite</span>']]);
@@ -951,52 +955,112 @@
       .concat([{ label: 'Articles', href: '#/organic/articles', count: O.articles.length, children: O.articles.map(function (a) { return { label: a.title, href: '#/organic/articles/' + enc(a.slug) }; }) }]);
   }
 
-  /* the post as it appears on the platform */
-  function linkify(s) { return esc(s).replace(/((?:https?:\/\/)?(?:credolegal\.s\.gy|staging\.credolegal\.com)[\w\/?=&.-]*)/g, function (m) { return '<a href="' + (m.indexOf('http') ? 'https://' + m : m) + '" target="_blank" rel="noopener">' + m + '</a>'; })
-    .replace(/(#[A-Za-z]\w+)/g, '<span class="pv-tag">$1</span>'); }
-  function ocPreview(p) {
-    var body = linkify(p.text || ''), disc = p.disclaimer ? '<div class="pv-disc">' + esc(p.disclaimer) + '</div>' : '', im = imgUrl(p) ? '<img class="pv-img" src="' + esc(imgUrl(p)) + '" alt="">' : '';
-    var when = fmtDay(p.date) + (p.time ? ' · ' + fmtTime(p.time) + ' ET' : '');
-    if (p.channel === 'nextdoor') return '<div class="pv pv-nd"><div class="pv-hd"><span class="pv-av nd"><img src="assets/organic/credo-mark.png" alt=""></span><span><b>Credo Legal Services Professional Corporation</b><small>Business post · ' + esc(when) + '</small></span></div>' +
-      '<div class="pv-tx">' + body + disc + '</div>' + im + '<div class="pv-ft"><span>Thank</span><span>Reply</span><span>Share</span></div></div>';
-    if (p.channel === 'facebook') return '<div class="pv pv-fb"><div class="pv-hd"><span class="pv-av">C</span><span><b>Crēdo Legal</b><small>' + esc(when) + ' · Public</small></span></div>' +
-      '<div class="pv-tx">' + body + disc + '</div>' + im + (p.link ? '<div class="pv-card"><small>CREDOLEGAL.S.GY</small><b>Free case review · Crēdo Legal</b></div>' : '') + '<div class="pv-ft"><span>Like</span><span>Comment</span><span>Share</span></div></div>';
-    if (p.channel === 'instagram') return '<div class="pv pv-ig"><div class="pv-hd"><span class="pv-av ig">C</span><span><b>credolegal</b></span></div>' + im +
-      '<div class="pv-icons">♡ &nbsp;💬&nbsp; ➤</div><div class="pv-tx"><b>credolegal</b> ' + body + disc + '</div><div class="pv-when">' + esc(when) + '</div></div>';
-    return '<div class="pv pv-li"><div class="pv-hd"><span class="pv-av li">C</span><span><b>Crēdo Legal</b><small>1,100 followers · ' + esc(when) + '</small></span></div>' +
-      '<div class="pv-tx">' + body + disc + '</div>' + im + '<div class="pv-ft"><span>Like</span><span>Comment</span><span>Repost</span><span>Send</span></div></div>';
+  /* the post as it appears on the platform (mini = the calendar card, full = the drawer). Links show the way the platform
+   * shows them: Facebook and LinkedIn get Buffer's buff.ly short link at publish (the tagged URL is in the details),
+   * Nextdoor shows its credolegal.s.gy short link, Instagram captions carry no link. */
+  var ICON = {
+    like: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 11v9H4v-9h3zm0 0 4-7c1.4 0 2.2 1 2 2.4L12.5 10H19a2 2 0 0 1 2 2.3l-1.2 6A2 2 0 0 1 17.8 20H7"/></svg>',
+    comment: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1.1-4.6A8 8 0 1 1 21 12z"/></svg>',
+    share: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 5l7 7-7 7v-4c-6 0-9 2-11 5 1-6 4-10 11-11V5z"/></svg>',
+    heart: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20s-7-4.4-9.2-8.6C1.3 8.4 3.1 5 6.4 5c2 0 3.2 1.1 3.9 2.2h3.4C14.4 6.1 15.6 5 17.6 5c3.3 0 5.1 3.4 3.6 6.4C19 15.6 12 20 12 20z"/></svg>',
+    send: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 3 11 14M22 3l-7 19-4-8-8-4 19-7z"/></svg>',
+    save: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h12v18l-6-5-6 5V3z"/></svg>',
+    repost: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4m14-1v2a3 3 0 0 1-3 3H3"/></svg>',
+    globe: '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></svg>'
+  };
+  var MARK = 'assets/organic/credo-mark.png';
+  function shownLink(p) { return p.channel === 'nextdoor' ? (p.link || '').replace('https://', '') : (p.channel === 'facebook' || p.channel === 'linkedin') && p.tracking ? 'buff.ly/…' : ''; }
+  function postBody(p) {   /* the copy with the link as the platform will show it */
+    var t = p.text || '', shown = shownLink(p);
+    if (p.tracking && p.channel !== 'nextdoor' && p.channel !== 'instagram') t = t.replace(p.tracking.url, '\u0000');
+    return esc(t).replace(/((?:https?:\/\/)?credolegal\.s\.gy\/[\w-]+)/g, '<a href="' + esc(p.link || '#') + '" target="_blank" rel="noopener">$1</a>')
+      .replace('\u0000', '<a href="' + esc(p.tracking ? p.tracking.url : '#') + '" target="_blank" rel="noopener" title="Buffer shortens the tagged link at publish: ' + esc(p.tracking ? p.tracking.url : '') + '">' + esc(shown) + '</a>')
+      .replace(/(#[A-Za-z]\w+)/g, '<span class="pv-tag">$1</span>');
   }
+  function ocMock(p, mini) {
+    var body = postBody(p), disc = p.disclaimer ? '<div class="pv-disc">' + esc(p.disclaimer) + '</div>' : '';
+    var im = imgUrl(p) ? '<div class="pv-imgw r-' + (p.channel === 'facebook' || p.channel === 'instagram' ? '45' : /16x9|post-[a-z]+\.jpg/.test(p.img) ? '169' : '11') + '"><img class="pv-img" src="' + esc(imgUrl(p)) + '" alt="" loading="lazy"></div>' : '';
+    var when = fmtDay(p.date) + (p.time ? ' at ' + fmtTime(p.time) : '');
+    var more = { nextdoor: 'See more', facebook: 'See more', instagram: 'more', linkedin: '…more' }[p.channel];
+    var tx = function (pre) { return '<div class="pv-tx' + (mini ? ' clamp' : '') + '">' + (pre || '') + body + disc + '</div>' + (mini ? '<div class="pv-more">' + more + '</div>' : ''); };
+    var av = function (cls) { return '<span class="pv-av ' + (cls || '') + '"><img src="' + MARK + '" alt=""></span>'; };
+    if (p.channel === 'nextdoor') return '<div class="pv pv-nd' + (mini ? ' mini' : '') + '"><div class="pv-hd">' + av('nd') + '<span><b>Credo Legal Services Professional Corporation</b><small>Business post · ' + esc(when) + '</small></span></div>' +
+      tx() + im + '<div class="pv-ft"><span>' + ICON.heart.replace(/22/g, '15') + ' Thank</span><span>' + ICON.comment + ' Reply</span><span>' + ICON.share + ' Share</span></div></div>';
+    if (p.channel === 'facebook') return '<div class="pv pv-fb' + (mini ? ' mini' : '') + '"><div class="pv-hd">' + av() + '<span><b>Crēdo Legal</b><small>' + esc(when) + ' · ' + ICON.globe + '</small></span><i class="pv-dots">···</i></div>' +
+      tx() + im + '<div class="pv-ft"><span>' + ICON.like + ' Like</span><span>' + ICON.comment + ' Comment</span><span>' + ICON.share + ' Share</span></div></div>';
+    if (p.channel === 'instagram') return '<div class="pv pv-ig' + (mini ? ' mini' : '') + '"><div class="pv-hd">' + av('ig') + '<span><b>credolegal</b></span><i class="pv-dots">···</i></div>' + im +
+      '<div class="pv-icons"><span>' + ICON.heart + ICON.comment.replace(/16/g, '22') + ICON.send + '</span>' + ICON.save + '</div>' + tx('<b>credolegal</b> ') + '<div class="pv-when">' + esc(fmtDay(p.date)) + '</div></div>';
+    return '<div class="pv pv-li' + (mini ? ' mini' : '') + '"><div class="pv-hd">' + av('li') + '<span><b>Crēdo Legal</b><small>1,100 followers</small><small>' + esc(fmtDay(p.date)) + ' · ' + ICON.globe + '</small></span><i class="pv-dots">···</i></div>' +
+      tx() + im + '<div class="pv-ft"><span>' + ICON.like + ' Like</span><span>' + ICON.comment + ' Comment</span><span>' + ICON.repost + ' Repost</span><span>' + ICON.send.replace(/22/g, '16') + ' Send</span></div></div>';
+  }
+  function historyOf(p) {
+    return COMMENTS ? Object.keys(COMMENTS).map(function (k) { return COMMENTS[k]; }).filter(function (c) { return c.page === 'organic-approval' && c.anchor === 'org-' + p.id; }).sort(function (a, b) { return (b.timestamp || 0) - (a.timestamp || 0); }) : [];
+  }
+  function nextStep(p) {
+    var s = stOf(p);
+    if (s === 'published') return 'Published. Metrics are refreshed from the platform.';
+    if (s === 'scheduled') return p.channel === 'nextdoor' ? 'In the Nextdoor feed calendar; the daily task publishes it at ' + fmtTime(p.time) + ' ET.' : 'Queued in Buffer for ' + fmtTime(p.time) + ' ET.';
+    if (s === 'approved') return p.channel === 'nextdoor' ? 'Approved. The next sync ' + (p.short ? 'creates the short link, then ' : '') + 'puts it in the Nextdoor feed calendar for the daily task.' : 'Approved. The next sync queues it in Buffer (once Credo’s Buffer account is connected).';
+    if (s === 'changes') return 'Changes requested. The post is revised and returns as a draft.';
+    return p.type === 'ad' ? 'Draft. Needs approval, including the responsible attorney’s pre-approval (attorney advertising).' : 'Draft. Needs approval.';
+  }
+  function sec(t, body) { return body ? '<section class="od-sec"><h3>' + esc(t) + '</h3>' + body + '</section>' : ''; }
   function actionsHtml(p) {
     var s = stOf(p), canAppr = p.campaign === 'v2' && (s === 'draft' || s === 'changes' || s === 'approved');
-    return '<div class="toolbar pv-acts"><button class="btn" data-copy="' + esc(p.id) + '">Copy post text</button>' +
-      (canAppr && s !== 'approved' ? '<button class="btn dl" data-appr="' + esc(p.id) + '">Approve</button>' : '') +
-      (canAppr ? '<button class="btn" data-chg="' + esc(p.id) + '">Request changes</button>' : '') +
+    return '<div class="toolbar pv-acts">' + (canAppr && s !== 'approved' ? '<button class="btn dl" data-appr="' + esc(p.id) + '">Approve</button>' : '') +
+      (canAppr ? '<button class="btn" data-chg="' + esc(p.id) + '">Request changes</button>' : '') + '<button class="btn" data-copy="' + esc(p.id) + '">Copy post text</button>' +
+      (p.link ? '<button class="btn" data-copyl="' + esc(p.id) + '">Copy link</button>' : '') + (imgUrl(p) ? '<a class="btn" href="' + esc(imgUrl(p)) + '" download>Download image</a>' : '') +
       (p.url ? link(p.url, 'Open post ↗') : '') + (p.insights ? link(p.insights, 'Insights ↗') : '') + '<span class="sub" data-msg></span></div>' +
       '<form class="cform chg-form" data-chgf="' + esc(p.id) + '" hidden><label>What should change?</label><textarea rows="3" required></textarea><button class="btn" type="submit">Send</button></form>';
   }
-  function drawerPost(p) {
-    var a = apprOf(p), s = p.short && p.short[p.channel];
-    var info = kv([['Channel', chChip(p.channel)], ['Campaign', p.campaign === 'v2' ? esc('Week ' + p.week + ' · ' + p.theme) : 'Nextdoor, first campaign (Aug–Sep)'],
-      ['Date', esc(fmtDay(p.date) + ' ' + p.date.slice(0, 4)) + (p.time ? ' · ' + esc(fmtTime(p.time)) + ' ET' : '') + (p.postedAt ? ' · posted ' + esc(p.postedAt.slice(0, 16).replace('T', ' ')) + ' UTC' : '')],
-      ['Status', stChip(p) + (a ? ' <span class="sub">' + esc(a.author + ' · ' + new Date(a.timestamp).toISOString().slice(0, 10)) + (a.comment ? ': ' + esc(a.comment) : '') + '</span>' : '')],
-      ['Kind', esc(p.kind || '')], ['Topic', esc(p.title || '')], ['Headline on image', esc([p.head, p.sub].filter(Boolean).join(' · '))],
-      ['Landing page', p.lp ? link(p.lp) : ''], ['Short link', s ? link(s.url) + (s.planned ? ' <span class="chip warn">created on approval</span>' : s.asOf ? ' · <b>' + n0(s.clicks) + '</b> clicks as of ' + esc(s.asOf) : '') : p.channel === 'instagram' && p.type === 'ad' ? 'Link in bio: credolegal.s.gy/ig-bio' : ''],
-      ['Destination', s && s.dest ? '<span class="sub">' + esc(s.dest) + '</span>' : ''], ['Image', esc(p.imgNote || '') + (imgUrl(p) ? ' · ' + link(imgUrl(p), 'file ↗') : '')],
-      ['Length', p.full ? esc(p.full.length + (p.limit ? ' / ' + p.limit : '') + ' characters' + (p.disclaimer ? ' incl. disclaimer' : '')) : ''], ['Disclaimer', esc(p.why || '')]]);
-    var m = p.metrics, met = m ? '<div class="mgrid">' + mt('Views', n0(m.views)) + mt('Reactions', n0(m.reactions)) + mt('Comments', n0(m.comments)) + (s && s.asOf ? mt('Link clicks', n0(s.clicks)) : '') + '</div><p class="note">As of ' + esc(m.asOf || '') + ' (Nextdoor insights).</p>'
-      : '<p class="note">' + (p.channel === 'nextdoor' ? 'Metrics arrive after the daily task publishes the post (views from the insights page, reactions and comments from the post).' : 'Metrics arrive once the post is published through Buffer (Buffer post analytics); link clicks come from short.io.') + '</p>';
-    var buf = p.buffer ? kv([['Service', esc(CH[p.channel])], ['Scheduled for', esc(p.buffer.scheduledAt)], ['Image URL', p.buffer.media ? link(p.buffer.media.photo, 'public file ↗') : ''], ['Link', p.buffer.link ? link(p.buffer.link) : 'none (Instagram: link in bio)'],
-      ['Queued', p.buffer.queued ? esc(p.buffer.queued.id + ' · ' + p.buffer.queued.at) : '<span class="chip">not queued</span> queued by Claude through the Buffer connector after approval, once Credo’s Buffer account is connected']]) +
-      '<h3>Payload</h3><pre class="code">' + esc(JSON.stringify(p.buffer, null, 1)) + '</pre>'
-      : '<p class="note">Nextdoor is not a Buffer channel. Approved Nextdoor posts are copied into the Nextdoor feed calendar and published by the daily Chrome task at their slot.</p>';
-    openDrawer((p.title || p.id) + ' · ' + (CH[p.channel] || ''), [['Preview', actionsHtml(p) + ocPreview(p)], ['Basic info', info], ['Metrics', met], ['Buffer', buf], ['Comments', commentsTab('org-' + p.id)]], true);
+  function detailsHtml(p) {
+    var hist = historyOf(p), tr = p.tracking, sh = p.short && p.short[p.channel], wk = OC && OC.weeks.filter(function (w) { return w.n === p.week; })[0], im = p.image, m = p.metrics;
+    var local = p.scheduledAt ? new Date(p.scheduledAt).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }) : '';
+    var slotRule = p.channel === 'nextdoor' ? 'Nextdoor rotation 9 AM → 5 PM → 9 PM ET, one slot per day (same as the daily task)' : OC && OC.voice[p.channel] ? OC.voice[p.channel].cadence : '';
+    var pct = p.limit ? Math.min(100, Math.round(p.full.length / p.limit * 100)) : 0;
+    var h = sec('Status', '<p>' + stChip(p) + ' ' + typeChip(p) + '</p><p class="od-next">' + esc(nextStep(p)) + '</p>' +
+      (hist.length ? '<ul class="od-hist">' + hist.map(function (c) { return '<li><b>' + esc(c.status === 'approved' ? 'Approved' : c.status === 'changes' ? 'Changes requested' : 'Back to draft') + '</b> · ' + esc(c.author || '') + ' · ' + esc(new Date(c.timestamp).toLocaleString()) + (c.comment ? '<div>' + esc(c.comment) + '</div>' : '') + '</li>'; }).join('') + '</ul>' : '<p class="note">No decisions yet.</p>'));
+    h += sec('Schedule', kv([['Platform', chChip(p.channel)], ['Date', esc(fmtDay(p.date) + ' ' + p.date.slice(0, 4))], ['Time', p.time ? esc(fmtTime(p.time) + ' ET') + (local ? ' <span class="sub">(' + esc(local) + ' your time)</span>' : '') : ''],
+      ['Exact', p.scheduledAt ? '<code>' + esc(p.scheduledAt) + '</code>' : ''], ['Slot rule', esc(slotRule)], ['Posted', p.postedAt ? esc(p.postedAt.replace('T', ' ').slice(0, 16) + ' UTC') : ''],
+      ['Campaign', p.campaign === 'v2' ? esc('Organic v2 · week ' + p.week + ' · ' + (wk ? wk.theme + ' (' + wk.cluster + ')' : '')) : 'Nextdoor, first campaign (Aug–Sep)']]));
+    h += sec('Content', kv([['Kind', esc(p.kind) + '<div class="sub">' + esc(p.type === 'ad' ? 'Offers a free case review and links to a landing page.' : 'Explains a right, a warning or a process; no offer, no landing page.') + '</div>'],
+      ['Topic', esc(p.title || '')], ['Voice', OC && OC.voice[p.channel] ? esc(OC.voice[p.channel].role + ' · ' + OC.voice[p.channel].length) : ''], ['Words', p.words ? String(p.words) + ' (copy only)' : ''],
+      ['Length', p.full ? '<span class="od-bar"><i style="width:' + pct + '%"></i></span> ' + esc(p.full.length + ' of ' + (p.limit || '–') + ' characters, with disclaimer') : ''],
+      ['Hashtags', p.hashtags && p.hashtags.length ? esc(p.hashtags.join(' ')) : ''], ['On the image', im ? esc(im.baked) : '']]));
+    if (tr) h += sec('Link and tracking', kv([['Landing page', link(p.lp)], ['Tracked URL', '<span class="od-url">' + esc(tr.url) + '</span>'],
+        ['Parameters', '<table class="tbl od-utm"><tbody>' + Object.keys(tr.params).map(function (k) { return '<tr><td><code>' + k + '</code></td><td>' + esc(tr.params[k]) + '</td></tr>'; }).join('') + '</tbody></table>'],
+        ['Short link', tr.shortener === 'buffer' ? 'Buffer shortens it at publish (buff.ly). Buffer’s own UTM tracking stays off, so these parameters reach Analytics.' :
+          tr.shortener === 'short.io' ? link(sh.url) + (sh.planned ? ' <span class="chip warn">created on approval</span>' : '') + (sh.asOf ? ' · <b>' + n0(sh.clicks) + '</b> clicks as of ' + esc(sh.asOf) : '') + '<div class="sub">short.io (credolegal.s.gy): Nextdoor is not a Buffer channel.</div>' :
+          'Instagram captions cannot link. The tracked URL goes on the profile link (Buffer Start Page) while this post is current.'],
+        ['Where', esc(tr.placement)]]));
+    else if (p.campaign === 'v2') h += sec('Link and tracking', '<p class="note">No link: education posts carry no offer and no landing page.</p>');
+    if (im) h += sec('Image', '<div class="od-img"><img src="' + esc(imgUrl(p)) + '" alt=""><div>' + kv([['File', link(imgUrl(p), im.file)], ['Format', esc(im.ratio + ' · ' + im.size + ' px · JPEG')],
+      ['Style', esc(im.style === 'bold' ? 'Bold: red ground, one hand gesture, baked headline (the Nextdoor Bold look)' : 'Documentary photo')], ['Concept', esc(p.imgNote || '')], ['Headline', esc(im.baked)],
+      ['Source', esc(im.model)], ['Base image', '<code>' + esc(im.base) + '</code>']]) + '</div></div>');
+    else if (imgUrl(p)) h += sec('Image', '<div class="od-img"><img src="' + esc(imgUrl(p)) + '" alt=""><div>' + kv([['Note', esc(p.imgNote || '')]]) + '</div></div>');
+    h += sec('Compliance', kv([['Disclaimer', p.disclaimer ? '<div class="od-disc">' + esc(p.disclaimer) + '</div>' : 'None'], ['Rule', esc(p.type !== 'ad' ? 'Not advertising (education).' : p.channel === 'nextdoor' ? 'New York 22 NYCRR 1200.7.1, Nextdoor number (brand/ny-attorney-advertising-disclaimer.md).' : 'Nationwide text: the page reaches every state (brand/us-attorney-advertising-disclaimer.md).')],
+      ['Why', esc(p.why || '')], ['Attorney pre-approval', p.type === 'ad' ? '<span class="chip warn">required</span> before it goes live (NY 7.1(k)); keep a copy for a year' : 'Not required']]));
+    h += sec('Metrics', m ? '<div class="mgrid">' + mt('Views', n0(m.views)) + mt('Reactions', n0(m.reactions)) + mt('Comments', n0(m.comments)) + (sh && sh.asOf ? mt('Link clicks', n0(sh.clicks)) : '') + '</div><p class="note">As of ' + esc(m.asOf || '') + '.</p>'
+      : '<p class="note">' + (p.channel === 'nextdoor' ? 'After publishing: views from the insights page, reactions and comments from the post, clicks from short.io.' : 'After publishing: Buffer post analytics; sessions and form sends in Analytics by utm_content ' + esc(tr ? tr.params.utm_content : '') + '.') + '</p>');
+    var rel = (p.related || []).map(function (id) { return O.posts.filter(function (x) { return x.id === id; })[0]; }).filter(Boolean);
+    if (rel.length) h += sec('Same message on other platforms', '<div class="od-rel">' + rel.map(function (q) { return '<button class="od-relc" data-orgopen="' + esc(q.id) + '">' + (imgUrl(q) ? '<img src="' + esc(imgUrl(q)) + '" alt="">' : '') + '<span>' + chChip(q.channel) + '<b>' + esc(q.title) + '</b><small>' + esc(fmtDay(q.date) + (q.time ? ' · ' + fmtTime(q.time) : '')) + '</small>' + stChip(q) + '</span></button>'; }).join('') + '</div>');
+    return h;
   }
-  /* drawer actions: copy, approve, request changes */
+  function drawerPost(p) {
+    var buf = p.buffer ? kv([['Channel', esc(CH[p.channel]) + ' (Credo’s Buffer organization, not connected yet)'], ['Scheduled for', '<code>' + esc(p.buffer.scheduledAt) + '</code>'], ['Image', p.buffer.media ? link(p.buffer.media.photo, 'public file ↗') : ''],
+      ['Link', p.buffer.link ? '<span class="od-url">' + esc(p.buffer.link) + '</span><div class="sub">Shortened by Buffer at publish</div>' : p.buffer.startPageLink ? 'Start Page / profile link: <span class="od-url">' + esc(p.buffer.startPageLink) + '</span>' : 'none'],
+      ['Queued', p.buffer.queued ? esc(p.buffer.queued.id + ' · ' + p.buffer.queued.at) : '<span class="chip">not queued</span>']]) + '<h3>Payload</h3><pre class="code">' + esc(JSON.stringify(p.buffer, null, 1)) + '</pre>'
+      : '<p class="note">Nextdoor is not a Buffer channel. Approved Nextdoor posts go into the Nextdoor feed calendar and the daily Chrome task publishes them at their slot.</p>';
+    openDrawer((p.title || p.id) + ' · ' + (CH[p.channel] || ''), [['Post', '<div class="od">' + '<div class="od-l">' + actionsHtml(p) + ocMock(p, false) + '</div><div class="od-r">' + detailsHtml(p) + '</div></div>'], ['Buffer', buf], ['Comments', commentsTab('org-' + p.id)]], true);
+  }
+  /* drawer actions: approve, request changes, copy, open a related post */
   document.addEventListener('click', function (e) {
-    var b = e.target.closest('[data-copy],[data-appr],[data-chg]'); if (!b || !O) return;
-    var id = b.getAttribute('data-copy') || b.getAttribute('data-appr') || b.getAttribute('data-chg'), p = O.posts.filter(function (x) { return x.id === id; })[0]; if (!p) return;
+    var r = e.target.closest('[data-orgopen]'); if (r && O) { var rp = O.posts.filter(function (x) { return x.id === r.getAttribute('data-orgopen'); })[0]; if (rp) drawerPost(rp); return; }
+    var b = e.target.closest('[data-copy],[data-copyl],[data-appr],[data-chg]'); if (!b || !O) return;
+    var id = b.getAttribute('data-copy') || b.getAttribute('data-copyl') || b.getAttribute('data-appr') || b.getAttribute('data-chg'), p = O.posts.filter(function (x) { return x.id === id; })[0]; if (!p) return;
     var msg = b.parentNode.querySelector('[data-msg]');
-    if (b.hasAttribute('data-copy')) { navigator.clipboard.writeText(p.full || p.text || '').then(function () { msg.textContent = 'Copied.'; }); return; }
+    if (b.hasAttribute('data-copy')) { navigator.clipboard.writeText(p.full || p.text || '').then(function () { msg.textContent = 'Post text copied.'; }); return; }
+    if (b.hasAttribute('data-copyl')) { navigator.clipboard.writeText(p.link).then(function () { msg.textContent = 'Link copied.'; }); return; }
     if (b.hasAttribute('data-chg')) { var f = document.querySelector('[data-chgf="' + id + '"]'); f.hidden = !f.hidden; if (!f.hidden) f.querySelector('textarea').focus(); return; }
     msg.textContent = 'Saving…'; postApprove(p, 'approved').then(function () { drawerPost(p); refreshOrganic(); }).catch(function () { msg.textContent = 'Not saved.'; });
   });
@@ -1009,14 +1073,9 @@
 
   /* calendar */
   function visible(p) { return chFilter.indexOf(p.channel) >= 0; }
-  function ocCard(p, compact) {
-    var m = p.metrics, ratio = p.channel === 'facebook' || p.channel === 'instagram' ? '4/5' : (/1x1|bold/.test(p.img) || p.campaign === 'v2' ? '1/1' : '16/9');
-    return '<button class="oc st-' + stOf(p) + '"' + dr(function (el) { el.classList.add('sel'); drawerPost(p); }) + '>' +
-      (imgUrl(p) ? '<span class="oc-img" style="aspect-ratio:' + ratio + '"><img src="' + esc(imgUrl(p)) + '" alt="" loading="lazy"></span>' : '<span class="oc-img none">no image</span>') +
-      '<span class="oc-when">' + chChip(p.channel) + ' ' + esc(p.time ? fmtTime(p.time) : p.status === 'published' ? 'posted' : '') + '</span>' +
-      '<span class="oc-t">' + esc(p.title || '') + '</span>' + (compact ? '' : '<span class="oc-pv">' + esc((p.text || '').slice(0, 140)) + '</span>') +
-      '<span class="oc-b">' + stChip(p) + typeChip(p) + '</span>' +
-      (m ? '<span class="oc-m"><b>' + n0(m.views) + '</b> views · ' + n0(m.reactions) + ' reactions · ' + n0(m.comments) + ' comments</span>' : '') + '</button>';
+  function ocCard(p) {   /* a calendar cell: the hub's status strip above the post as it looks on the platform */
+    return '<button class="oc st-' + stOf(p) + '"' + dr(function (el) { el.classList.add('sel'); drawerPost(p); }) + '><span class="oc-strip">' + stChip(p) + '<span class="oc-time">' + esc(p.time ? fmtTime(p.time) + ' ET' : p.status === 'published' ? 'posted' : '') + '</span>' +
+      (p.type === 'ad' ? '<span class="chip">LP</span>' : '') + (p.metrics ? '<span class="oc-mm">' + n0(p.metrics.views) + ' views</span>' : '') + '</span>' + ocMock(p, true) + '</button>';
   }
   function filterBar() {
     return '<span class="seg oc-seg">' + CHS.map(function (c) { return '<button data-och="' + c + '" aria-pressed="' + (chFilter.indexOf(c) >= 0) + '">' + esc(CH[c]) + '</button>'; }).join('') + '</span>';
@@ -1061,10 +1120,13 @@
       (prev >= monday(first) ? '<a class="btn" href="#/organic?tab=w' + prev + '">← ' + esc(fmtDay(prev)) + '</a>' : '') + '<b class="cal-m">' + esc(fmtDay(mon) + ' – ' + fmtDay(days[6])) + '</b>' +
       (next <= last ? '<a class="btn" href="#/organic?tab=w' + next + '">' + esc(fmtDay(next)) + ' →</a>' : '') + '<a class="btn" href="#/organic?tab=w' + monday(todayIso) + '">Today</a>' + filterBar() +
       (drafts ? '<button class="btn dl" data-apprweek="' + mon + '">Approve ' + drafts + ' draft' + (drafts > 1 ? 's' : '') + ' this week</button>' : '') + '</div>' + weekHead(mon) +
-      '<div class="oc-grid">' + days.map(function (ds) {
-        var ps = wkPosts.filter(function (p) { return p.date === ds; }).sort(function (a, b) { return CHS.indexOf(a.channel) - CHS.indexOf(b.channel); });
-        return '<div class="oc-day' + (ds === todayIso ? ' today' : '') + (ps.length ? '' : ' empty') + '"><div class="oc-dh"><b>' + esc(fmtDay(ds)) + '</b>' + (ds === todayIso ? '<span class="chip red">today</span>' : '') + '</div>' +
-          ps.map(function (p) { return ocCard(p, ps.length > 2); }).join('') + '</div>'; }).join('') + '</div>' +
+      '<div class="oc-mxw"><div class="oc-mx" style="grid-template-columns:92px repeat(7, minmax(250px, 1fr))"><div class="oc-corner"></div>' +
+      days.map(function (ds) { return '<div class="oc-dh' + (ds === todayIso ? ' today' : '') + '"><b>' + esc(fmtDay(ds)) + '</b>' + (ds === todayIso ? ' <span class="chip red">today</span>' : '') + '</div>'; }).join('') +
+      CHS.filter(function (c) { return chFilter.indexOf(c) >= 0; }).map(function (c) {
+        var n = wkPosts.filter(function (p) { return p.channel === c; }).length;
+        return '<div class="oc-rh">' + chChip(c) + '<small>' + n + ' post' + (n === 1 ? '' : 's') + (OC && OC.voice[c] ? '<br>' + esc(OC.voice[c].role) : '') + '</small></div>' + days.map(function (ds) {
+          var ps = wkPosts.filter(function (p) { return p.date === ds && p.channel === c; });
+          return '<div class="oc-cell' + (ds === todayIso ? ' today' : '') + '">' + (ps.length ? ps.map(ocCard).join('') : '<span class="oc-none">no post</span>') + '</div>'; }).join(''); }).join('') + '</div></div>' +
       (wkPosts.length ? '' : '<p class="empty">No posts this week for the selected platforms.</p>');
     return h;
   }
@@ -1081,9 +1143,9 @@
       '<h2>Platforms</h2><div class="tiles">' + CHS.map(function (c) { var v = OC.voice[c]; return '<a class="tile" style="text-decoration:none" href="#/organic/' + c + '?tab=voice"><h3>' + chChip(c) + ' ' + esc(v.role) + '</h3><p>' + esc(v.cadence) + '</p><p>' + esc(v.length + ' · ' + v.mix) + '</p></a>'; }).join('') + '</div>' +
       '<h2>Workflow</h2><ol class="notes"><li><b>Draft.</b> Posts, images and disclaimers come from <code>content/campaigns/organic/campaign-2026-10.js</code> (images baked by <code>scripts/organic/bake.py</code> from the Higgsfield bases).</li>' +
       '<li><b>Approve</b> each post in its drawer, or a whole week from the Calendar. “Request changes” records a note; the post is revised and returns as a draft. Every landing-page post needs the responsible attorney’s pre-approval (NY 7.1(k)).</li>' +
-      '<li><b>Sync</b> (<code>node tools/marketing-hub/organic-sync.mjs</code>, run by Claude): creates the short links on credolegal.s.gy, schedules approved Nextdoor posts in the Nextdoor feed calendar (the daily task publishes them at the slot), and queues approved Facebook, Instagram and LinkedIn posts in Buffer.</li>' +
+      '<li><b>Sync</b> (<code>node tools/marketing-hub/organic-sync.mjs</code>, run by Claude): creates the Nextdoor short links on credolegal.s.gy, schedules approved Nextdoor posts in the Nextdoor feed calendar (the daily task publishes them at the slot), and queues approved Facebook, Instagram and LinkedIn posts in Buffer. Their copy carries the UTM-tagged landing-page URL, which Buffer shortens (buff.ly) at publish; Buffer’s own UTM tracking stays off.</li>' +
       '<li><b>Measure.</b> Nextdoor metrics come back from the insights pages, the others from Buffer analytics; link clicks from short.io (utm_campaign ' + esc(OC.utmCampaign) + ', utm_medium social).</li></ol>' +
-      '<div class="warnbox">Buffer: the Buffer connector in this workspace belongs to another organization (Izobilje), so nothing is queued yet. Connect Credo’s Buffer account (Facebook Page, Instagram business account, LinkedIn Page) and the sync queues approved posts. Instagram captions cannot link; set the profile link to credolegal.s.gy/ig-bio.</div>' +
+      '<div class="warnbox">Buffer: the Buffer connector in this workspace belongs to another organization (Izobilje), so nothing is queued yet. Connect Credo’s Buffer account (Facebook Page, Instagram business account, LinkedIn Page) and the sync queues approved posts. Instagram captions cannot link; the week’s UTM-tagged link goes on the profile link (Buffer Start Page). In each channel’s Buffer settings: link shortening on, Buffer UTM tracking off.</div>' +
       '<h2>Visuals</h2><p class="note">Higgsfield (GPT Image 2.5, 4:5, text-free bases), headlines baked per platform. Bold concepts carry the landing-page posts (the Nextdoor Bold campaign look); documentary photos carry the education posts.</p><div class="thumbs">' +
       Object.keys(OC.concepts).map(function (k) { var ex = cp.filter(function (p) { return p.concept === k && p.channel === 'instagram'; })[0] || cp.filter(function (p) { return p.concept === k; })[0];
         return ex ? '<button class="thumb"' + dr(function (el) { el.classList.add('sel'); drawerPost(ex); }) + '><img src="' + esc(ex.img) + '" alt=""><div class="cap">' + esc(OC.concepts[k].note) + '<small>' + esc(OC.concepts[k].style) + ' · used in ' + cp.filter(function (p) { return p.concept === k; }).length + ' posts</small></div></button>' : ''; }).join('') + '</div>';
