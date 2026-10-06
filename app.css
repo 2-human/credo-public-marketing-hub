@@ -180,3 +180,10 @@ details.state summary { cursor:pointer; font-weight:600; font-size:13px; } detai
 .tbl.sugg td.ad .sub { font-weight:400; }
 .tile.out { border-color:#f0b7bb; background:#fffafa; }
 .tile.out h3 { text-decoration:line-through; text-decoration-color:rgba(155,28,36,.45); }
+/* MH-17: reviews and the board overview in Work */
+.tile.static { cursor:default; } .tile.static:hover { border-color:var(--line); box-shadow:none; }
+.warnbox { border:1px solid #ecc98a; background:#fff7e8; color:#6b4300; border-radius:6px; padding:9px 12px; margin:0 0 14px; font-size:13px; }
+.mdoc pre.code { background:#f6f8fa; border:1px solid var(--line); border-radius:5px; padding:10px 12px; overflow:auto; font:12px/1.45 ui-monospace,Menlo,monospace; white-space:pre; max-width:100%; }
+.mdoc ol { padding-left:22px; } .note.mono { font-family:ui-monospace,Menlo,monospace; }
+.fileref { border-bottom:1px dotted var(--mute); cursor:help; }
+@media (max-width:700px) { .mtabs.rtabs { flex-wrap:nowrap; overflow-x:auto; } .mtabs.rtabs a { white-space:nowrap; } }   /* review file tabs scroll sideways on phones */

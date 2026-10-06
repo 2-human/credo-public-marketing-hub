@@ -6,7 +6,7 @@
  * Data: registry.js (HUB), metrics.js (HUB_METRICS, local), microsites.js, ads-tree.js (HUB_ADS), ads-metrics.js. */
 (function () {
   var H = window.HUB, M = window.HUB_METRICS || null, S = window.HUB_MICROSITES, A = window.HUB_ADS, AM = window.HUB_ADS_METRICS || null;
-  var B = window.BACKLOG || null, W = window.HUB_WORK || null, ST = window.HUB_STATUTES || null, O = window.HUB_ORGANIC || null;
+  var B = window.BACKLOG || null, W = window.HUB_WORK || null, RV = window.HUB_REVIEWS || null, ST = window.HUB_STATUTES || null, O = window.HUB_ORGANIC || null;
   var TAB = null;
   /* review comments (MH-11 D3): the shared review database the old hubs' widget wrote to (credo-712c4, /comments).
    * Each comment is mapped to the entity it was left on; new comments from the hub are written with page
@@ -266,6 +266,7 @@
     var work = B ? [{ label: 'Board', href: '#/work', count: B.pbis.filter(function (p) { return p.visible !== false; }).length,
         children: B.pbis.filter(function (p) { return p.visible !== false; }).map(function (p) { return { label: p.id + ' · ' + p.title, href: '#/work/' + enc(p.id), dot: pbiState(p) === 'done' ? 'on' : pbiState(p) === 'doing' ? 'hold' : '' }; }) },
       { label: 'Decisions', href: '#/work/decisions', count: B.decisions.length }, { label: 'Manual steps', href: '#/work/manual', count: B.manual.length },
+      { label: 'Reviews', href: '#/work/reviews', count: RV ? RV.groups.length : 0, children: RV ? RV.groups.map(function (g) { return { label: g.id + ' · ' + g.title, href: '#/work/reviews/' + enc(g.id) }; }) : [] },
       { label: 'Rules', href: '#/work/rules' }, { label: 'Change log', href: '#/work/changelog' }] : [];
     var more = [['index.html', 'Overview'], ['funnel.html', 'Funnel'], ['tracking.html', 'Tracking'], ['reference.html', 'Reference']]
       .map(function (x) { return { label: x[1], href: '#/more/' + x[0] }; });
@@ -275,7 +276,7 @@
   }
   function adLabel(p, a) { return p.key === 'google' ? (a.headlines[0] || a.name) : p.key === 'meta' ? (a.version + ' · ' + a.name.split('-').slice(0, -1).join('-').replace(/^DD_/, '')) : a.name; }
   function renderTree() {
-    var cur = location.hash || '#/website', q = ($('app-filter').value || '').trim().toLowerCase();
+    var cur = (location.hash || '#/website').split('?')[0], q =   /* a view's tab (?tab=…) keeps its nav entry current */ ($('app-filter').value || '').trim().toLowerCase();
     if (lastCur !== cur) { expanded[cur] = true; lastCur = cur; }   /* a newly opened item shows its children */
     var ns = nodes();
     /* open the ancestors of the current item */
@@ -719,19 +720,38 @@
     var st = p.tasks.map(function (t) { return t[1]; });
     return st.indexOf('doing') >= 0 ? 'doing' : st.length && st.every(function (x) { return x === 'done'; }) ? 'done' : 'todo';
   }
-  function md(text) {   /* small markdown: headings, lists, tables, paragraphs, bold, code, links */
+  /* MH-17: review files and the change log open inside the hub (they used to open on the public staging-plan mirror) */
+  function docHref(path) {
+    if (path === 'review/CHANGELOG.md') return '#/work/changelog';
+    var hit = null; if (RV) RV.groups.some(function (g) { var k = g.files.map(function (f) { return f[1]; }).indexOf(path); if (k >= 0) hit = '#/work/reviews/' + enc(g.id) + '?tab=f' + k; return k >= 0; });
+    return hit || (RV && RV.docs[path] != null ? '#/work/doc/' + enc(path) : null);
+  }
+  function resolveDoc(u, base) {   /* a relative link in a review file or the change log (both live in review/) */
+    var parts = ((base || '') + u.replace(/^\.\//, '')).split('/'), out = [];
+    parts.forEach(function (x) { if (x === '..') out.pop(); else if (x && x !== '.') out.push(x); });
+    return out.join('/');
+  }
+  function md(text, base) {   /* small markdown: headings, lists, tables, code blocks, paragraphs, bold, code, links */
     var inl = function (t) { return esc(t).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/(^|[^*])\*([^*\s][^*]*)\*/g, '$1<i>$2</i>')
-      .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function (m, t2, u) { return '<a href="' + (/^https?:/.test(u) ? u : (W ? W.mirror : '') + u.replace(/^\.\//, '')) + '" target="_blank" rel="noopener">' + t2 + '</a>'; }); };
-    var out = [], lines = text.split('\n'), i = 0;
+      .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function (m, t2, u) {
+        u = u.replace(/&amp;/g, '&');
+        if (/^(https?:|mailto:|#)/.test(u)) return '<a href="' + esc(u) + '"' + (/^#/.test(u) ? '' : ' target="_blank" rel="noopener"') + '>' + t2 + '</a>';
+        var h = docHref(resolveDoc(u.split('#')[0], base));   /* files that are not review texts (screenshots, JSON) stay in the private repo */
+        return h ? '<a href="' + h + '">' + t2 + '</a>' : '<span class="fileref" title="' + esc(resolveDoc(u, base)) + ' (private repo)">' + t2 + '</span>';
+      }); };
+    var out = [], lines = text.split('\n'), i = 0, START = /^(#{1,4} |\||\s*[-*] |\s*\d+[.)] |```)/;
     while (i < lines.length) {
       var l = lines[i];
+      if (/^```/.test(l)) { var code = []; i++; while (i < lines.length && !/^```/.test(lines[i])) { code.push(lines[i]); i++; } i++;
+        out.push('<pre class="code"><code>' + esc(code.join('\n')) + '</code></pre>'); continue; }
       if (/^#{1,4} /.test(l)) { var n = l.match(/^#+/)[0].length; out.push('<h' + (n + 1) + '>' + inl(l.replace(/^#+ /, '')) + '</h' + (n + 1) + '>'); i++; continue; }
       if (/^\|/.test(l)) { var rows = []; while (i < lines.length && /^\|/.test(lines[i])) { if (!/^\|[\s:|-]+\|$/.test(lines[i])) rows.push(lines[i].replace(/^\||\|$/g, '').split('|')); i++; }
         out.push('<div class="scroll"><table class="tbl">' + rows.map(function (r, k) { return '<tr>' + r.map(function (c) { return (k ? '<td>' : '<th>') + inl(c.trim()) + (k ? '</td>' : '</th>'); }).join('') + '</tr>'; }).join('') + '</table></div>'); continue; }
-      if (/^\s*[-*] /.test(l)) { var items = []; while (i < lines.length && /^\s*[-*] |^\s{2,}\S/.test(lines[i])) { if (/^\s*[-*] /.test(lines[i])) items.push(lines[i].replace(/^\s*[-*] /, '')); else items[items.length - 1] += ' ' + lines[i].trim(); i++; }
-        out.push('<ul>' + items.map(function (x) { return '<li>' + inl(x) + '</li>'; }).join('') + '</ul>'); continue; }
+      if (/^\s*([-*]|\d+[.)]) /.test(l)) { var ol = /^\s*\d/.test(l), items = [];
+        while (i < lines.length && (/^\s*([-*]|\d+[.)]) /.test(lines[i]) || /^\s{2,}\S/.test(lines[i]))) { if (/^\s*([-*]|\d+[.)]) /.test(lines[i])) items.push(lines[i].replace(/^\s*([-*]|\d+[.)]) /, '')); else items[items.length - 1] += ' ' + lines[i].trim(); i++; }
+        out.push((ol ? '<ol>' : '<ul>') + items.map(function (x) { return '<li>' + inl(x) + '</li>'; }).join('') + (ol ? '</ol>' : '</ul>')); continue; }
       if (!l.trim()) { i++; continue; }
-      var para = []; while (i < lines.length && lines[i].trim() && !/^(#{1,4} |\||\s*[-*] )/.test(lines[i])) { para.push(lines[i]); i++; }
+      var para = []; while (i < lines.length && lines[i].trim() && !START.test(lines[i])) { para.push(lines[i]); i++; }
       out.push('<p>' + inl(para.join(' ')) + '</p>');
     }
     return out.join('\n');
@@ -739,15 +759,15 @@
   function logFor(id) {   /* the change-log entry of a backlog item ("## PBI-39 · …") */
     if (!W) return ''; var parts = W.changelog.split(/\n(?=## )/);
     var hit = parts.filter(function (x) { return x.indexOf('## ' + id + ' ') === 0 || x.indexOf('## ' + id + '\n') === 0; });
-    return hit.length ? md(hit.join('\n')) : '';
+    return hit.length ? md(hit.join('\n'), 'review/') : '';
   }
   var VCHIP = function (v) { return !v ? '' : /do not/i.test(v) ? '<span class="chip red">' + esc(v) + '</span>' : /fix/i.test(v) ? '<span class="chip warn">' + esc(v) + '</span>' : '<span class="chip ok">' + esc(v) + '</span>'; };
   function reviewHtml(p) {
     var r = p.review || {}, items = r.items || [];
     if (!items.length && !(r.links || []).length) return '<p class="note">No review recorded.</p>';
     return '<table class="tbl"><thead><tr><th>Kind</th><th>Reviewer</th><th>Verdict</th><th>Note</th></tr></thead><tbody>' + items.map(function (x) {
-      return '<tr><td>' + esc(x.kind) + '</td><td>' + esc(x.by) + '</td><td>' + (x.na ? '<span class="chip">not applicable</span>' : VCHIP(x.verdict) + (x.file ? ' ' + link(W.mirror + x.file, 'read') : '')) + (x.settled ? ' <span class="chip ok">settled</span>' : '') + '</td><td>' + esc(x.note || '') + '</td></tr>';
-    }).join('') + '</tbody></table>' + ((r.links || []).length ? '<p>' + r.links.map(function (l) { return link(W.mirror + l[1], l[0]); }).join(' · ') + '</p>' : '');
+      return '<tr><td>' + esc(x.kind) + '</td><td>' + esc(x.by) + '</td><td>' + (x.na ? '<span class="chip">not applicable</span>' : VCHIP(x.verdict) + (x.file && docHref(x.file) ? ' <a href="' + docHref(x.file) + '">read</a>' : '')) + (x.settled ? ' <span class="chip ok">settled</span>' : '') + '</td><td>' + esc(x.note || '') + '</td></tr>';
+    }).join('') + '</tbody></table>' + ((r.links || []).length ? '<p>' + r.links.map(function (l) { var h = docHref(l[1]); return h ? '<a href="' + h + '">' + esc(l[0]) + '</a>' : esc(l[0]); }).join(' · ') + '</p>' : '');
   }
   function tasksHtml(p) {
     return ['todo', 'doing', 'done'].map(function (k) {
@@ -762,19 +782,28 @@
   function drawerPbi(p) {
     openDrawer(p.id + ' · ' + p.title, [['Basic info', pbiInfo(p) + '<div class="toolbar">' + go('#/work/' + enc(p.id), 'Open the item') + '</div>'], ['Tasks', tasksHtml(p)], ['Review', reviewHtml(p)], ['Change log', logFor(p.id) || '<p class="note">No change-log entry.</p>']]);
   }
+  var BY = { claude: 'Claude', likely: 'Likely Claude', decision: 'Needs decision', manual: 'Manual' };
   function viewBoard() {
     var vis = B.pbis.filter(function (p) { return p.visible !== false; });
+    /* MH-17: the overview of the legacy board page: status cards, the WIP-1 warning, "who does it" and why one row at a time */
+    var active = B.pbis.filter(function (p) { return pbiState(p) === 'doing'; }), done = B.pbis.filter(function (p) { return pbiState(p) === 'done'; }), blocked = B.pbis.filter(function (p) { return p.blocked; });
+    var card = function (k, v) { return '<div class="tile static"><p>' + esc(k) + '</p><div class="big">' + v + '</div></div>'; };
     var h = '<h1>Board</h1><p class="lead">' + esc(B.site ? B.site.name + ' · ' + B.site.domain : '') + ' · updated ' + esc(B.updated) + '. One row per backlog item; click a row for its details, tasks, review and change-log entry.</p>' +
+      '<div class="tiles">' + card('In progress (WIP 1)', active.length ? esc(active.map(function (p) { return p.id; }).join(', ')) : 'none') + card('Items done', done.length + ' / ' + B.pbis.length) + card('Waiting on a decision', String(blocked.length)) + '</div>' +
+      (active.length > 1 ? '<div class="warnbox">WIP limit broken: ' + active.length + ' rows have tasks in Doing (' + esc(active.map(function (p) { return p.id; }).join(', ')) + ').</div>' : '') +
       (B.state ? '<details class="state"><summary>Current state</summary><p>' + esc(B.state) + '</p></details>' : '') +
-      '<div class="scroll"><table class="tbl"><thead><tr><th>Item</th><th>State</th><th class="num">To do</th><th class="num">Doing</th><th class="num">Done</th><th>Review</th><th>Blocked by</th></tr></thead><tbody>';
+      '<div class="scroll"><table class="tbl"><thead><tr><th>Item</th><th>State</th><th>By</th><th class="num">To do</th><th class="num">Doing</th><th class="num">Done</th><th>Review</th><th>Blocked by</th></tr></thead><tbody>';
     vis.forEach(function (p) {
       var c = function (k) { return p.tasks.filter(function (t) { return t[1] === k; }).length; }, st = pbiState(p);
       var rv = ((p.review || {}).items || []).map(function (x) { return x.na ? '' : VCHIP(x.verdict); }).join(' ');
       h += '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); drawerPbi(p); }) + '><td><a href="#/work/' + enc(p.id) + '">' + esc(p.id) + '</a> ' + esc(p.title) + '</td><td>' +
-        (st === 'done' ? '<span class="chip ok">done</span>' : st === 'doing' ? '<span class="chip warn">doing</span>' : '<span class="chip">to do</span>') + '</td><td class="num">' + c('todo') + '</td><td class="num">' + c('doing') + '</td><td class="num">' + c('done') + '</td><td>' + rv + '</td><td>' + esc(p.blocked || '') + '</td></tr>';
+        (st === 'done' ? '<span class="chip ok">done</span>' : st === 'doing' ? '<span class="chip warn">doing</span>' : '<span class="chip">to do</span>') + '</td><td>' + esc(BY[p.by] || p.by || '') + '</td><td class="num">' + c('todo') + '</td><td class="num">' + c('doing') + '</td><td class="num">' + c('done') + '</td><td>' + rv + '</td><td>' + esc(p.blocked || '') + '</td></tr>';
     });
     var hid = B.pbis.length - vis.length;
-    return h + '</tbody></table></div>' + (hid ? '<p class="note">' + hid + ' closed items are hidden on the board (as on the staging plan board).</p>' : '');
+    return h + '</tbody></table></div>' + (hid ? '<p class="note">' + hid + ' closed items are hidden on the board.</p>' : '') +
+      '<h2>Why one row at a time</h2><div class="mdoc"><p>The board follows a Scrum WIP limit of one: only one row may have tasks in <b>Doing</b>. The whole team works on that ' +
+      'one item together (sometimes called swarming), and it is finished (published to staging and verified) before the next row starts.</p><p>Rows waiting on a decision keep ' +
+      'their place in the priority order. When the decision arrives they are pulled in next; until then the next unblocked row is taken.</p></div>';
   }
   function viewPbi(p) {
     return '<h1>' + esc(p.id + ' · ' + p.title) + '</h1><div class="toolbar"><button class="btn"' + dr(function () { drawerPbi(p); }) + '>Details, tasks, review</button></div>' + pbiInfo(p) +
@@ -793,6 +822,29 @@
     return '<h1>Manual steps</h1><p class="lead">Steps only the operator can take (accounts, Designer-only settings).</p><div class="scroll"><table class="tbl"><thead><tr><th>Step</th><th>What</th><th>Status</th></tr></thead><tbody>' +
       B.manual.map(function (m) { return '<tr><td>' + esc(m[0]) + '</td><td>' + esc(m[1]) + '</td><td>' + (/^done/i.test(m[2]) ? '<span class="chip ok">' + esc(m[2]) + '</span>' : esc(m[2])) + '</td></tr>'; }).join('') + '</tbody></table></div>';
   }
+
+  /* ───────────── work: reviews (MH-17; was the legacy review page on the public mirror) ───────────── */
+  function docBody(path) {   /* a review file: its reviewer line (model, date, time) above the text */
+    var t = RV.docs[path] || '', head = (t.match(/^<!--\s*(reviewer:[^>]*?)\s*-->/) || [])[1];
+    return (head ? '<p class="note mono">' + esc(head.replace(/\s*usage .*$/, '')) + '</p>' : '') + '<div class="mdoc">' + md(t.replace(/^<!--[\s\S]*?-->\s*/, ''), 'review/') + '</div>';
+  }
+  function verdictsOf(g) { var p = g.pbi && B && B.pbis.filter(function (x) { return x.id === g.id; })[0]; return p ? ((p.review || {}).items || []).map(function (x) { return x.na ? '' : VCHIP(x.verdict); }).join(' ') : ''; }
+  function viewReviews() {
+    var h = '<h1>Reviews</h1><p class="lead">Independent GPT and Gemini reviews of each change: the packet sent, each reviewer’s reply and the resolution. ' +
+      'Newest first; reviews of work that is not a backlog item are listed first. Click a review to read it.</p><div class="scroll"><table class="tbl"><thead><tr><th>Review</th><th>Files</th><th>Verdicts</th></tr></thead><tbody>';
+    RV.groups.forEach(function (g) {
+      h += '<tr><td><a href="#/work/reviews/' + enc(g.id) + '">' + esc(g.id) + '</a> ' + esc(g.title) + (g.pbi ? '' : ' <span class="chip">not a backlog item</span>') + '</td><td class="num">' + g.files.length + '</td><td>' + verdictsOf(g) + '</td></tr>';
+    });
+    return h + '</tbody></table></div>';
+  }
+  function viewReview(g) {
+    var keys = g.files.map(function (f, k) { return 'f' + k; }), cur = keys.indexOf(TAB) >= 0 ? keys.indexOf(TAB) : g.files.length - 1;   /* default: the resolution, as before */
+    var f = g.files[cur], base = '#/work/reviews/' + enc(g.id);
+    return '<h1>' + esc(g.id + ' · ' + g.title) + '</h1>' + (g.pbi ? '<div class="toolbar">' + go('#/work/' + enc(g.id), 'Open the backlog item') + '</div>' : '') +
+      '<nav class="mtabs rtabs" aria-label="Review files">' + g.files.map(function (x, k) { return '<a href="' + base + '?tab=f' + k + '"' + (k === cur ? ' aria-current="page"' : '') + '>' + esc(x[0]) + '</a>'; }).join('') + '</nav>' +
+      (f[1] === 'review/CHANGELOG.md' ? (W ? '<div class="mdoc">' + md(W.changelog.replace(/^# .*\n/, ''), 'review/') + '</div>' : '') : RV.docs[f[1]] != null ? docBody(f[1]) : '<p class="note">File not found: ' + esc(f[1]) + '</p>');
+  }
+  function viewDoc(path) { return '<h1>' + esc(path.replace(/^review\//, '')) + '</h1>' + docBody(path); }
 
   /* ───────────── organic (MH-11 D4): posts, articles, the Nextdoor business page and engagement ───────────── */
   var CH = { linkedin: 'LinkedIn', facebook: 'Facebook', nextdoor: 'Nextdoor' };
@@ -909,7 +961,10 @@
       else if (parts[1] === 'decisions') { crumbs.push(['Decisions', hash]); html = viewDecisions(); }
       else if (parts[1] === 'manual') { crumbs.push(['Manual steps', hash]); html = viewManual(); }
       else if (parts[1] === 'rules') { crumbs.push(['Rules', hash]); html = '<div class="mdoc">' + (W ? W.rules : '') + '</div>'; }
-      else if (parts[1] === 'changelog') { crumbs.push(['Change log', hash]); html = '<h1>Change log</h1><p class="lead">Every change made to the staging site, item by item, with where it lives in Webflow and how to undo it.</p><div class="mdoc">' + (W ? md(W.changelog.replace(/^# .*\n/, '')) : '') + '</div>'; }
+      else if (parts[1] === 'changelog') { crumbs.push(['Change log', hash]); html = '<h1>Change log</h1><p class="lead">Every change made to the staging site, item by item, with where it lives in Webflow and how to undo it.</p><div class="mdoc">' + (W ? md(W.changelog.replace(/^# .*\n/, ''), 'review/') : '') + '</div>'; }
+      else if (parts[1] === 'reviews' && RV) { crumbs.push(['Reviews', '#/work/reviews']); var rg = parts[2] && RV.groups.filter(function (g) { return g.id === parts[2]; })[0];
+        if (rg) { crumbs.push([rg.id, hash]); html = viewReview(rg); } else html = viewReviews(); }
+      else if (parts[1] === 'doc' && RV && RV.docs[parts[2]] != null) { crumbs.push(['Reviews', '#/work/reviews'], [parts[2].replace(/^review\//, ''), hash]); html = viewDoc(parts[2]); }
       else html = viewBoard();
     } else if (parts[0] === 'more' && /^[a-z]+\.html$/.test(parts[1] || '')) {
       crumbs.push([parts[1].replace('.html', ''), hash]); main.classList.add('flush');
