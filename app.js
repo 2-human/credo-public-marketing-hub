@@ -273,6 +273,7 @@
     return [{ sec: 'Website', label: 'All microsites', href: '#/website', count: sites.length, children: web },
             { sec: 'Ads', label: 'All platforms', href: '#/ads', count: plats.length, children: ads },
             { label: 'Ads → pages → phones', href: '#/ads/phones', count: PM ? PM.rows.length : 0 },
+            { label: 'Search terms', href: '#/ads/terms', count: STG() ? allTerms().length : 0 }, { label: 'New pages', href: '#/ads/new-pages', count: STG() ? newPageRows().length : 0 },
             { sec: 'Organic' }].concat(organicNav(), [{ sec: 'Work' }], work, [{ sec: 'Reference' }, { label: 'Statutes', href: '#/reference/statutes', count: ST ? ST.statutes.length : 0 }], [{ sec: 'More' }], more);
   }
   function adLabel(p, a) { return p.key === 'google' ? (a.headlines[0] || a.name) : p.key === 'meta' ? (a.version + ' · ' + a.name.split('-').slice(0, -1).join('-').replace(/^DD_/, '')) : a.name; }
@@ -524,19 +525,233 @@
   }
   function intentLabel(k) { var st = STG(), i = st && st.intents[k]; return i ? i.label : (k || ''); }
   function pageLabel(code) { var st = STG(), pg = st && st.pages[code]; return pg ? pg.label + (pg.url ? ' · ' + pg.url.replace(/^https?:\/\//, '') : '') : code; }
+  /* MH-19: the fields the retired search-term page derived per term (verdict against the benchmark, flags, best page) */
+  function termX(t) {
+    var st = STG(), B = st.bench, P = st.pages, acpa = st.account90d.cost / st.account90d.conv;
+    var x = { ctr: t.impr ? t.clicks / t.impr : 0, cpa: t.conv > 0 ? t.cost / t.conv : null, brand: t.best === 'BRAND' }, bp = P[t.best] || {};
+    x.verdict = x.brand ? 'Brand' : x.ctr >= 2 * B.ctr ? 'Strong' : x.ctr >= B.ctr ? 'Above' : 'Below';
+    x.liveBest = bp.kind === 'new' ? (t.interim || bp.interim) : bp.kind === 'none' ? null : t.best;
+    x.liveShare = t.scope === 'history' ? null : x.liveBest ? ((t.current || []).filter(function (c) { return c.page === x.liveBest; })[0] || { share: 0 }).share : -1;
+    x.newp = bp.kind === 'new' ? bp.label : '';
+    x.leak = !x.brand && x.ctr >= B.ctr && t.clicks >= 10 && (t.conv === 0 || x.cpa > 2 * acpa);
+    x.wrong = t.scope === 'active' && ['NEG', 'BRAND'].indexOf(t.best) < 0 && t.action !== 'neg_here' && x.liveShare < 50;
+    x.idea = t.action === 'add_kw' || t.action === 'consider';
+    x.flags = [];
+    if (t.impr < 50) x.flags.push('low volume: directional');
+    if (t.clicks >= 5 && t.conv === 0) x.flags.push('no conversions'); else if (x.cpa && x.cpa > 2 * acpa) x.flags.push('CPA > 2× account');
+    if (t.dup) x.flags.push(t.scope === 'active' ? 'also in another ad group' : 'in several paused campaigns');
+    return x;
+  }
+  var VERD = { Strong: 'ok', Above: 'ok', Below: 'red', Brand: '' };
+  var verdictChip = function (v) { return '<span class="chip ' + (VERD[v] || '') + '">' + esc(v) + '</span>'; };
+  function findGroup(cn, gn) { var c = (platBy.google.campaigns || []).filter(function (x) { return x.name === cn; })[0], g = c && c.groups.filter(function (x) { return x.name === gn; })[0]; return { c: c || null, g: g || null }; }
+  /* the term's numbers split across the ads of its ad group: Google reports ads by keyword, not by search term, so each
+     keyword's slice of the term goes to its ads in proportion to their own 90-day numbers on that keyword; history rows
+     (no keyword split) use each ad's lifetime share of the ad group (as on the retired page) */
+  function adSplit(cn, gn, t) {
+    var fg = findGroup(cn, gn); if (!fg.g || !AM) return [];
+    var ids = fg.g.ads.map(function (a) { return a.id; }), F = ['impr', 'clicks', 'cost', 'conv'], est = {};
+    var get = function (i) { return est[i] || (est[i] = { impr: 0, clicks: 0, cost: 0, conv: 0 }); };
+    if (t.keywords && t.keywords.length && AM.google.kw) {
+      t.keywords.forEach(function (k) {
+        var w = ids.map(function (i) { var v = (AM.google.kw[i] || []).filter(function (q) { return q[0] === k[0] && q[1] === k[1]; })[0]; return v ? { i: i, v: [v[2], v[3], v[4], v[5]] } : null; }).filter(Boolean);
+        if (!w.length) return;
+        F.forEach(function (f, j) { var key = j, den = w.reduce(function (q, x) { return q + x.v[j]; }, 0);
+          if (!den) { key = 0; den = w.reduce(function (q, x) { return q + x.v[0]; }, 0); }
+          w.forEach(function (x) { get(x.i)[f] += den ? (k[2 + j] || 0) * x.v[key] / den : 0; }); });
+      });
+    } else {
+      var tot = function (i) { var o = { impr: 0, clicks: 0, cost: 0, conv: 0 }; ((AM.google.ads[i] || {}).monthly || []).forEach(function (m) { F.forEach(function (f) { o[f] += m[f] || 0; }); }); return o; };
+      var T = {}; ids.forEach(function (i) { T[i] = tot(i); });
+      F.forEach(function (f) { var ff = f, den = ids.reduce(function (q, i) { return q + T[i][f]; }, 0);
+        if (!den) { ff = 'impr'; den = ids.reduce(function (q, i) { return q + T[i].impr; }, 0); }
+        ids.forEach(function (i) { get(i)[f] += den ? t[f] * T[i][ff] / den : 0; }); });
+    }
+    return Object.keys(est).map(function (i) { return { a: fg.g.ads.filter(function (a) { return a.id === i; })[0], c: fg.c, g: fg.g, t: est[i] }; })
+      .filter(function (x) { return x.a && (x.t.impr >= 0.5 || x.t.clicks >= 0.5); }).sort(function (a, b) { return b.t.impr - a.t.impr; });
+  }
   function drawerTerm(c, g, t) {
-    var st = STG(), feat = st.featured[c.name + '|' + g.name + '|' + t.term], it = st.intents[t.intent] || {};
-    var info = kv([['Search term', esc(t.term)], ['Campaign › ad group', esc(c.name + ' › ' + g.name)], ['Scope', esc(t.scope === 'active' ? 'active (last 90 days)' : 'paused campaign (all time)')],
+    var st = STG(), feat = st.featured[c.name + '|' + g.name + '|' + t.term], it = st.intents[t.intent] || {}, x = termX(t), B = st.bench, fg = findGroup(c.name, g.name);
+    var info = kv([['Search term', esc(t.term)], ['Campaign › ad group', fg.g ? '<a href="' + adHref(platBy.google, fg.c, fg.g) + '?tab=terms">' + esc(c.name + ' › ' + g.name) + '</a>' : esc(c.name + ' › ' + g.name)],
+      ['Scope', esc(t.scope === 'active' ? 'active (last 90 days)' : 'paused campaign (all time)')],
       ['Intent', esc(intentLabel(t.intent)) + (it.why ? '<div class="sub">' + esc(it.why) + '</div>' : '')], ['Debt type', esc(t.debtType || '')],
-      ['Lands on now', esc((t.current || []).map(function (x) { return pageLabel(x.page) + ' (' + x.share + '%)'; }).join('; '))], ['Best page', esc(pageLabel(t.best))],
+      ['CTR', pct(t.clicks, t.impr) + ' ' + verdictChip(x.verdict) + (x.brand ? '' : '<div class="sub">' + (x.ctr / B.ctr).toFixed(1) + '× the benchmark (' + (B.ctr * 100).toFixed(2) + '%)</div>')],
+      ['Cost per conversion', x.cpa != null ? usd(x.cpa) : dash], ['Flags', x.flags.length ? x.flags.map(function (f) { return '<span class="chip warn">' + esc(f) + '</span>'; }).join(' ') : ''],
+      ['Lands on now', esc((t.current || []).map(function (y) { return pageLabel(y.page) + ' (' + y.share + '%)'; }).join('; '))], ['Best page', esc(pageLabel(t.best)) + (x.newp ? ' <a href="#/ads/new-pages">new page</a>' : '')],
+      ['Use until it is built', x.newp && x.liveBest ? esc(pageLabel(x.liveBest)) : ''], ['On the best page today', x.liveShare != null && x.liveShare >= 0 ? x.liveShare + '% of its impressions' : ''],
+      ['Its own ad group when moved', esc(t.home || '')],
       ['Action', actChip(t.action) + (t.actionText ? '<div>' + esc(t.actionText) + '</div>' : '')], ['Runs in another ad group too', t.dup ? 'yes' : 'no']]);
     var an = feat ? '<p>' + esc(feat.analysis) + '</p>' + (feat.ad ? '<h3>Recommended ad (draft, attorney review before use)</h3><div class="copy">' + esc((feat.ad.h || []).join(' | ')) + '\n' + esc(feat.ad.d || '') + '</div>' : '') +
       (feat.lp && feat.lp.note ? '<h3>Landing page</h3><p>' + esc(feat.lp.note) + '</p>' : '') : '';
+    var split = adSplit(c.name, g.name, t);
+    var ads = split.length ? '<p class="note">Estimated: ' + (t.keywords && t.keywords.length ? 'each keyword’s share of this term is split across the ads that served on that keyword, by their own 90-day numbers there.' : 'split by each ad’s lifetime share of the ad group (history rows have no keyword split).') + '</p>' +
+      '<table class="tbl"><thead><tr><th>Ad</th><th>Lands on</th><th class="num">Impr.</th><th class="num">Clicks</th><th class="num">Spend</th><th class="num">Conv.</th></tr></thead><tbody>' +
+      split.map(function (y) { return '<tr><td><a href="' + adHref(platBy.google, y.c, y.g, y.a) + '">' + esc(adLabel(platBy.google, y.a)) + '</a></td><td><code>' + esc(y.a.slug != null ? '/' + y.a.slug : '') + '</code></td><td class="num">' + n0(y.t.impr) + '</td><td class="num">' + n0(y.t.clicks) + '</td><td class="num">' + usd(y.t.cost) + '</td><td class="num">' + n1(y.t.conv) + '</td></tr>'; }).join('') + '</tbody></table>' :
+      '<p class="note">' + (/^PMax/.test(c.name) ? 'Performance Max: asset groups, not ads; no ad-level data.' : 'No ad-level data for this ad group.') + '</p>';
     var met = '<div class="mgrid">' + mt('Impressions', n0(t.impr)) + mt('Clicks', n0(t.clicks)) + mt('CTR', pct(t.clicks, t.impr)) + mt('Spend', usd(t.cost)) + mt('Conversions', n1(t.conv)) +
       mt('Cost / conv.', per(t.cost, t.conv)) + mt('Top-of-page rate', t.top30 != null ? Math.round(t.top30 * 100) + '%' : dash) + '</div>';
-    var kw = keywordsTable((t.keywords || []).map(function (k) { return { kw: k[0], match: k[1], impr: k[2], clicks: k[3], cost: k[4], conv: k[5], ads: [] }; }), false);
-    openDrawer(t.term, [['Basic info', info], ['Analysis', an], ['Metrics', met], ['Keywords', kw]], true);
+    var kw = (t.keywords || []).length ? '<p class="note">The keywords Google reports for this term, with their match type and intent.</p><table class="tbl"><thead><tr><th>Keyword</th><th>Match</th><th>Intent</th><th class="num">Impr.</th><th class="num">Clicks</th><th class="num">Spend</th><th class="num">Conv.</th></tr></thead><tbody>' +
+      t.keywords.map(function (k) { return '<tr><td>' + esc(k[0]) + '</td><td>' + esc(String(k[1]).toLowerCase()) + '</td><td>' + esc(k[6] ? intentLabel(k[6]) : '') + '</td><td class="num">' + n0(k[2]) + '</td><td class="num">' + n0(k[3]) + '</td><td class="num">' + usd(k[4]) + '</td><td class="num">' + n1(k[5]) + '</td></tr>'; }).join('') + '</tbody></table>' : '<p class="empty">No keyword split (history row).</p>';
+    openDrawer(t.term, [['Basic info', info], ['Analysis', an], ['Recommended ad', recAdHtml(c.name, g.name, t, feat)], ['Ads', ads], ['Metrics', met], ['Keywords', kw]], true);
   }
+  /* MH-19: the recommended ad per keyword intent, as the retired page built it: new lines for the intent (and this term's
+     own ad, if it was analysed) first, then lines already running in Credo's ads that fit the intent; 15 headlines, 4
+     descriptions; Google counts a {KEYWORD:x}/{LOCATION(State):x} insertion by its default text */
+  var gLen = function (t) { return t.replace(/\{[^}:]*:([^}]*)\}/g, '$1').length; };
+  function recAdHtml(cn, gn, t, feat) {
+    var st = STG(), I = st.intents, P = st.pages, groups = {}, order = [];
+    (t.keywords && t.keywords.length ? t.keywords : [[t.term, '', t.impr, 0, 0, 0, t.intent]]).forEach(function (k) { var i = k[6] || t.intent; if (!groups[i]) { groups[i] = { intent: i, kws: [], impr: 0 }; order.push(i); } groups[i].kws.push(k); groups[i].impr += k[2] || 0; });
+    order.sort(function (a, b) { return groups[b].impr - groups[a].impr; });
+    var out = order.map(function (i) {
+      var it = I[i] || {}, own = !!(feat && feat.ad && i === t.intent), R = (st.rsa || {})[i] || { h: [], d: [] }, pg = P[it.page] || {};
+      if (!it.ad && !own) return '<h3>' + esc(it.label || i) + '</h3><p class="note">' + esc(it.noAd || 'No recommended ad for this intent.') + '</p>';
+      var uniq = function (l, n) { var seen = {}, o = []; l.forEach(function (x) { var k = x.t.toLowerCase(); if (!seen[k] && o.length < n) { seen[k] = 1; o.push(x); } }); return o; };
+      var nh = (own ? feat.ad.h : []).concat(it.ad ? it.ad.h : []), nd = (own ? [feat.ad.d] : []).concat(it.ad ? it.ad.d : []);
+      var H = uniq(nh.map(function (x) { return { t: x, src: own && feat.ad.h.indexOf(x) >= 0 ? 'term' : 'new' }; }).concat(R.h.map(function (x) { return Object.assign({ src: 'use' }, x); })), 15);
+      var D = uniq(nd.map(function (x) { return { t: x, src: own && x === feat.ad.d ? 'term' : 'new' }; }).concat(R.d.map(function (x) { return Object.assign({ src: 'use' }, x); })), 4);
+      var tag = function (x) { return x.src === 'new' ? '<span class="chip ok">new · intent</span>' : x.src === 'term' ? '<span class="chip ok">new · this term</span>' :
+        '<span class="chip">in use</span>' + (x.cta ? ' <span class="chip">CTA</span>' : '') + (x.onPage ? ' <span class="chip">on this page</span>' : '') + '<div class="sub">' + n0(x.impr) + ' impr · ' + (x.ctr * 100).toFixed(1) + '% CTR · ' + x.conv + ' conv' + (x.cpa ? ' · ' + usd(x.cpa) : '') + ' · ' + x.ads + ' ad' + (x.ads === 1 ? '' : 's') + '</div>'; };
+      var tbl = function (L, lim, name) { return '<table class="tbl"><thead><tr><th>#</th><th>' + name + '</th><th class="num">Chars</th><th>Source</th></tr></thead><tbody>' + L.map(function (x, k) { var n = gLen(x.t);
+        return '<tr><td>' + (k + 1) + '</td><td>' + esc(x.t) + '</td><td class="num"' + (n > lim ? ' style="color:var(--accent)"' : '') + '>' + n + '</td><td>' + tag(x) + '</td></tr>'; }).join('') + '</tbody></table>'; };
+      var page = pg.kind === 'new' ? '<span class="chip warn">new page</span> ' + esc(((st.newPages || {})[pg.newKey] || {}).name || pg.label) + (pg.interim ? '<div class="sub">Until it is built, point the ad at ' + esc(pageLabel(pg.interim)) + (pg.interimWhy ? '. ' + esc(pg.interimWhy) : '') + '</div>' : '') + (R.hero ? '<div class="sub">On the page: ' + esc(R.hero) + '</div>' : '') :
+        esc(pageLabel(it.page));
+      var cta = H.filter(function (x) { return x.src === 'use' && x.cta; })[0] || H[2];
+      return '<h3>' + esc(it.label || i) + (order.length > 1 ? ' <span class="sub">' + groups[i].kws.length + ' keyword' + (groups[i].kws.length === 1 ? '' : 's') + '</span>' : '') + '</h3><p>' + esc(it.why || '') + '</p>' + kv([['Lands on', page]]) +
+        '<div class="copy">' + esc([H[0], H[1], cta].filter(Boolean).map(function (x) { return x.t; }).join(' | ')) + '\n' + esc((D[0] || {}).t || '') + '</div>' + tbl(H, 30, 'Headline') + tbl(D, 90, 'Description');
+    }).join('');
+    return '<p class="note">One recommended ad per keyword intent (draft copy for attorney review): new lines written for the intent' + (feat && feat.ad ? ' and this term' : '') + ' first, then lines already running in Credo’s ads that fit it, with their numbers. Headlines ≤ 30 characters, descriptions ≤ 90.</p>' + out;
+  }
+  /* ───────────── MH-19: all search terms and the proposed new pages (was the public search-term review page) ───────────── */
+  var STF = { scope: 'active', campaign: '', debtType: '', intent: '', verdict: '', action: '', q: '', grp: 'intent', sort: 'impr', dir: -1, page: '' };
+  var CHIPS = [['all', 'All'], ['good', 'Working well'], ['bad', 'Not working'], ['leak', 'High CTR, weak conversion'], ['wrong', 'Not on the best page'], ['star', 'Analysed'], ['ideas', 'Keyword ideas from history']];
+  var allTermsCache = null;
+  function allTerms() {
+    if (allTermsCache) return allTermsCache; var st = STG(); allTermsCache = [];
+    Object.keys(st.groups).forEach(function (k) { var cg = k.split('|'); st.groups[k].forEach(function (t) {
+      var x = termX(t); allTermsCache.push({ t: t, x: x, campaign: cg[0], adgroup: cg.slice(1).join('|'), f: t.scope === 'active' && !!st.featured[k + '|' + t.term] }); }); });
+    return allTermsCache;
+  }
+  function chipOk(r, chip) { var x = r.x; return chip === 'all' || (chip === 'good' && (x.brand || x.verdict !== 'Below')) || (chip === 'bad' && !x.brand && x.verdict === 'Below') ||
+    (chip === 'leak' && x.leak) || (chip === 'wrong' && x.wrong) || (chip === 'star' && r.f) || (chip === 'ideas' && x.idea); }
+  function termsFiltered(chip) {
+    var q = STF.q.trim().toLowerCase(), scope = chip === 'ideas' ? 'history' : STF.scope;
+    return allTerms().filter(function (r) { var t = r.t;
+      return (scope === 'both' || t.scope === scope) && chipOk(r, chip) && (!q || t.term.toLowerCase().indexOf(q) >= 0) && (!STF.campaign || r.campaign === STF.campaign) && (!STF.debtType || t.debtType === STF.debtType) &&
+        (!STF.intent || t.intent === STF.intent || (t.keywords || []).some(function (k) { return k[6] === STF.intent; })) && (!STF.verdict || r.x.verdict === STF.verdict) && (!STF.action || t.action === STF.action) && (!STF.page || t.best === STF.page); });
+  }
+  var sortVal = function (r, k) { return k === 'term' ? r.t.term : k === 'ctr' ? r.x.ctr : k === 'cpa' ? (r.x.cpa == null ? -1 : r.x.cpa) : k === 'share' ? (r.x.liveShare == null ? -1 : r.x.liveShare) : r.t[k]; };
+  function termsTableHtml(chip) {
+    var list = termsFiltered(chip).sort(function (a, b) { var x = sortVal(a, STF.sort), y = sortVal(b, STF.sort); return (typeof x === 'string' ? x.localeCompare(y) : x - y) * STF.dir; });
+    var head = [['term', 'Search term'], [null, 'Campaign › ad group'], [null, 'Intent'], ['impr', 'Impr.'], ['clicks', 'Clicks'], ['ctr', 'CTR'], ['cost', 'Spend'], ['conv', 'Conv.'], ['cpa', 'Cost / conv.'], [null, 'Best page'], ['share', 'On it today'], [null, 'Action']];
+    var th = head.map(function (h2) { var num = ['impr', 'clicks', 'ctr', 'cost', 'conv', 'cpa', 'share'].indexOf(h2[0]) >= 0;
+      return '<th' + (num ? ' class="num"' : '') + '>' + (h2[0] ? '<button class="sortbtn" data-stsort="' + h2[0] + '">' + esc(h2[1]) + (STF.sort === h2[0] ? (STF.dir < 0 ? ' ↓' : ' ↑') : '') + '</button>' : esc(h2[1])) + '</th>'; }).join('');
+    var row = function (r) { var t = r.t, x = r.x;
+      return '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); drawerTerm({ name: r.campaign }, { name: r.adgroup }, t); }) + '><td>' + esc(t.term) + (r.f ? ' <span class="chip ok">analysed</span>' : '') + (t.scope === 'history' ? ' <span class="chip">history</span>' : '') +
+        (x.flags.length ? '<div class="sub">' + esc(x.flags.join(' · ')) + '</div>' : '') + '</td><td class="sub">' + esc(r.campaign + ' › ' + r.adgroup) + '</td><td class="sub">' + esc(intentLabel(t.intent)) + '</td>' +
+        '<td class="num">' + n0(t.impr) + '</td><td class="num">' + n0(t.clicks) + '</td><td class="num">' + pct(t.clicks, t.impr) + '<div>' + verdictChip(x.verdict) + '</div></td><td class="num">' + usd(t.cost) + '</td><td class="num">' + n1(t.conv) + '</td><td class="num">' + (x.cpa != null ? usd(x.cpa) : dash) + '</td>' +
+        '<td class="sub">' + esc(pageLabel(t.best)) + (x.newp ? ' <span class="chip warn">new</span>' : '') + '</td><td class="num">' + (x.liveShare != null && x.liveShare >= 0 ? x.liveShare + '%' : dash) + '</td><td>' + actChip(t.action) + '</td></tr>'; };
+    var body = '';
+    if (STF.grp) { var groups = {}, order = [];
+      list.forEach(function (r) { var k = STF.grp === 'intent' ? intentLabel(r.t.intent) : (r.t.debtType || '(none)'); if (!groups[k]) { groups[k] = []; order.push(k); } groups[k].push(r); });
+      order.sort(function (a, b) { return groups[b].reduce(function (q, r) { return q + r.t.impr; }, 0) - groups[a].reduce(function (q, r) { return q + r.t.impr; }, 0); });
+      order.forEach(function (k) { var g = groups[k], s2 = function (f) { return g.reduce(function (q, r) { return q + r.t[f]; }, 0); };
+        body += '<tr class="grouprow"><td colspan="3"><b>' + esc(k) + '</b> <span class="sub">' + g.length + ' terms</span></td><td class="num">' + n0(s2('impr')) + '</td><td class="num">' + n0(s2('clicks')) + '</td><td class="num">' + pct(s2('clicks'), s2('impr')) + '</td><td class="num">' + usd(s2('cost')) + '</td><td class="num">' + n1(s2('conv')) + '</td><td class="num">' + per(s2('cost'), s2('conv')) + '</td><td colspan="3"></td></tr>' + g.map(row).join(''); });
+    } else body = list.map(row).join('');
+    return '<p class="note" id="st-count">' + list.length + ' rows</p><div class="scroll"><table class="tbl sttbl"><thead><tr>' + th + '</tr></thead><tbody>' + (body || '<tr><td colspan="12" class="empty">No terms match these filters.</td></tr>') + '</tbody></table></div>';
+  }
+  function viewSearchTerms(pageFilter) {
+    var st = STG(), A = st.account90d, B = st.bench, acpa = A.cost / A.conv, rows = allTerms(), act = rows.filter(function (r) { return r.t.scope === 'active'; }), hist = rows.filter(function (r) { return r.t.scope === 'history'; });
+    STF.page = pageFilter || '';
+    var chip = CHIPS.map(function (c) { return c[0]; }).indexOf(TAB) >= 0 ? TAB : 'all';
+    var nb = act.filter(function (r) { return ['NEG', 'BRAND'].indexOf(r.t.best) < 0; }), sum = function (l, f) { return l.reduce(function (q, r) { return q + f(r); }, 0); };
+    var onBest = sum(nb, function (r) { return r.t.impr * (r.t.bestShare || 0) / 100; }) / sum(nb, function (r) { return r.t.impr; });
+    var cov = sum(act, function (r) { return r.t.impr; }), hcov = sum(hist, function (r) { return r.t.impr; }), hLife = st.historyLifetime.search + st.historyLifetime.pmax;
+    var nonBrand = act.filter(function (r) { return !r.x.brand; }), above = nonBrand.filter(function (r) { return r.x.verdict !== 'Below'; }).length;
+    var uniq = {}, dups = {}; act.forEach(function (r) { uniq[r.t.term] = 1; if (r.t.dup) dups[r.t.term] = 1; });
+    var bp = function (v) { return (v * 100).toFixed(2) + '%'; }, pc = function (v) { return Math.round(v * 100) + '%'; };
+    var kpis = [['Account CTR', bp(A.clicks / A.impr), 'benchmark ' + bp(B.ctr)], ['Cost per conversion', usd(acpa), 'benchmark cost per lead ' + usd(B.cpl)], ['Conversion rate', bp(A.conv / A.clicks), 'benchmark ' + bp(B.cvr)],
+      ['Active rows (90 days)', String(act.length), pc(cov / A.impr) + ' of the account’s 90-day impressions'], ['History rows', String(hist.length), pc(hcov / hLife) + ' of paused campaigns’ lifetime impressions'],
+      ['Keyword ideas from history', hist.filter(function (r) { return r.t.action === 'add_kw'; }).length + ' + ' + hist.filter(function (r) { return r.t.action === 'consider'; }).length, 'proven converters + worth considering'],
+      ['At or above the CTR benchmark', above + ' of ' + nonBrand.length, 'non-brand active rows'], ['On the best page today', pc(onBest), 'of non-brand active impressions · ' + Object.keys(dups).length + ' terms in several places']];
+    var opt = function (v, l, cur) { return '<option value="' + esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + esc(l) + '</option>'; };
+    var camps = {}; rows.forEach(function (r) { camps[r.campaign] = 1; });
+    var ctl = '<div class="stctl">' +
+      '<input type="search" placeholder="Find a term" data-stf="q" value="' + esc(STF.q) + '" aria-label="Find a term">' +
+      '<select data-stf="scope" aria-label="Scope">' + opt('active', 'Active campaigns · last 90 days', STF.scope) + opt('history', 'History · paused and removed, all time', STF.scope) + opt('both', 'Both', STF.scope) + '</select>' +
+      '<select data-stf="campaign" aria-label="Campaign">' + opt('', 'All campaigns', STF.campaign) + Object.keys(camps).sort().map(function (c) { return opt(c, c, STF.campaign); }).join('') + '</select>' +
+      '<select data-stf="debtType" aria-label="Debt type">' + opt('', 'All debt types', STF.debtType) + st.debtTypes.map(function (d) { return opt(d, d, STF.debtType); }).join('') + '</select>' +
+      '<select data-stf="intent" aria-label="Intent">' + opt('', 'All intents', STF.intent) + Object.keys(st.intents).map(function (k) { return opt(k, st.intents[k].label, STF.intent); }).join('') + '</select>' +
+      '<select data-stf="verdict" aria-label="CTR verdict">' + opt('', 'All CTR verdicts', STF.verdict) + ['Strong', 'Above', 'Below', 'Brand'].map(function (v) { return opt(v, v, STF.verdict); }).join('') + '</select>' +
+      '<select data-stf="action" aria-label="Action">' + opt('', 'All actions', STF.action) + Object.keys(ACTION).filter(function (k) { return rows.some(function (r) { return r.t.action === k; }); }).map(function (k) { return opt(k, ACTION[k][0] + ' (' + rows.filter(function (r) { return r.t.action === k; }).length + ')', STF.action); }).join('') + '</select>' +
+      '<select data-stf="grp" aria-label="Group by">' + opt('intent', 'Group by intent', STF.grp) + opt('debtType', 'Group by debt type', STF.grp) + opt('', 'No grouping', STF.grp) + '</select></div>';
+    var lead = '<p class="lead">' + esc(st.account) + '. <b>Active campaigns</b>: ' + esc(st.period.active) + '. <b>History</b>: paused and removed campaigns, ' + esc(st.period.history) + '. Every search term: what it triggers, the best page for it, the new page where no live page fits, and the action. ' +
+      'CTR is compared with the ' + esc(B.label) + ' (<a href="' + esc(B.src) + '" target="_blank" rel="noopener">source</a>). Click a term for its analysis, ads, metrics and keywords.</p>';
+    var rules = ['<b>Triggered today</b>: the ads in the term’s ad group, with their landing pages (drawer › Ads). The Google Ads API reports search terms per ad group, not per ad.',
+      '<b>Best current page</b>: the live start.credolegal.com page, already used by the campaigns, that best answers the search, and how much of this term’s traffic lands there today. Where a new page is recommended, this is the live page to use until it is built.',
+      '<b>Recommended new page</b>: one of the four <a href="#/ads/new-pages">proposed new pages</a> for searches no live page answers.',
+      '<b>One term, one placement</b>: when a term runs in several ad groups, it stays in the ad group whose ad lands on the best page, and every other copy becomes a negative (“negative here”).',
+      '<b>Do not move a proven converter</b>: a copy with at least 3 conversions below the industry cost per lead (' + usd(B.cpl) + ') keeps its place, and the best page is A/B tested against it.',
+      '<b>Garnishment stage words decide the page</b>: “after it starts”, “on my paycheck”, “fight”, “lowered” → already-garnished page; “avoid”, “can they” → prevention; exemptions or bank funds → exemptions; “how to stop” with no stage → the new How to Stop page.',
+      'Competitors, lenders and products Credo does not sell become negatives. Definition searches are bid down.'];
+    var method = ['Active: ' + esc(st.sources.active) + '; ' + esc(st.thresholds.active) + '. These rows cover ' + pc(cov / A.impr) + ' of the account’s 90-day impressions; the rest is the long tail below the cut-off and searches Google does not report.',
+      'History: ' + esc(st.sources.history) + '; ' + esc(st.thresholds.history) + '. These rows cover ' + pc(hcov / hLife) + ' of the paused campaigns’ lifetime impressions (Performance Max impressions include non-search placements). History actions: Add as keyword = at least 3 conversions below the industry cost per lead; Consider = converted at least once; Do not re-add = 10+ clicks and no conversions; Covered = already running in an active campaign.',
+      'Only Ryze (Google Ads account 9399506772, read-only) was used. Keywords are the keyword and match type Google reports for the term.',
+      'Verdicts compare each term’s CTR with the benchmark (' + bp(B.ctr) + '); brand terms are not compared. Terms under 50 impressions are flagged as directional. Top of page is the share of impressions shown above the organic results, pulled for 30 days only.',
+      'Conversion flags use the account’s own cost per conversion (' + usd(acpa) + '). Conversions are Google Ads conversions as configured (fractional values mean data-driven attribution), not verified leads.',
+      'Recommended ad copy follows brand/voice.md and RSA limits; it is draft copy for attorney review. New pages are drafts too: attorney review and a Webflow build come before any ad points to them. Any landing page that carries an ad needs the NY attorney-advertising snippet.',
+      'Ads (drawer) are estimates: Google reports ads by keyword, not by search term, so each keyword’s slice of the term is split across the ads that served on that keyword in proportion to their own 90-day numbers there; history rows use each ad’s lifetime share of its ad group.',
+      'Data: content/campaigns/google-ads/search-terms/ (30 Sep pulls) → scripts/google-ads/build-search-terms.py → review/terms-data.js; analysis: review/featured.js (hand-authored). Pages are the live start.credolegal.com addresses of 30 Sep (before the 3 Oct renames).'];
+    var pf = pageFilter ? '<div class="warnbox">Showing only the terms whose best page is <b>' + esc(pageLabel(pageFilter)) + '</b>. <a href="#/ads/terms">Show all terms</a></div>' : '';
+    AFTER = wireSearchTerms;
+    return '<h1>Search terms</h1>' + lead + '<div class="tiles kpis">' + kpis.map(function (k) { return '<div class="tile static"><p>' + esc(k[0]) + '</p><div class="big">' + k[1] + '</div><p>' + esc(k[2]) + '</p></div>'; }).join('') + '</div>' +
+      '<p><a href="#/ads/google?tab=findings">Account findings</a> · <a href="#/ads/new-pages">Proposed new pages</a></p>' +
+      '<details class="state"><summary>How to read it</summary><ul class="notes">' + rules.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul></details>' +
+      '<details class="state"><summary>Method</summary><ul class="notes">' + method.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul></details>' + pf +
+      '<nav class="mtabs" aria-label="Views">' + CHIPS.map(function (c) { var n = rows.filter(function (r) { return chipOk(r, c[0]) && (c[0] === 'ideas' || STF.scope === 'both' || r.t.scope === STF.scope); }).length;
+        return '<a href="' + (pageFilter ? '#/ads/terms/page/' + enc(pageFilter) : '#/ads/terms') + (c[0] === 'all' ? '' : '?tab=' + c[0]) + '"' + (c[0] === chip ? ' aria-current="page"' : '') + '>' + esc(c[1]) + ' <span class="cnt">' + n + '</span></a>'; }).join('') + '</nav>' +
+      ctl + '<div id="st-table">' + termsTableHtml(chip) + '</div>';
+  }
+  function wireSearchTerms() {
+    var chip = CHIPS.map(function (c) { return c[0]; }).indexOf(TAB) >= 0 ? TAB : 'all', box = $('st-table'), t0 = null;
+    var redraw = function () { box.innerHTML = termsTableHtml(chip); };
+    [].forEach.call(document.querySelectorAll('[data-stf]'), function (el) {
+      el.addEventListener(el.tagName === 'INPUT' ? 'input' : 'change', function () { STF[el.getAttribute('data-stf')] = el.value;
+        if (el.getAttribute('data-stf') === 'scope') { route(); return; }   /* the chip counts depend on the scope */
+        clearTimeout(t0); t0 = setTimeout(redraw, el.tagName === 'INPUT' ? 150 : 0); }); });
+    box.addEventListener('click', function (e) { var b = e.target.closest('[data-stsort]'); if (!b) return; var k = b.getAttribute('data-stsort');
+      if (STF.sort === k) STF.dir = -STF.dir; else { STF.sort = k; STF.dir = k === 'term' ? 1 : -1; } redraw(); });
+  }
+  function newPageRows() {
+    var st = STG(); return Object.keys(st.pages).filter(function (k) { return st.pages[k].kind === 'new'; }).map(function (code) {
+      var pg = st.pages[code], nw = (st.newPages || {})[pg.newKey] || {}, terms = allTerms().filter(function (r) { return r.t.best === code; }), act = terms.filter(function (r) { return r.t.scope === 'active'; });
+      var s2 = function (f) { return act.reduce(function (q, r) { return q + r.t[f]; }, 0); };
+      return { code: code, pg: pg, nw: nw, terms: terms, act: act, impr: s2('impr'), clicks: s2('clicks'), cost: s2('cost'), conv: s2('conv'), needs: terms.filter(function (r) { return r.t.action === 'new_page'; }).length };
+    }).sort(function (a, b) { return b.impr - a.impr; });
+  }
+  var LPHUB = 'https://2-human.github.io/credo-public-harassment-lp/';
+  function viewNewPages() {
+    var rows = newPageRows();
+    var h = '<h1>New pages</h1><p class="lead">Pages proposed by the search-term review for searches no live page answers: what they would be, which searches they would take, the ad group each would get, and the live page to use until it is built. Drafts: attorney review and a Webflow build come before any ad points to them. Click a page for its terms.</p>' +
+      '<div class="scroll"><table class="tbl"><thead><tr><th>Proposed page</th><th>Section</th><th>Its own ad group</th><th>Use until it is built</th><th class="num">Terms</th><th class="num">Need the page</th><th class="num">Impr. (90 d)</th><th class="num">Clicks</th><th class="num">Spend</th><th class="num">Conv.</th></tr></thead><tbody>';
+    rows.forEach(function (r) {
+      h += '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); drawerNewPage(r); }) + '><td><b>' + esc(r.nw.name || r.pg.label) + '</b><div class="sub"><code>' + esc(r.nw.slug || '') + '</code></div></td><td>' + esc(r.nw.section || '') + '</td><td class="sub">' + esc((r.pg.home || '').replace('|', ' › ')) + '</td>' +
+        '<td class="sub">' + esc(r.pg.interim ? pageLabel(r.pg.interim) : '') + '</td><td class="num">' + r.terms.length + '</td><td class="num">' + r.needs + '</td><td class="num">' + n0(r.impr) + '</td><td class="num">' + n0(r.clicks) + '</td><td class="num">' + usd(r.cost) + '</td><td class="num">' + n1(r.conv) + '</td></tr>';
+    });
+    return h + '</tbody></table></div><p class="note">Terms = every search term whose best page is the new page (active and history); “need the page” = terms whose action is to wait for it. Numbers are the active terms’ last 90 days.</p>';
+  }
+  function drawerNewPage(r) {
+    var info = kv([['Proposed page', esc(r.nw.name || r.pg.label)], ['Proposed address', '<code>' + esc(r.nw.slug || '') + '</code>'], ['Section', esc(r.nw.section || '')], ['Its own ad group', esc((r.pg.home || '').replace('|', ' › '))],
+      ['Use until it is built', r.pg.interim ? esc(pageLabel(r.pg.interim)) + (r.pg.interimWhy ? '<div class="sub">' + esc(r.pg.interimWhy) + '</div>' : '') : ''],
+      ['Draft copy', r.nw.hub ? '<a href="' + esc(LPHUB + r.nw.hub.replace(/^\.\.\//, '')) + '" target="_blank" rel="noopener">landing-page review (draft)</a>' : ''],
+      ['Search terms', r.terms.length + ' (' + r.act.length + ' active) · <a href="#/ads/terms/page/' + enc(r.code) + '?tab=all">open them in Search terms</a>']]);
+    var met = '<div class="mgrid">' + mt('Impressions (90 d)', n0(r.impr)) + mt('Clicks', n0(r.clicks)) + mt('CTR', pct(r.clicks, r.impr)) + mt('Spend', usd(r.cost)) + mt('Conversions', n1(r.conv)) + mt('Cost / conv.', per(r.cost, r.conv)) + '</div>';
+    var top = r.terms.slice().sort(function (a, b) { return b.t.impr - a.t.impr; }).slice(0, 40);
+    var terms = '<table class="tbl"><thead><tr><th>Search term</th><th>Campaign › ad group</th><th class="num">Impr.</th><th class="num">Conv.</th><th>Action</th></tr></thead><tbody>' + top.map(function (x) {
+      return '<tr><td>' + esc(x.t.term) + (x.t.scope === 'history' ? ' <span class="chip">history</span>' : '') + '</td><td class="sub">' + esc(x.campaign + ' › ' + x.adgroup) + '</td><td class="num">' + n0(x.t.impr) + '</td><td class="num">' + n1(x.t.conv) + '</td><td>' + actChip(x.t.action) + '</td></tr>'; }).join('') + '</tbody></table>' +
+      (r.terms.length > top.length ? '<p class="note">Top ' + top.length + ' of ' + r.terms.length + ' by impressions. <a href="#/ads/terms/page/' + enc(r.code) + '?tab=all">All in Search terms</a></p>' : '');
+    openDrawer(r.nw.name || r.pg.label, [['Basic info', info], ['Metrics', met], ['Terms', terms]]);
+  }
+
   function findingsHtml() {
     var st = STG(); return '<h2>Account findings (search-term review, 30 Sep)</h2>' + st.findings.map(function (x) { return '<div class="card finding"><h3>' + esc(x.t) + '</h3><p>' + esc(x.b) + '</p></div>'; }).join('');
   }
@@ -1234,6 +1449,8 @@
     } else if (parts[0] === 'ads') {
       crumbs.push(['Ads', '#/ads']);
       if (parts[1] === 'phones' && PM) { crumbs.push(['Ads → pages → phones', '#/ads/phones']); html = viewPhoneMap(); }
+      else if (parts[1] === 'terms' && STG()) { crumbs.push(['Search terms', '#/ads/terms']); if (parts[2] === 'page' && parts[3]) crumbs.push([pageLabel(parts[3]), hash]); AFTER = null; html = viewSearchTerms(parts[2] === 'page' ? parts[3] : ''); after = AFTER; }
+      else if (parts[1] === 'new-pages' && STG()) { crumbs.push(['New pages', '#/ads/new-pages']); html = viewNewPages(); }
       else {
       var f = findAd(parts[1], parts[2], parts[3], parts[4]);
       if (f.p) crumbs.push([f.p.label, adHref(f.p)]); if (f.c) crumbs.push([f.c.name, adHref(f.p, f.c)]); if (f.g) crumbs.push([f.g.name, adHref(f.p, f.c, f.g)]); if (f.a) crumbs.push([adLabel(f.p, f.a), hash]);

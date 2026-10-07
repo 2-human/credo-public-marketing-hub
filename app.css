@@ -262,3 +262,6 @@ details.state summary { cursor:pointer; font-weight:600; font-size:13px; } detai
 .chg-form[hidden] { display:none; }
 @media (max-width:1100px) { .od { grid-template-columns:1fr; } .od-l { position:static; } }
 @media (max-width:900px) { .oc-mx { grid-template-columns:72px repeat(7, 240px) !important; } }
+.stctl { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 10px; } .stctl input, .stctl select { font:inherit; font-size:13px; padding:6px 8px; border:1px solid var(--line); border-radius:5px; background:var(--card); max-width:100%; }
+.stctl input { min-width:200px; flex:1 1 200px; } .sttbl .sortbtn { background:none; border:0; padding:0; font:inherit; color:inherit; cursor:pointer; text-transform:inherit; letter-spacing:inherit; }
+.sttbl tr.grouprow td { background:#f3f5f8; border-top:2px solid var(--line); }   /* MH-19 search terms */
