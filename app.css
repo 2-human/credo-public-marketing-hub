@@ -265,3 +265,7 @@ details.state summary { cursor:pointer; font-weight:600; font-size:13px; } detai
 .stctl { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 10px; } .stctl input, .stctl select { font:inherit; font-size:13px; padding:6px 8px; border:1px solid var(--line); border-radius:5px; background:var(--card); max-width:100%; }
 .stctl input { min-width:200px; flex:1 1 200px; } .sttbl .sortbtn { background:none; border:0; padding:0; font:inherit; color:inherit; cursor:pointer; text-transform:inherit; letter-spacing:inherit; }
 .sttbl tr.grouprow td { background:#f3f5f8; border-top:2px solid var(--line); }   /* MH-19 search terms */
+
+/* MH-20d: the current line a recommended line replaces, under it in the same row */
+.repl { border-left:2px solid #f0b7bb; padding-left:6px; margin-top:4px; }
+.repl s { color:var(--mute); }
