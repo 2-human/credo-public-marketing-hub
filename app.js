@@ -730,6 +730,12 @@
       '<details class="state"><summary>Method</summary><ul class="notes">' + method.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul></details>' + pf +
       '<nav class="mtabs" aria-label="Views">' + CHIPS.map(function (c) { var n = rows.filter(function (r) { return chipOk(r, c[0]) && (c[0] === 'ideas' || STF.scope === 'both' || r.t.scope === STF.scope); }).length;
         return '<a href="' + (pageFilter ? '#/ads/terms/page/' + enc(pageFilter) : '#/ads/terms') + (c[0] === 'all' ? '' : '?tab=' + c[0]) + '"' + (c[0] === chip ? ' aria-current="page"' : '') + '>' + esc(c[1]) + ' <span class="cnt">' + n + '</span></a>'; }).join('') + '</nav>' +
+      (chip === 'neg' ? (function () { var sc = rows.filter(function (r) { return r.t.negState && (STF.scope === 'both' || r.t.scope === STF.scope); });
+        var here = sc.filter(function (r) { return r.t.negHere; }), dOnly = sc.filter(function (r) { return !r.t.negHere; });
+        var hist = STF.scope === 'history', done = here.filter(function (r) { return r.t.negState === 'done'; }).length, part = here.filter(function (r) { return r.t.negState === 'partial'; }).length;
+        var sub = (hist ? [done ? done + ' in all of them' : '', part ? part + ' in only some' : ''] : [done ? done + ' where the review recommends a negative anyway' : '']).filter(Boolean).join(', ');
+        return '<p class="note">' + sc.length + ' rows: ' + here.length + (hist ? ' already blocked in the active campaigns' : STF.scope === 'both' ? ' already blocked (where they ran, or for history rows in the active campaigns)' : ' already blocked where they ran') +
+          (sub ? ' (' + sub + ')' : '') + ' and ' + dOnly.length + ' that a negative would block where the action sends them.</p>'; })() : '') +
       ctl + '<div id="st-table">' + termsTableHtml(chip) + '</div>';
   }
   function wireSearchTerms() {
