@@ -602,9 +602,9 @@
     var an = feat ? '<p>' + esc(feat.analysis) + '</p>' + (feat.ad ? '<h3>Recommended ad (draft, attorney review before use)</h3><div class="copy">' + esc((feat.ad.h || []).join(' | ')) + '\n' + esc(feat.ad.d || '') + '</div>' : '') +
       (feat.lp && feat.lp.note ? '<h3>Landing page</h3><p>' + esc(feat.lp.note) + '</p>' : '') : '';
     var split = adSplit(c.name, g.name, t);
-    var ads = split.length ? '<p class="note">Estimated: ' + (t.keywords && t.keywords.length ? 'each keyword’s share of this term is split across the ads that served on that keyword, by their own 90-day numbers there.' : 'split by each ad’s lifetime share of the ad group (history rows have no keyword split).') + '</p>' +
-      '<table class="tbl"><thead><tr><th>Ad</th><th>Lands on</th><th class="num">Impr.</th><th class="num">Clicks</th><th class="num">Spend</th><th class="num">Conv.</th></tr></thead><tbody>' +
-      split.map(function (y) { return '<tr><td><a href="' + adHref(platBy.google, y.c, y.g, y.a) + '">' + esc(adLabel(platBy.google, y.a)) + '</a></td><td><code>' + esc(y.a.slug != null ? '/' + y.a.slug : '') + '</code></td><td class="num">' + n0(y.t.impr) + '</td><td class="num">' + n0(y.t.clicks) + '</td><td class="num">' + usd(y.t.cost) + '</td><td class="num">' + n1(y.t.conv) + '</td></tr>'; }).join('') + '</tbody></table>' :
+    var ads = split.length ? '<p class="note">Estimated: ' + (t.keywords && t.keywords.length ? 'each keyword’s share of this term is split across the ads that served on that keyword, by their own 90-day numbers there.' : 'split by each ad’s lifetime share of the ad group (history rows have no keyword split).') + ' Running: whether the ad can serve today (7 Oct).</p>' +
+      '<div class="scroll"><table class="tbl"><thead><tr><th>Campaign</th><th>Ad group</th><th>Ad</th><th>Running</th><th>Lands on</th><th class="num">Impr.</th><th class="num">Clicks</th><th class="num">Spend</th><th class="num">Conv.</th></tr></thead><tbody>' +
+      split.map(function (y) { return '<tr><td class="sub"><a href="' + adHref(platBy.google, y.c) + '">' + esc(y.c.name) + '</a></td><td class="sub"><a href="' + adHref(platBy.google, y.c, y.g) + '">' + esc(y.g.name) + '</a></td><td><a href="' + adHref(platBy.google, y.c, y.g, y.a) + '">' + esc(adLabel(platBy.google, y.a)) + '</a></td><td>' + runChip(y.a) + '</td><td><code>' + esc(y.a.slug != null ? '/' + y.a.slug : '') + '</code></td><td class="num">' + n0(y.t.impr) + '</td><td class="num">' + n0(y.t.clicks) + '</td><td class="num">' + usd(y.t.cost) + '</td><td class="num">' + n1(y.t.conv) + '</td></tr>'; }).join('') + '</tbody></table></div>' :
       '<p class="note">' + (/^PMax/.test(c.name) ? 'Performance Max: asset groups, not ads; no ad-level data.' : 'No ad-level data for this ad group.') + '</p>';
     var met = '<div class="mgrid">' + mt('Impressions', n0(t.impr)) + mt('Clicks', n0(t.clicks)) + mt('CTR', pct(t.clicks, t.impr)) + mt('Spend', usd(t.cost)) + mt('Conversions', n1(t.conv)) +
       mt('Cost / conv.', per(t.cost, t.conv)) + mt('Top-of-page rate', t.top30 != null ? Math.round(t.top30 * 100) + '%' : dash) + '</div>';
@@ -782,6 +782,13 @@
   function findingsHtml() {
     var st = STG(); return '<h2>Account findings (search-term review, 30 Sep; re-checked 7 Oct)</h2>' + st.findings.map(function (x) { return '<div class="card finding"><h3>' + esc(x.t) + '</h3><p>' + esc(x.b) + '</p></div>'; }).join('');
   }
+  /* MH-20b: does the ad run today: campaign, ad group and ad enabled and Google's primary status eligible or limited; else the first reason */
+  function runChip(a) { var v = a && a.serving; if (!v) return '<span class="chip">unknown</span>';
+    if (v.running) return '<span class="chip ok">running</span>' + (v.primary === 'LIMITED' ? '<div class="sub">limited</div>' : '');
+    var lc = function (x) { return String(x || 'unknown').toLowerCase().replace(/_/g, ' '); };
+    var why = v.campaignStatus !== 'ENABLED' ? 'campaign ' + lc(v.campaignStatus) : v.adgroupStatus !== 'ENABLED' ? 'ad group ' + lc(v.adgroupStatus) :
+      v.status !== 'ENABLED' ? 'ad ' + lc(v.status) : lc(v.primary);
+    return '<span class="chip warn">not running</span><div class="sub">' + esc(why) + '</div>'; }
   function statusChip(s) { return /ENABLED/.test(s) ? '<span class="chip ok">enabled</span>' : /PAUSED/.test(s) ? '<span class="chip warn">' + esc(s.toLowerCase()) + '</span>' : '<span class="chip">' + esc(String(s || '').toLowerCase()) + '</span>'; }
   function drawerAd(p, c, g, a) {
     var h = kv([['Ad', esc(a.name)], ['Type', esc(a.type)], ['Status', statusChip(a.status)], ['Landing page', link(a.url)], ['URL parameters', esc(a.params || '')],
