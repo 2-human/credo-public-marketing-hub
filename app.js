@@ -616,6 +616,33 @@
      own ad, if it was analysed) first, then lines already running in Credo's ads that fit the intent; 15 headlines, 4
      descriptions; Google counts a {KEYWORD:x}/{LOCATION(State):x} insertion by its default text */
   var gLen = function (t) { return t.replace(/\{[^}:]*:([^}]*)\}/g, '$1').length; };
+  /* MH-20c: what the recommended ad would replace. The ads that serve this intent's keywords today (an ad served on one of
+     them in the last 90 days; else every responsive search ad of the ad group), and for each its current headlines and
+     descriptions: replaced (not in the recommended ad) or kept, with their all-time numbers; plus how many lines are new. */
+  function replacedHtml(cn, gn, kws, H, D) {
+    var fg = findGroup(cn, gn); if (!fg.g || !AM || !AM.google || !AM.google.kw || !AM.google.ads) return '';
+    var rsas = fg.g.ads.filter(function (a) { return a.type === 'RESPONSIVE_SEARCH_AD'; });
+    var on = rsas.filter(function (a) { return (AM.google.kw[a.id] || []).some(function (q) { return kws.some(function (k) { return q[0] === k[0] && q[1] === k[1]; }); }); });
+    var ads = on.length ? on : rsas; if (!ads.length) return '';
+    var rec = { H: {}, D: {} }; H.forEach(function (x) { rec.H[x.t.toLowerCase()] = 1; }); D.forEach(function (x) { rec.D[x.t.toLowerCase()] = 1; });
+    var body = ads.map(function (a) {
+      var met = {}; ((AM.google.ads[a.id] || {}).assets || []).forEach(function (x) { met[x.field[0] + '|' + x.text] = x; });
+      var lines = a.headlines.map(function (x) { return ['H', x]; }).concat(a.descriptions.map(function (x) { return ['D', x]; }));
+      var rows = lines.map(function (l) { return { f: l[0], t: l[1], kept: !!rec[l[0]][l[1].toLowerCase()], m: met[l[0] + '|' + l[1]] }; })
+        .sort(function (x, y) { return (x.kept - y.kept) || (x.f < y.f ? 1 : x.f > y.f ? -1 : 0) || ((y.m ? y.m.impr : 0) - (x.m ? x.m.impr : 0)); });
+      var nRep = rows.filter(function (r) { return !r.kept; }).length;
+      var cur = {}; lines.forEach(function (l) { cur[l[0] + '|' + l[1].toLowerCase()] = 1; });
+      var nNew = H.filter(function (x) { return !cur['H|' + x.t.toLowerCase()]; }).length + D.filter(function (x) { return !cur['D|' + x.t.toLowerCase()]; }).length;
+      return '<h4><a href="' + adHref(platBy.google, fg.c, fg.g, a) + '">' + esc(adLabel(platBy.google, a)) + '</a> <span class="sub">ad ' + esc(a.id) + (a.slug != null ? ' · lands on <code>/' + esc(a.slug) + '</code>' : ' · no landing page recorded') + '</span> ' + runChip(a) + '</h4>' +
+        '<p class="sub">' + nRep + ' of its ' + lines.length + ' lines would be replaced, ' + (lines.length - nRep) + ' kept; ' + nNew + ' lines of the recommended ad are new to it.</p>' +
+        '<div class="scroll"><table class="tbl"><thead><tr><th></th><th>Current line</th><th>In the recommended ad</th><th class="num">Impr.</th><th class="num">CTR</th><th class="num">Conv.</th><th class="num">Cost / conv.</th></tr></thead><tbody>' +
+        rows.map(function (r) { var m = r.m;
+          return '<tr><td class="sub">' + (r.f === 'H' ? 'Headline' : 'Description') + '</td><td>' + (r.kept ? esc(r.t) : '<s>' + esc(r.t) + '</s>') + '</td><td>' + (r.kept ? '<span class="chip ok">kept</span>' : '<span class="chip red">replaced</span>') + '</td>' +
+            '<td class="num">' + (m ? n0(m.impr) : dash) + '</td><td class="num">' + (m ? pct(m.clicks, m.impr) : dash) + '</td><td class="num">' + (m ? n1(m.conv) : dash) + '</td><td class="num">' + (m ? per(m.cost, m.conv) : dash) + '</td></tr>'; }).join('') + '</tbody></table></div>';
+    }).join('');
+    return '<h3>What it replaces</h3><p class="note">' + (on.length ? 'The ad' + (ads.length === 1 ? '' : 's') + ' that served these keywords in the last 90 days' : 'This ad group’s responsive search ads (none served these keywords in the last 90 days)') +
+      ' and ' + (ads.length === 1 ? 'its' : 'their') + ' current headlines and descriptions: struck through = not in the recommended ad, so replaced by its new lines; kept = the recommended ad reuses it. Numbers are each line’s all-time results in that ad.</p>' + body;
+  }
   function recAdHtml(cn, gn, t, feat) {
     var st = STG(), I = st.intents, P = st.pages, groups = {}, order = [];
     (t.keywords && t.keywords.length ? t.keywords : [[t.term, '', t.impr, 0, 0, 0, t.intent]]).forEach(function (k) { var i = k[6] || t.intent; if (!groups[i]) { groups[i] = { intent: i, kws: [], impr: 0 }; order.push(i); } groups[i].kws.push(k); groups[i].impr += k[2] || 0; });
@@ -635,7 +662,8 @@
         esc(pageLabel(it.page));
       var cta = H.filter(function (x) { return x.src === 'use' && x.cta; })[0] || H[2];
       return '<h3>' + esc(it.label || i) + (order.length > 1 ? ' <span class="sub">' + groups[i].kws.length + ' keyword' + (groups[i].kws.length === 1 ? '' : 's') + '</span>' : '') + '</h3><p>' + esc(it.why || '') + '</p>' + kv([['Lands on', page]]) +
-        '<div class="copy">' + esc([H[0], H[1], cta].filter(Boolean).map(function (x) { return x.t; }).join(' | ')) + '\n' + esc((D[0] || {}).t || '') + '</div>' + tbl(H, 30, 'Headline') + tbl(D, 90, 'Description');
+        '<div class="copy">' + esc([H[0], H[1], cta].filter(Boolean).map(function (x) { return x.t; }).join(' | ')) + '\n' + esc((D[0] || {}).t || '') + '</div>' + tbl(H, 30, 'Headline') + tbl(D, 90, 'Description') +
+        replacedHtml(cn, gn, groups[i].kws, H, D);
     }).join('');
     return '<p class="note">One recommended ad per keyword intent (draft copy for attorney review): new lines written for the intent' + (feat && feat.ad ? ' and this term' : '') + ' first, then lines already running in Credo’s ads that fit it, with their numbers. Headlines ≤ 30 characters, descriptions ≤ 90.</p>' + out;
   }
