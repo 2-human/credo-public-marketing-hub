@@ -266,6 +266,14 @@ details.state summary { cursor:pointer; font-weight:600; font-size:13px; } detai
 .stctl input { min-width:200px; flex:1 1 200px; } .sttbl .sortbtn { background:none; border:0; padding:0; font:inherit; color:inherit; cursor:pointer; text-transform:inherit; letter-spacing:inherit; }
 .sttbl tr.grouprow td { background:#f3f5f8; border-top:2px solid var(--line); }   /* MH-19 search terms */
 
-/* MH-20d: the current line a recommended line replaces, under it in the same row */
-.repl { border-left:2px solid #f0b7bb; padding-left:6px; margin-top:4px; }
-.repl s { color:var(--mute); }
+/* MH-21: Ad Copy tab (Current / Recommended) */
+.subtabs { display:flex; gap:4px; border-bottom:1px solid var(--line); margin:0 0 12px; }
+.subtabs button { background:none; border:0; border-bottom:2px solid transparent; padding:6px 12px; font:inherit; color:var(--mute); cursor:pointer; }
+.subtabs button[aria-selected="true"] { color:var(--ink); border-bottom-color:var(--accent); font-weight:600; }
+.intent { border:1px solid var(--line); border-radius:6px; padding:10px 14px; margin:12px 0; background:var(--card); }
+.intent h3 { margin-top:0; }
+.adrec { border-top:1px solid var(--line); padding:8px 0; }
+.adrec > summary { cursor:pointer; padding:4px 0; }
+.pscore { border-left:3px solid var(--line); padding:4px 10px; margin:8px 0; }
+.pscore .rub { display:flex; flex-wrap:wrap; gap:4px 12px; font-size:12px; color:var(--mute); margin:4px 0; }
+.pscore .rub b { color:var(--ink); }
