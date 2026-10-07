@@ -501,6 +501,23 @@
     review: ['review', 'warn'], route: ['route to a better page', 'warn'], move: ['move to its ad group', 'warn'], add_kw: ['add as keyword', 'warn'], bid_down: ['bid down', 'warn'],
     new_page: ['needs a new page', 'warn'], neg_here: ['negative here', 'red'], negative: ['negative', 'red'] };
   var actChip = function (a) { var x = ACTION[a] || [a, '']; return '<span class="chip ' + x[1] + '">' + esc(x[0]) + '</span>'; };
+  /* MH-20: negatives in force today (shared lists, campaign and ad group negatives, matched as Google does) */
+  var NEGST = { done: ['already blocked here', 'ok'], blocked: ['blocked by a negative', 'red'], dest: ['destination blocks it', 'warn'], partial: ['negative in some campaigns', 'warn'] };
+  var negChip = function (t) { var x = NEGST[t.negState], d = NEGST.dest;
+    return (x ? ' <span class="chip ' + x[1] + '">' + esc(x[0]) + '</span>' : '') + (t.negDest && t.negState !== 'dest' ? ' <span class="chip ' + d[1] + '">' + esc(d[0]) + '</span>' : ''); };
+  var NEGLVL = { shared: 'shared list', campaign: 'campaign negative', adgroup: 'ad group negative' };
+  var negList = function (hits, n) { return (hits || []).map(function (h) { return '“' + esc(h.text.replace(/^"|"$/g, '')) + '” <span class="sub">' + esc(String(h.match).toLowerCase() + ' · ' + NEGLVL[h.lvl] + (h.lvl === 'adgroup' ? '' : ' · ' + h.list)) + '</span>'; }).join('<br>') +
+    (n > (hits || []).length ? '<br><span class="sub">+ ' + (n - hits.length) + ' more negative' + (n - hits.length === 1 ? '' : 's') + ' match</span>' : ''); };
+  function negText(t) {
+    var st = STG(), N = st.negatives || {}, out = [];
+    if (t.negHere && t.scope === 'active') out.push('<b>' + (t.negState === 'done' ? 'Already blocked here' : 'Blocked here today') + '</b>: ' + negList(t.negHere, t.negHereN) +
+      '<div class="sub">' + (t.negState === 'done' ? 'An existing negative already stops this term in this ad group, so the recommended negative is not needed (check that it does not block more than intended).' : 'This term no longer triggers in this ad group, so the action applies only if that negative is removed or narrowed.') +
+      (t.lastServedWeek ? ' Last impressions in any enabled campaign: week of ' + esc(t.lastServedWeek) + '.' : '') + '</div>');
+    if (t.negHere && t.scope === 'history') out.push('<b>' + (t.negState === 'done' ? 'Already blocked in every active campaign' : 'Blocked in ' + t.negCampaigns.length + ' of ' + (N.activeCampaigns || []).length + ' active campaigns (' + esc(t.negCampaigns.join(', ')) + ')') + '</b>: ' + negList(t.negHere, t.negHereN));
+    if (t.negDest) out.push('<b>A negative blocks it where the action sends it</b> (' + esc((t.action === 'route' ? t.campaign : (t.home || '')).replace('|', ' › ')) + '): ' + negList(t.negDest, t.negDestN) +
+      '<div class="sub">Remove or narrow that negative first, or the term will not run there.</div>');
+    return out.join('<div style="height:.5em"></div>');
+  }
   function groupTerms(c, g) { var st = STG(); return st ? (st.groups[c.name + '|' + g.name] || []) : []; }
   function groupKeywords(g) {
     if (!AM || !AM.google.kw) return []; var by = {};
@@ -517,11 +534,11 @@
   }
   function termsTable(c, g, terms) {
     var st = STG(); if (!terms.length) return '<p class="empty">No search terms recorded for this ad group.</p>';
-    return '<p class="note">Search terms ' + esc(st.period.active) + ' (active) and ' + esc(st.period.history) + ' (paused campaigns), with the action from the 30 Sep review. Click a term for its keywords, analysis and metrics.</p>' +
+    return '<p class="note">Search terms ' + esc(st.period.active) + ' (active) and ' + esc(st.period.history) + ' (paused campaigns), with the action from the 7 Oct review. Click a term for its keywords, analysis and metrics.</p>' +
       '<div class="scroll"><table class="tbl"><thead><tr><th>Search term</th><th>Intent</th><th class="num">Impr.</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">Spend</th><th class="num">Conv.</th><th>Action</th></tr></thead><tbody>' +
       terms.map(function (t) { var feat = st.featured[c.name + '|' + g.name + '|' + t.term];
         return '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); drawerTerm(c, g, t); }) + '><td>' + esc(t.term) + (feat ? ' <span class="chip ok">analysed</span>' : '') + (t.dup ? ' <span class="chip warn">also elsewhere</span>' : '') + '</td><td class="sub">' + esc(intentLabel(t.intent)) + '</td>' +
-          '<td class="num">' + n0(t.impr) + '</td><td class="num">' + n0(t.clicks) + '</td><td class="num">' + pct(t.clicks, t.impr) + '</td><td class="num">' + usd(t.cost) + '</td><td class="num">' + n1(t.conv) + '</td><td>' + actChip(t.action) + '</td></tr>'; }).join('') + '</tbody></table></div>';
+          '<td class="num">' + n0(t.impr) + '</td><td class="num">' + n0(t.clicks) + '</td><td class="num">' + pct(t.clicks, t.impr) + '</td><td class="num">' + usd(t.cost) + '</td><td class="num">' + n1(t.conv) + '</td><td>' + actChip(t.action) + negChip(t) + '</td></tr>'; }).join('') + '</tbody></table></div>';
   }
   function intentLabel(k) { var st = STG(), i = st && st.intents[k]; return i ? i.label : (k || ''); }
   function pageLabel(code) { var st = STG(), pg = st && st.pages[code]; return pg ? pg.label + (pg.url ? ' · ' + pg.url.replace(/^https?:\/\//, '') : '') : code; }
@@ -580,7 +597,8 @@
       ['Lands on now', esc((t.current || []).map(function (y) { return pageLabel(y.page) + ' (' + y.share + '%)'; }).join('; '))], ['Best page', esc(pageLabel(t.best)) + (x.newp ? ' <a href="#/ads/new-pages">new page</a>' : '')],
       ['Use until it is built', x.newp && x.liveBest ? esc(pageLabel(x.liveBest)) : ''], ['On the best page today', x.liveShare != null && x.liveShare >= 0 ? x.liveShare + '% of its impressions' : ''],
       ['Its own ad group when moved', esc(t.home || '')],
-      ['Action', actChip(t.action) + (t.actionText ? '<div>' + esc(t.actionText) + '</div>' : '')], ['Runs in another ad group too', t.dup ? 'yes' : 'no']]);
+      ['Action', actChip(t.action) + (t.actionText ? '<div>' + esc(t.actionText) + '</div>' : '')], ['Negatives in force', negText(t) || 'none block it here' + (t.home ? ' or where the action sends it' : '')],
+      ['Runs in another ad group too', t.dup ? 'yes' : 'no']]);
     var an = feat ? '<p>' + esc(feat.analysis) + '</p>' + (feat.ad ? '<h3>Recommended ad (draft, attorney review before use)</h3><div class="copy">' + esc((feat.ad.h || []).join(' | ')) + '\n' + esc(feat.ad.d || '') + '</div>' : '') +
       (feat.lp && feat.lp.note ? '<h3>Landing page</h3><p>' + esc(feat.lp.note) + '</p>' : '') : '';
     var split = adSplit(c.name, g.name, t);
@@ -623,7 +641,7 @@
   }
   /* ───────────── MH-19: all search terms and the proposed new pages (was the public search-term review page) ───────────── */
   var STF = { scope: 'active', campaign: '', debtType: '', intent: '', verdict: '', action: '', q: '', grp: 'intent', sort: 'impr', dir: -1, page: '' };
-  var CHIPS = [['all', 'All'], ['good', 'Working well'], ['bad', 'Not working'], ['leak', 'High CTR, weak conversion'], ['wrong', 'Not on the best page'], ['star', 'Analysed'], ['ideas', 'Keyword ideas from history']];
+  var CHIPS = [['all', 'All'], ['good', 'Working well'], ['bad', 'Not working'], ['leak', 'High CTR, weak conversion'], ['wrong', 'Not on the best page'], ['star', 'Analysed'], ['ideas', 'Keyword ideas from history'], ['neg', 'Hit by a negative']];
   var allTermsCache = null;
   function allTerms() {
     if (allTermsCache) return allTermsCache; var st = STG(); allTermsCache = [];
@@ -632,7 +650,7 @@
     return allTermsCache;
   }
   function chipOk(r, chip) { var x = r.x; return chip === 'all' || (chip === 'good' && (x.brand || x.verdict !== 'Below')) || (chip === 'bad' && !x.brand && x.verdict === 'Below') ||
-    (chip === 'leak' && x.leak) || (chip === 'wrong' && x.wrong) || (chip === 'star' && r.f) || (chip === 'ideas' && x.idea); }
+    (chip === 'leak' && x.leak) || (chip === 'wrong' && x.wrong) || (chip === 'star' && r.f) || (chip === 'ideas' && x.idea) || (chip === 'neg' && !!r.t.negState); }
   function termsFiltered(chip) {
     var q = STF.q.trim().toLowerCase(), scope = chip === 'ideas' ? 'history' : STF.scope;
     return allTerms().filter(function (r) { var t = r.t;
@@ -649,7 +667,7 @@
       return '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); drawerTerm({ name: r.campaign }, { name: r.adgroup }, t); }) + '><td>' + esc(t.term) + (r.f ? ' <span class="chip ok">analysed</span>' : '') + (t.scope === 'history' ? ' <span class="chip">history</span>' : '') +
         (x.flags.length ? '<div class="sub">' + esc(x.flags.join(' · ')) + '</div>' : '') + '</td><td class="sub">' + esc(r.campaign + ' › ' + r.adgroup) + '</td><td class="sub">' + esc(intentLabel(t.intent)) + '</td>' +
         '<td class="num">' + n0(t.impr) + '</td><td class="num">' + n0(t.clicks) + '</td><td class="num">' + pct(t.clicks, t.impr) + '<div>' + verdictChip(x.verdict) + '</div></td><td class="num">' + usd(t.cost) + '</td><td class="num">' + n1(t.conv) + '</td><td class="num">' + (x.cpa != null ? usd(x.cpa) : dash) + '</td>' +
-        '<td class="sub">' + esc(pageLabel(t.best)) + (x.newp ? ' <span class="chip warn">new</span>' : '') + '</td><td class="num">' + (x.liveShare != null && x.liveShare >= 0 ? x.liveShare + '%' : dash) + '</td><td>' + actChip(t.action) + '</td></tr>'; };
+        '<td class="sub">' + esc(pageLabel(t.best)) + (x.newp ? ' <span class="chip warn">new</span>' : '') + '</td><td class="num">' + (x.liveShare != null && x.liveShare >= 0 ? x.liveShare + '%' : dash) + '</td><td>' + actChip(t.action) + negChip(t) + '</td></tr>'; };
     var body = '';
     if (STF.grp) { var groups = {}, order = [];
       list.forEach(function (r) { var k = STF.grp === 'intent' ? intentLabel(r.t.intent) : (r.t.debtType || '(none)'); if (!groups[k]) { groups[k] = []; order.push(k); } groups[k].push(r); });
@@ -672,7 +690,8 @@
     var kpis = [['Account CTR', bp(A.clicks / A.impr), 'benchmark ' + bp(B.ctr)], ['Cost per conversion', usd(acpa), 'benchmark cost per lead ' + usd(B.cpl)], ['Conversion rate', bp(A.conv / A.clicks), 'benchmark ' + bp(B.cvr)],
       ['Active rows (90 days)', String(act.length), pc(cov / A.impr) + ' of the account’s 90-day impressions'], ['History rows', String(hist.length), pc(hcov / hLife) + ' of paused campaigns’ lifetime impressions'],
       ['Keyword ideas from history', hist.filter(function (r) { return r.t.action === 'add_kw'; }).length + ' + ' + hist.filter(function (r) { return r.t.action === 'consider'; }).length, 'proven converters + worth considering'],
-      ['At or above the CTR benchmark', above + ' of ' + nonBrand.length, 'non-brand active rows'], ['On the best page today', pc(onBest), 'of non-brand active impressions · ' + Object.keys(dups).length + ' terms in several places']];
+      ['At or above the CTR benchmark', above + ' of ' + nonBrand.length, 'non-brand active rows'], ['On the best page today', pc(onBest), 'of non-brand active impressions · ' + Object.keys(dups).length + ' terms in several places'],
+      ['Blocked by a negative today', String(act.filter(function (r) { return r.t.negHere; }).length), act.filter(function (r) { return r.t.negState === 'done'; }).length + ' recommended negatives already covered · ' + rows.filter(function (r) { return r.t.negDest; }).length + ' moves or keyword ideas blocked where they would go']];
     var opt = function (v, l, cur) { return '<option value="' + esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + esc(l) + '</option>'; };
     var camps = {}; rows.forEach(function (r) { camps[r.campaign] = 1; });
     var ctl = '<div class="stctl">' +
@@ -692,7 +711,8 @@
       '<b>One term, one placement</b>: when a term runs in several ad groups, it stays in the ad group whose ad lands on the best page, and every other copy becomes a negative (“negative here”).',
       '<b>Do not move a proven converter</b>: a copy with at least 3 conversions below the industry cost per lead (' + usd(B.cpl) + ') keeps its place, and the best page is A/B tested against it.',
       '<b>Garnishment stage words decide the page</b>: “after it starts”, “on my paycheck”, “fight”, “lowered” → already-garnished page; “avoid”, “can they” → prevention; exemptions or bank funds → exemptions; “how to stop” with no stage → the new How to Stop page.',
-      'Competitors, lenders and products Credo does not sell become negatives. Definition searches are bid down.'];
+      'Competitors, lenders and products Credo does not sell become negatives. Definition searches are bid down.',
+      '<b>Negatives in force</b>: every term is checked against the negatives the account has today (the shared lists attached to its campaign, the campaign’s and the ad group’s own). “Already blocked here”: an existing negative already stops the term where the review recommends a negative, so none is needed. “Blocked by a negative”: the term no longer triggers where it ran. “Destination blocks it”: a negative would stop it where the action sends it. See the “Hit by a negative” tab.'];
     var method = ['Active: ' + esc(st.sources.active) + '; ' + esc(st.thresholds.active) + '. These rows cover ' + pc(cov / A.impr) + ' of the account’s 90-day impressions; the rest is the long tail below the cut-off and searches Google does not report.',
       'History: ' + esc(st.sources.history) + '; ' + esc(st.thresholds.history) + '. These rows cover ' + pc(hcov / hLife) + ' of the paused campaigns’ lifetime impressions (Performance Max impressions include non-search placements). History actions: Add as keyword = at least 3 conversions below the industry cost per lead; Consider = converted at least once; Do not re-add = 10+ clicks and no conversions; Covered = already running in an active campaign.',
       'Only Ryze (Google Ads account 9399506772, read-only) was used. Keywords are the keyword and match type Google reports for the term.',
@@ -700,7 +720,8 @@
       'Conversion flags use the account’s own cost per conversion (' + usd(acpa) + '). Conversions are Google Ads conversions as configured (fractional values mean data-driven attribution), not verified leads.',
       'Recommended ad copy follows brand/voice.md and RSA limits; it is draft copy for attorney review. New pages are drafts too: attorney review and a Webflow build come before any ad points to them. Any landing page that carries an ad needs the NY attorney-advertising snippet.',
       'Ads (drawer) are estimates: Google reports ads by keyword, not by search term, so each keyword’s slice of the term is split across the ads that served on that keyword in proportion to their own 90-day numbers there; history rows use each ad’s lifetime share of its ad group.',
-      'Data: content/campaigns/google-ads/search-terms/ (30 Sep pulls) → scripts/google-ads/build-search-terms.py → review/terms-data.js; analysis: review/featured.js (hand-authored). Pages are the live start.credolegal.com addresses of 30 Sep (before the 3 Oct renames).'];
+      'Negatives: ' + esc((st.negatives || {}).source || '') + '; ' + ((st.negatives || {}).counts ? n0(st.negatives.counts.shared) + ' in shared lists, ' + n0(st.negatives.counts.campaign) + ' campaign and ' + n0(st.negatives.counts.adgroup) + ' ad group negatives' : '') + ', pulled 7 Oct (read-only). Matching follows Google’s rules for negatives: exact = the same words; phrase = the words in order inside the search; broad = all the words in any order; no close variants.',
+      'Data: content/campaigns/google-ads/search-terms/ (7 Oct pulls; ad copy and asset files as of 29 Sep, unchanged) and content/campaigns/google-ads/negatives/ → scripts/google-ads/build-search-terms.py → review/terms-data.js; analysis: review/featured.js (hand-authored). Pages are the live start.credolegal.com addresses of 30 Sep (before the 3 Oct renames).'];
     var pf = pageFilter ? '<div class="warnbox">Showing only the terms whose best page is <b>' + esc(pageLabel(pageFilter)) + '</b>. <a href="#/ads/terms">Show all terms</a></div>' : '';
     AFTER = wireSearchTerms;
     return '<h1>Search terms</h1>' + lead + '<div class="tiles kpis">' + kpis.map(function (k) { return '<div class="tile static"><p>' + esc(k[0]) + '</p><div class="big">' + k[1] + '</div><p>' + esc(k[2]) + '</p></div>'; }).join('') + '</div>' +
@@ -753,7 +774,7 @@
   }
 
   function findingsHtml() {
-    var st = STG(); return '<h2>Account findings (search-term review, 30 Sep)</h2>' + st.findings.map(function (x) { return '<div class="card finding"><h3>' + esc(x.t) + '</h3><p>' + esc(x.b) + '</p></div>'; }).join('');
+    var st = STG(); return '<h2>Account findings (search-term review, 30 Sep; re-checked 7 Oct)</h2>' + st.findings.map(function (x) { return '<div class="card finding"><h3>' + esc(x.t) + '</h3><p>' + esc(x.b) + '</p></div>'; }).join('');
   }
   function statusChip(s) { return /ENABLED/.test(s) ? '<span class="chip ok">enabled</span>' : /PAUSED/.test(s) ? '<span class="chip warn">' + esc(s.toLowerCase()) + '</span>' : '<span class="chip">' + esc(String(s || '').toLowerCase()) + '</span>'; }
   function drawerAd(p, c, g, a) {
