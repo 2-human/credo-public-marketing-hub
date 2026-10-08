@@ -1530,7 +1530,45 @@
      responsive search ads), as in the drawer's Ad Copy › Current. */
   var CLUS = ADC.clusters || {};
   var STC = { intent: 'debt_lawyer', scope: 'active', sorts: [{ k: 'impr', dir: -1 }], open: null, cf: 'all', edit: null };
-  var cluDoc = function () { return CLUS[STC.intent] || null; };
+  /* MH-29: the cluster doc as the hub shows it: published edits in the shared review database replace their lines
+     (key words recomputed with the same patterns as the builder), and every term's 5 simulated ads are re-picked
+     here with the builder's rules (cluPickAds; check-clusters-hub keeps the two in step). Cached until comments change. */
+  var CLU_VER = 0, CLU_CACHE = {};
+  function cluDoc() { var B = CLUS[STC.intent] || null; if (!B || !COMMENTS) return B;
+    var c = CLU_CACHE[STC.intent]; if (c && c.v === CLU_VER) return c.d;
+    var pub = {}; Object.keys(COMMENTS).forEach(function (k) { var e = COMMENTS[k];
+      if (e && e.page === 'credo-marketing-hub' && e.kind === 'ad-line-edit' && e.status === 'published' && (e.intent || 'debt_lawyer') === B.intent) { var at = e.published_at || e.timestamp || 0; if (!pub[e.anchor] || at > pub[e.anchor].at) pub[e.anchor] = { e: e, at: at }; } });
+    var d = B;
+    if (Object.keys(pub).length) {
+      var RX = {}; Object.keys(B.lineRx).forEach(function (k) { RX[k] = new RegExp(B.lineRx[k], 'i'); });
+      var place = ((B.adLines || []).filter(function (l) { return l.confirm; })[0] || {}).confirm || 'Mentions a place: confirm with the firm before use.';
+      d = Object.assign({}, B, { adLines: B.adLines.map(function (l) { var p = pub[adAnchor(l)]; if (!p) return l;
+        var t = p.e.replacement, con = Object.keys(RX).filter(function (k) { return RX[k].test(t); });
+        return Object.assign({}, l, { base: l.t, t: t, chars: t.replace(/\{[^}:]*:([^}]*)\}/g, '$1').length, concepts: con, from: [], confirm: con.indexOf('local') >= 0 ? place : null, edit: p.e }); }) });
+      var terms = {}; Object.keys(B.terms).forEach(function (t) { var v = B.terms[t]; terms[t] = v.ads ? Object.assign({}, v, { ads: cluPickAds(d, t) }) : v; });
+      d.terms = terms;
+    }
+    CLU_CACHE[STC.intent] = { v: CLU_VER, d: d }; return d; }
+  /* the builder's pick (build-clusters.py): whole blocks with a headline that has all the key words, in block order; then
+     combinations bringing in the most lines not yet shown, a full description preferred, then the lowest block numbers */
+  function cluPickAds(D, term) {
+    var v = D.terms[term], S = (D.adSets || {})[v.cluster]; if (!S) return [];
+    var L = cluAdLines(D), need = v.concepts, full = function (id) { return need.every(function (k) { return L[id].concepts.indexOf(k) >= 0; }); };
+    var live = function (r) { return S[r].filter(function (i) { return L[i].status !== 'rejected'; }); }, ok = function (h) { return h.some(full); };
+    var ads = [], used = {}, mark = function (ids) { ids.forEach(function (i) { used[i] = 1; }); };
+    for (var k = 0; k < 5; k++) { var h = [S.problem[k], S.solution[k], S.cta[k]], d = S.description[k];
+      if (h.concat([d]).every(function (i) { return L[i].status !== 'rejected'; }) && ok(h)) { ads.push({ h: h, d: d, block: k + 1 }); mark(h.concat([d])); } }
+    var pos = function (i) { var r = ['problem', 'solution', 'cta', 'description'].filter(function (r) { return S[r].indexOf(i) >= 0; })[0]; return S[r].indexOf(i); };
+    var combos = []; live('problem').forEach(function (q) { live('solution').forEach(function (s_) { live('cta').forEach(function (c) { live('description').forEach(function (d) { combos.push([[q, s_, c], d]); }); }); }); });
+    while (ads.length < 5) { var best = null, bk = null;
+      combos.forEach(function (x) { if (!ok(x[0]) || ads.some(function (a) { return a.h.join() === x[0].join() && a.d === x[1]; })) return;
+        var ids = x[0].concat([x[1]]).filter(function (i, n, a) { return a.indexOf(i) === n; });
+        var key = [-ids.filter(function (i) { return !used[i]; }).length, full(x[1]) ? 0 : 1, x[0].concat([x[1]]).reduce(function (q, i) { return q + pos(i); }, 0)];
+        if (!bk || key[0] < bk[0] || (key[0] === bk[0] && (key[1] < bk[1] || (key[1] === bk[1] && key[2] < bk[2])))) { best = x; bk = key; } });
+      if (!best) break; ads.push({ h: best[0], d: best[1], block: null }); mark(best[0].concat([best[1]])); }
+    ads.forEach(function (a) { a.covers = a.h.filter(full); });
+    return ads; }
+  window.HUB_TEST = { cluPickAds: cluPickAds, cluBase: function () { return CLUS; }, cluDoc: function () { return cluDoc(); } };   /* for check-clusters-hub */
   var cluNum = function (c) { var n = parseInt(c.label, 10); return isNaN(n) ? 99 : n; };
   function cluOrder(D) { return D.clusters.slice().sort(function (a, b) { return cluNum(a) - cluNum(b); }); }
   function cluRows(D, key, bad) {
@@ -1559,11 +1597,11 @@
      widget and the drawer comments): page "credo-marketing-hub", anchor "adline:<H|D>|<line text>", the proposed text in
      "replacement", status pending until applied to the rules file. A line shared by several clusters shows its edits in each. */
   var CLU_REDRAW = null;
-  var adAnchor = function (l) { return 'adline:' + l.f + '|' + l.t; };
+  var adAnchor = function (l) { return 'adline:' + l.f + '|' + (l.base || l.t); };   /* edits stay on the line's built text */
   function cluEditsOf(l) { var a = adAnchor(l);
-    return COMMENTS ? Object.keys(COMMENTS).map(function (k) { return COMMENTS[k]; }).filter(function (c) { return c.page === 'credo-marketing-hub' && c.anchor === a; })
+    return COMMENTS ? Object.keys(COMMENTS).map(function (k) { COMMENTS[k]._k = k; return COMMENTS[k]; }).filter(function (c) { return c.page === 'credo-marketing-hub' && c.anchor === a; })
       .sort(function (x, y) { return (y.timestamp || 0) - (x.timestamp || 0); }) : []; }
-  var CTA_RX = /^(call|get|start|talk|speak|ask|request|book|see|find out)\b/i;
+  var CTA_RX = /^(call|get|start|talk|speak|ask|request|book|see|find out|hire|contact)\b/i;
   function cluEditWarn(role, t) { var w = [], lim = role === 'description' ? 90 : 30, n = t.replace(/\{[^}:]*:([^}]*)\}/g, '$1').length;
     if (!t.trim()) w.push('empty');
     if (n > lim) w.push(n + ' characters (limit ' + lim + ')');
@@ -1574,10 +1612,14 @@
     if (/!/.test(t)) w.push('no exclamation marks (brand voice)');
     if (/\breal (lawyer|attorney)s?\b/i.test(t)) w.push('no “real lawyers / attorneys” (brand voice)');
     return w; }
-  function cluEditNote(l) { var E = cluEditsOf(l); if (!E.length) return '';
-    var e = E[0], done = /resolved|applied|archived/.test(e.status || '');
-    return '<div class="sub editnote"><span class="chip ' + (done ? 'ok' : 'warn') + '">' + (done ? 'edit ' + esc(e.status) : 'edit pending') + '</span> “' + esc(e.replacement || '') + '” · ' + esc(e.author || 'Anonymous') +
-      (e.timestamp ? ', ' + new Date(e.timestamp).toISOString().slice(0, 10) : '') + (e.comment ? ': ' + esc(e.comment) : '') + (E.length > 1 ? ' <span title="' + esc(E.slice(1).map(function (x) { return '“' + (x.replacement || '') + '” · ' + (x.author || '') + ' · ' + (x.status || 'pending'); }).join('\n')) + '">(+' + (E.length - 1) + ' earlier)</span>' : '') + '</div>'; }
+  var dayOf = function (t) { return t ? new Date(t).toISOString().slice(0, 10) : ''; };
+  function cluEditNote(l) { var out = '';
+    if (l.base) out += '<div class="sub editnote"><span class="chip ok">published edit</span> was “' + esc(l.base) + '” · ' + esc(l.edit.author || '') + (l.edit.published_by && l.edit.published_by !== l.edit.author ? ', published by ' + esc(l.edit.published_by) : '') + ' ' + dayOf(l.edit.published_at || l.edit.timestamp) + (l.edit.comment ? ': ' + esc(l.edit.comment) : '') + '</div>';
+    cluEditsOf(l).filter(function (e) { return (e.status || 'pending') === 'pending'; }).forEach(function (e) { var w = cluEditWarn(l.role, e.replacement || '');
+      out += '<div class="sub editnote"><span class="chip warn">edit pending</span> “' + esc(e.replacement || '') + '” · ' + esc(e.author || 'Anonymous') + ' ' + dayOf(e.timestamp) + (e.comment ? ': ' + esc(e.comment) : '') +
+        (w.length ? ' <span class="chip red" title="' + esc(w.join('; ')) + '">' + w.length + ' warning' + (w.length > 1 ? 's' : '') + '</span>' : '') +
+        ' <button type="button" class="linkbtn" data-pub="' + esc(e._k) + '">Publish</button> <button type="button" class="linkbtn" data-rej="' + esc(e._k) + '">Discard</button></div>'; });
+    return out; }
   var editBtn = function (l, where) { return ' <button type="button" class="linkbtn" data-edit="' + esc(where + ':' + l.id) + '">Edit</button>'; };
   function cluEditRow(l, where, cols) { if (STC.edit !== where + ':' + l.id) return '';
     var lim = l.role === 'description' ? 90 : 30;
@@ -1715,14 +1757,14 @@
     /* the cluster's ad lines and how many of its terms each covers fully (all terms of the cluster, any scope) */
     var set = cluSetRows(D, c.key), all = Object.keys(D.terms).filter(function (t) { return D.terms[t].cluster === c.key; });
     var setT = '<h3>Ad lines for this cluster <span class="sub">draft, attorney review</span></h3><p class="note">Five blocks, each one message: a problem question, a solution that refers to the firm, a call to action, and its description (detail plus a call to action). The search’s key words sit in one headline. Every one of the ' + all.length + ' terms of the cluster (any scope) gets 5 simulated ads from these lines with a headline that has all its key words; the counts show how many terms each line covers fully. One responsive search ad holds up to 4 descriptions.</p>' +
-      '<div class="scroll"><table class="tbl clusug"><thead><tr><th>Place</th><th>Line</th><th class="num">Chars</th><th class="num">Terms covered fully</th><th>Status</th></tr></thead><tbody>' + set.map(function (y) { var l = y.l;
+      '<div class="scroll"><table class="tbl clusug"><thead><tr><th>Place</th><th>Line</th><th class="num">Chars</th><th class="num">Terms covered fully</th><th title="The line’s status in the rules file (proposed, approved, rejected); edits have their own notes under the line">Rules status</th></tr></thead><tbody>' + set.map(function (y) { var l = y.l;
         var n = all.filter(function (t) { return lineLevel(D.terms[t].concepts, l) === 2; }).length;
         return '<tr data-set="' + esc(l.id) + '"' + (y.first ? ' class="blk"' : '') + '><td class="sub">' + esc(y.place) + '</td><td>' + esc(l.t) + (l.confirm ? ' <span class="chip warn" title="' + esc(l.confirm) + '">confirm</span>' : '') + editBtn(l, 'c') + cluFrom(l) + cluEditNote(l) + '</td><td class="num">' + l.chars + '</td><td class="num">' + n + ' <span class="sub">of ' + all.length + '</span></td><td><span class="chip' + (l.status === 'approved' ? ' ok' : l.status === 'rejected' ? ' red' : '') + '">' + esc(l.status) + '</span></td></tr>' + cluEditRow(l, 'c', 5); }).join('') + '</tbody></table></div>';
     return sum + terms + setT;
   }
   function wireClusters(D, c) {
     var box = $('clu-body'), MS = window.Hub.multiSort, defDir = function (k) { return k === 'term' || k === 'grp' ? 1 : -1; };
-    var redraw = function () { var y = $('app-main').scrollTop; box.innerHTML = cluBodyHtml(D, c, cluRows(D, c.key, TAB === 'bad')); $('app-main').scrollTop = y; };
+    var redraw = function () { var y = $('app-main').scrollTop; D = cluDoc(); box.innerHTML = cluBodyHtml(D, c, cluRows(D, c.key, TAB === 'bad')); $('app-main').scrollTop = y; };
     CLU_REDRAW = function () { if (document.getElementById('clu-body') === box) redraw(); };   /* comments arrive after the first render */
     [].forEach.call(document.querySelectorAll('[data-stc]'), function (el) { el.addEventListener('change', function () { var k = el.getAttribute('data-stc');
       if (k === 'scope') { STC.scope = el.value; route(); }
@@ -1735,6 +1777,19 @@
       var ed = e.target.closest('[data-edit]'), ec = e.target.closest('[data-edit-cancel]');
       if (ed) { STC.edit = STC.edit === ed.getAttribute('data-edit') ? null : ed.getAttribute('data-edit'); redraw(); var ta = box.querySelector('.adedit textarea[name=t]'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } return; }
       if (ec) { STC.edit = null; redraw(); return; }
+      /* MH-29: publish or discard a pending edit: the record's status in the shared review database; a published edit
+         replaces the line everywhere in the hub at once (the rules file follows when edits are folded in) */
+      var pb = e.target.closest('[data-pub]'), rj = e.target.closest('[data-rej]');
+      if (pb || rj) { var id = (pb || rj).getAttribute(pb ? 'data-pub' : 'data-rej'), rec0 = COMMENTS[id]; if (!rec0) return;
+        var w = cluEditWarn(rec0.role, rec0.replacement || ''), hard = w.filter(function (x) { return /characters|empty/.test(x); });
+        if (pb && hard.length) { window.alert('This edit cannot be published: ' + hard.join('; ') + '. Post a corrected edit.'); return; }
+        if (!window.confirm(pb ? 'Publish “' + rec0.replacement + '”? It replaces “' + rec0.original + '” everywhere in the hub.' + (w.length ? '\n\nWarnings: ' + w.join('; ') : '') : 'Discard the edit “' + rec0.replacement + '”?')) return;
+        var who = (function () { try { return localStorage.getItem('credo_reviewer'); } catch (x) { return null; } })() || (window.prompt('Your name:', '') || '').trim(); if (!who) return;
+        try { localStorage.setItem('credo_reviewer', who); } catch (x) {}
+        var body = pb ? { status: 'published', published_at: Date.now(), published_by: who } : { status: 'rejected', rejected_at: Date.now(), rejected_by: who };
+        fetch(RTDB + '/' + id + '.json', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) { if (!r.ok) throw 0; return r.json(); })
+          .then(function () { Object.assign(rec0, body); CLU_VER++; redraw(); }).catch(function () { window.alert('Could not update the edit. Try again.'); });
+        return; }
       if (e.target.closest('[data-dr], a, button, select, .cluexp')) return;
       var tr = e.target.closest('[data-crow]'); if (tr) toggle(tr); });
     box.addEventListener('keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-crow]')) { e.preventDefault(); toggle(e.target); } });
@@ -1751,7 +1806,7 @@
         original: L.t, replacement: t, comment: cm, warnings: cluEditWarn(L.role, t), author: who, status: 'pending', timestamp: Date.now() };
       st.textContent = 'Posting…';
       fetch(RTDB + '.json', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rec) }).then(function (r) { if (!r.ok) throw 0; return r.json(); })
-        .then(function (d) { COMMENTS = COMMENTS || {}; COMMENTS[d.name] = rec; STC.edit = null; redraw(); })
+        .then(function (d) { COMMENTS = COMMENTS || {}; COMMENTS[d.name] = rec; CLU_VER++; STC.edit = null; redraw(); })
         .catch(function () { st.textContent = 'Could not post the edit. Try again.'; }); });
     MS.wire(box, 'data-cus', function () { return STC.sorts; }, function (v) { STC.sorts = v.length ? v : [{ k: 'impr', dir: -1 }]; redraw(); }, defDir);
   }
@@ -1827,5 +1882,5 @@
   $('app-filter').addEventListener('input', renderTree);
   $('app-menu').addEventListener('click', function () { var o = $('app-nav').classList.toggle('open'); $('app-menu').setAttribute('aria-expanded', String(o)); });
   window.addEventListener('hashchange', route);
-  header(); route(); loadComments().then(function () { if (CLU_REDRAW) CLU_REDRAW(); });
+  header(); route(); loadComments().then(function () { CLU_VER++; if (CLU_REDRAW) CLU_REDRAW(); });
 })();
