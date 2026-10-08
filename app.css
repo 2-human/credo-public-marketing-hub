@@ -277,13 +277,19 @@ details.state summary { cursor:pointer; font-weight:600; font-size:13px; } detai
 .pscore { border-left:3px solid var(--line); padding:4px 10px; margin:8px 0; }
 .pscore .rub { display:flex; flex-wrap:wrap; gap:4px 12px; font-size:12px; color:var(--mute); margin:4px 0; }
 .pscore .rub b { color:var(--ink); }
-/* MH-23: search-term clusters (terms panel · lines panel; a click lights up the other panel) */
-.clugrid { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); gap:18px; align-items:start; }
-@media (max-width:1279px) { .clugrid { grid-template-columns:minmax(0,1fr); } }
-.clupanel h3 { margin:6px 0 6px; } .clupanel h3 .sub { font-weight:400; }
-.clutbl tr[data-crow], .clutbl tr[data-cline] { cursor:pointer; } .clutbl .sortbtn { background:none; border:0; padding:0; font:inherit; color:inherit; cursor:pointer; text-transform:inherit; letter-spacing:inherit; }
-.clutbl tr[data-crow]:focus-visible, .clutbl tr[data-cline]:focus-visible { outline:2px solid #8fa9d6; outline-offset:-2px; }
-.clutbl tr.on td { background:#e3ebf8; } .clutbl tr.hl-full td { background:#e6f4ec; } .clutbl tr.hl-part td { background:#fff4dc; } .clutbl tr.dim td { opacity:.7; color:var(--mute); }
+/* MH-23/24: search-term clusters (full-width terms table; a term opens into its current copy, suggested copy and a simulated ad) */
+.clutbl tr[data-crow] { cursor:pointer; } .clutbl tr[data-crow]:focus-visible { outline:2px solid #8fa9d6; outline-offset:-2px; }
+.clutbl .sortbtn { background:none; border:0; padding:0; font:inherit; color:inherit; cursor:pointer; text-transform:inherit; letter-spacing:inherit; }
+.clutbl tr.on > td { background:#e3ebf8; } .clutbl .caret { color:var(--mute); display:inline-block; width:1em; }
+.clutbl td.cov { white-space:nowrap; } .clutbl td.cov .chip { padding:2px 4px; }
+.clutbl tr.cluexp > td { background:#f7f9fc; padding:12px 14px 16px; }
+.cluexp-in { position:sticky; left:0; max-width:calc(100vw - 48px); }
+.clu3 > section { margin:0 0 16px; } .clu3 h4 { margin:4px 0 8px; } .clu3 h4 .sub { font-weight:400; }
+.cfbar { display:flex; flex-wrap:wrap; gap:4px; margin:0 0 8px; }
+.cfbar button { font:inherit; font-size:12.5px; padding:4px 10px; border:1px solid var(--line); border-radius:999px; background:var(--card); cursor:pointer; color:var(--ink); }
+.cfbar button[aria-pressed="true"] { border-color:#8fa9d6; background:#e3ebf8; font-weight:600; }
+.cluexp .serp b { font-weight:700; } .cluexp .sp-hl b { font-weight:700; }
 .linkbtn { background:none; border:0; padding:0 0 0 4px; font:inherit; font-size:12px; color:var(--accent); text-decoration:underline; cursor:pointer; }
 .stctl .chk { display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--ink); } .stctl .chk input { min-width:0; flex:none; margin:0; }
-.clutbl td.cov { white-space:nowrap; } .clutbl td.cov .chip { padding:2px 4px; }
+.clu3 .curbox { max-height:420px; overflow:auto; border:1px solid var(--line); border-radius:6px; background:var(--card); }
+.clu3 .curbox table { margin:0; } .clu3 .curbox thead th { position:sticky; top:0; background:var(--card); z-index:1; }
