@@ -273,7 +273,7 @@
     return [{ sec: 'Website', label: 'All microsites', href: '#/website', count: sites.length, children: web },
             { sec: 'Ads', label: 'All platforms', href: '#/ads', count: plats.length, children: ads },
             { label: 'Ads → pages → phones', href: '#/ads/phones', count: PM ? PM.rows.length : 0 },
-            { label: 'Search terms', href: '#/ads/terms', count: STG() ? allTerms().length : 0 }, { label: 'New pages', href: '#/ads/new-pages', count: STG() ? newPageRows().length : 0 },
+            { label: 'Search terms', href: '#/ads/terms', count: STG() ? allTerms().length : 0 }, { label: 'Search-term clusters', href: '#/ads/clusters', count: cluDoc() ? cluDoc().clusters.length : 0 }, { label: 'New pages', href: '#/ads/new-pages', count: STG() ? newPageRows().length : 0 },
             { sec: 'Organic' }].concat(organicNav(), [{ sec: 'Work' }], work, [{ sec: 'Reference' }, { label: 'Statutes', href: '#/reference/statutes', count: ST ? ST.statutes.length : 0 }], [{ sec: 'More' }], more);
   }
   function adLabel(p, a) { return p.key === 'google' ? (a.headlines[0] || a.name) : p.key === 'meta' ? (a.version + ' · ' + a.name.split('-').slice(0, -1).join('-').replace(/^DD_/, '')) : a.name; }
@@ -591,7 +591,7 @@
     var st = STG(), feat = st.featured[c.name + '|' + g.name + '|' + t.term], it = st.intents[t.intent] || {}, x = termX(t), B = st.bench, fg = findGroup(c.name, g.name);
     var info = kv([['Search term', esc(t.term)], ['Campaign › ad group', fg.g ? '<a href="' + adHref(platBy.google, fg.c, fg.g) + '?tab=terms">' + esc(c.name + ' › ' + g.name) + '</a>' : esc(c.name + ' › ' + g.name)],
       ['Scope', esc(t.scope === 'active' ? 'active (last 90 days)' : 'paused campaign (all time)')],
-      ['Intent', esc(intentLabel(t.intent)) + (it.why ? '<div class="sub">' + esc(it.why) + '</div>' : '')], ['Debt type', esc(t.debtType || '')],
+      ['Intent', esc(intentLabel(t.intent)) + (it.why ? '<div class="sub">' + esc(it.why) + '</div>' : '')], ['Cluster', (function () { var D = CLUS[t.intent], ct = D && D.terms[t.term], cl = ct && D.clusters.filter(function (x) { return x.key === ct.cluster; })[0]; return cl ? '<a href="#/ads/clusters/' + enc(cl.key) + '">' + esc(cl.label) + '</a>' : ''; })()], ['Debt type', esc(t.debtType || '')],
       ['CTR', pct(t.clicks, t.impr) + ' ' + verdictChip(x.verdict) + (x.brand ? '' : '<div class="sub">' + (x.ctr / B.ctr).toFixed(1) + '× the benchmark (' + (B.ctr * 100).toFixed(2) + '%)</div>')],
       ['Cost per conversion', x.cpa != null ? usd(x.cpa) : dash], ['Flags', x.flags.length ? x.flags.map(function (f) { return '<span class="chip warn">' + esc(f) + '</span>'; }).join(' ') : ''],
       ['Lands on now', esc((t.current || []).map(function (y) { return pageLabel(y.page) + ' (' + y.share + '%)'; }).join('; '))], ['Best page', esc(pageLabel(t.best)) + (x.newp ? ' <a href="#/ads/new-pages">new page</a>' : '')],
@@ -1516,6 +1516,155 @@
     return viewCalendar();
   }
 
+  /* ───────────── MH-23: search-term clusters inside one intent ───────────── */
+  /* content/campaigns/google-ads/search-terms/clusters/<intent>.rules.json → scripts/google-ads/build-clusters.py →
+     <intent>.out.json → data/ad-copy.js (HUB_ADCOPY.clusters): each term's cluster and key words, each line's key words
+     and copy problems, the suggested lines, the planner volumes. Coverage is worked out here, per row, against the ads
+     that serve the row (currentAdsFor, as in the drawer's Ad Copy › Current): a headline with every key word of the term
+     covers it fully; a line missing one key word, or a description with all of them, covers it partly; off-intent lines
+     never count. */
+  var CLUS = ADC.clusters || {};
+  var STC = { intent: 'debt_lawyer', scope: 'active', sorts: [{ k: 'impr', dir: -1 }], selRow: null, selLine: null };
+  var cluDoc = function () { return CLUS[STC.intent] || null; };
+  var cluNum = function (c) { var n = parseInt(c.label, 10); return isNaN(n) ? 99 : n; };
+  function cluOrder(D) { return D.clusters.slice().sort(function (a, b) { return cluNum(a) - cluNum(b); }); }
+  function cluRows(D, key, bad) {
+    return allTerms().filter(function (r) { var t = D.terms[r.t.term];
+      return r.t.intent === D.intent && t && (!key || t.cluster === key) && (STC.scope === 'both' || r.t.scope === STC.scope) && (!bad || chipOk(r, 'bad')); }); }
+  var cluKey = function (r) { return r.campaign + '|' + r.adgroup + '|' + r.t.term; };
+  var cluAdsC = {};
+  function cluAds(r) { var k = cluKey(r); return cluAdsC[k] || (cluAdsC[k] = currentAdsFor(r.campaign, r.adgroup, r.t.keywords || []).ads); }
+  function cluLine(D, f, t) { var i = D.lines[f + '|' + t] || {}; return { key: f + '|' + t, f: f, t: t, src: 'cur', concepts: i.concepts || [], problems: i.problems || [], off: i.offIntent || null }; }
+  function cluSug(D, key) { return (D.suggested[key] || []).filter(function (x) { return x.status !== 'rejected'; })
+    .map(function (x) { return { key: 'new|' + x.f + '|' + x.t, f: x.f, t: x.t, src: 'new', concepts: x.concepts, problems: [], off: null, status: x.status, why: x.why, chars: x.chars }; }); }
+  /* 2 = covers fully, 1 = partly, 0 = not */
+  function cluFit(need, L) {
+    if (!need.length || L.off) return 0;
+    var miss = need.filter(function (k) { return L.concepts.indexOf(k) < 0; }).length;
+    return !miss ? (L.f === 'H' ? 2 : 1) : (miss === 1 && need.length >= 2 ? 1 : 0); }
+  function cluRowLines(D, r) { var out = [];
+    cluAds(r).forEach(function (x) { (x.a.headlines || []).forEach(function (t) { out.push(cluLine(D, 'H', t)); }); (x.a.descriptions || []).forEach(function (t) { out.push(cluLine(D, 'D', t)); }); });
+    return out; }
+  /* a row's best coverage; -1 when the term has no key words */
+  function cluRowFit(D, r, extra) { var need = D.terms[r.t.term].concepts; if (!need.length) return -1;
+    return cluRowLines(D, r).concat(extra || []).reduce(function (q, L) { return Math.max(q, cluFit(need, L)); }, 0); }
+  var COV = { 2: ['headline', 'ok', 'One headline has every key word of the term'], 1: ['partly', 'warn', 'A line misses one key word, or only a description has them all'], 0: ['none', 'red', 'No line has the term’s key words'], '-1': ['no key words', '', 'The term has none of the key words'] };
+  var covChip = function (v) { var x = COV[v]; return '<span class="chip ' + x[1] + '" title="' + esc(x[2]) + '">' + esc(x[0]) + '</span>'; };
+  function cluLinesOf(D, rows) { var by = {}, order = [];
+    rows.forEach(function (r) { cluAds(r).forEach(function (x) { [['H', x.a.headlines], ['D', x.a.descriptions]].forEach(function (p) { (p[1] || []).forEach(function (t) {
+      var k = p[0] + '|' + t; if (!by[k]) { by[k] = cluLine(D, p[0], t); by[k].ads = {}; by[k].rows = []; order.push(k); }
+      by[k].ads[x.a.id] = x.a; if (by[k].rows.indexOf(r) < 0) by[k].rows.push(r); }); }); }); });
+    return order.map(function (k) { var L = by[k], m = { impr: 0, clicks: 0 };
+      Object.keys(L.ads).forEach(function (id) { (((AM.google.ads || {})[id] || {}).assets || []).forEach(function (a) { if (a.field[0] === L.f && a.text === L.t) { m.impr += a.impr || 0; m.clicks += a.clicks || 0; } }); });
+      L.m = m; L.running = Object.keys(L.ads).some(function (id) { return (L.ads[id].serving || {}).running; }); return L; }); }
+  function viewClusters(key) {
+    var D = cluDoc(), bad = TAB === 'bad', order = cluOrder(D);
+    var c = order.filter(function (x) { return x.key === key; })[0] || order[0];
+    STC.selRow = STC.selLine = null;
+    var opt = function (v, l, cur) { return '<option value="' + esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + esc(l) + '</option>'; };
+    var intentName = intentLabel(D.intent), all = cluRows(D, '', false);
+    var lead = '<p class="lead">The search terms of the intent <b>' + esc(intentName) + '</b>, split into clusters by the words people typed, and how the headlines and descriptions of the ads they trigger cover those words. ' +
+      'Click a term to light up the lines that cover it, or a line to light up the terms it covers. “Details” opens the term’s drawer (analysis, Ad Copy, ads).</p>';
+    var ctl = '<div class="stctl"><select data-stc="scope" aria-label="Scope">' + opt('active', 'Active campaigns · last 90 days', STC.scope) + opt('history', 'History · paused and removed, all time', STC.scope) + opt('both', 'Both', STC.scope) + '</select>' +
+      '<label class="chk"><input type="checkbox" data-stc="bad"' + (bad ? ' checked' : '') + '> Not working only (CTR below the benchmark)</label>' + '</div>';
+    var nav = '<nav class="mtabs" aria-label="Clusters">' + order.map(function (x) { var n = cluRows(D, x.key, bad).length;
+      return '<a href="#/ads/clusters/' + enc(x.key) + (bad ? '?tab=bad' : '') + '"' + (x === c ? ' aria-current="page"' : '') + '>' + esc(x.label) + ' <span class="cnt">' + n + '</span></a>'; }).join('') + '</nav>';
+    var rows = cluRows(D, c.key, bad), s = function (f) { return rows.reduce(function (q, r) { return q + (r.t[f] || 0); }, 0); };
+    var kind = c.kind === 'exclude' ? ' <span class="chip red">negatives</span>' : c.kind === 'move' ? ' <span class="chip warn">move</span>' : '';
+    var met = '<div class="mgrid wide">' + mt('Rows', n0(rows.length)) + mt('Impressions', n0(s('impr'))) + mt('CTR', pct(s('clicks'), s('impr'))) + mt('Spend', usd(s('cost'))) + mt('Conversions', n1(s('conv'))) +
+      mt('Monthly searches (US)', c.searches ? n0(c.searches) : dash) + '</div>';
+    var pools = c.pools.length ? '<details class="state"><summary>How the monthly searches add up (' + c.pools.length + ' Keyword Planner pools, all ' + c.terms + ' terms of the cluster)</summary><p class="note">Google pools close variants (and often near-identical searches) into one number, so each pool is counted once: close variants Google folded into one row, or keywords with the same 12-month series at ' + D.poolSeriesMin + '+ searches a month.</p><div class="scroll"><table class="tbl"><thead><tr><th class="num">Monthly searches</th><th>Terms in the pool</th></tr></thead><tbody>' +
+      c.pools.map(function (p) { return '<tr><td class="num">' + n0(p.avg) + '</td><td class="sub">' + esc(p.terms.join(' · ')) + '</td></tr>'; }).join('') + '</tbody></table></div></details>' : '';
+    var method = '<details class="state"><summary>Method</summary><ul class="notes">' +
+      '<li>Clusters: hand-written rules on the words of each search, applied in order (the first that matches wins): ' + esc(D.clusters.map(function (x) { return x.label; }).join(' → ')) + '. Every term of the intent, active and history, falls in one cluster.</li>' +
+      '<li>Key words of a term: ' + esc(Object.keys(D.concepts).map(function (k) { return D.concepts[k]; }).join(', ')) + '. Plurals, lawyer = attorney and collector = collection count as the same word; a city, a state or “near me” counts as “place”.</li>' +
+      '<li>Coverage of a row: the lines of the ads that served its keywords in the last 90 days (else the ad group’s responsive search ads), as in the drawer’s Ad Copy › Current. In a headline = one headline has every key word; partly = one line misses one key word, or a description has them all; off-intent lines never count. “With suggested” adds the cluster’s suggested lines (not rejected) to every row’s ads.</li>' +
+      '<li>Line flags: the copy rules and claim checks used for the Ad Copy recommendations (scripts/google-ads/check-ad-copy.py), and the brand-voice exclusions of the line pool. Line numbers are all-time impressions and CTR in the ads serving this cluster.</li>' +
+      '<li>Monthly searches: ' + esc(D.planner) + '</li>' +
+      '<li>Data: content/campaigns/google-ads/search-terms/clusters/ (rules hand-written ' + esc(D.written) + ') → scripts/google-ads/build-clusters.py. Suggested lines are draft copy for attorney review; status lives in the rules file.</li></ul></details>';
+    AFTER = function () { wireClusters(D, c); };
+    return '<h1>Search-term clusters</h1>' + lead + ctl + nav + '<h2>' + esc(c.label) + kind + '</h2><p>' + esc(c.why) + '</p>' + met +
+      '<div id="clu-body">' + cluBodyHtml(D, c, rows) + '</div>' + pools + method;
+  }
+  var cluSortVal = function (o, k) { var r = o.r;
+    return k === 'term' ? r.t.term : k === 'grp' ? r.campaign + ' › ' + r.adgroup : k === 'ctr' ? r.x.ctr : k === 'searches' ? (o.p ? o.p.avg : null) : k === 'now' ? o.now : k === 'with' ? o.with : r.t[k]; };
+  function cluBodyHtml(D, c, rows) {
+    if (!rows.length) { var other = STC.scope !== 'both' && allTerms().some(function (r) { var t = D.terms[r.t.term]; return r.t.intent === D.intent && t && t.cluster === c.key && r.t.scope !== STC.scope && (TAB !== 'bad' || chipOk(r, 'bad')); });
+      return '<p class="empty">No rows in this cluster for this scope' + (TAB === 'bad' ? ' that are not working' : '') + '.' + (other ? ' Its terms ran in ' + (STC.scope === 'active' ? 'paused campaigns: choose History or Both above.' : 'the active campaigns: choose Active or Both above.') : '') + '</p>'; }
+    var MS = window.Hub.multiSort, act = c.kind !== 'cluster', sug = cluSug(D, c.key);
+    var O = rows.map(function (r) { var t = D.terms[r.t.term]; return { r: r, k: cluKey(r), t: t, p: t.planner, now: act ? null : cluRowFit(D, r), with: act ? null : cluRowFit(D, r, sug) }; });
+    O.sort(MS.compare(STC.sorts, cluSortVal, function (a, b) { return a.r.t.term.localeCompare(b.r.t.term); }));
+    var lines = act ? [] : cluLinesOf(D, rows), selL = null, selR = null;
+    sug.forEach(function (L) { L.rows = rows; });
+    if (STC.selLine) selL = lines.concat(sug).filter(function (L) { return L.key === STC.selLine; })[0] || null;
+    if (STC.selRow) selR = O.filter(function (o) { return o.k === STC.selRow; })[0] || null;
+    var cov = function (f) { var n = { 2: 0, 1: 0, 0: 0, '-1': 0 }; O.forEach(function (o) { n[o[f]]++; }); return n; };
+    var sum = '';
+    if (!act) { var a = cov('now'), b = cov('with');
+      sum = '<p class="note">Today: <b>' + a[2] + '</b> of ' + O.length + ' rows have a headline with all their key words, ' + a[1] + ' are covered partly, ' + a[0] + ' not at all' + (a['-1'] ? ', ' + a['-1'] + ' have no key words' : '') + '. ' +
+        'With the ' + sug.length + ' suggested lines added (“new” in the table): <b>' + b[2] + '</b> in a headline, ' + b[1] + ' partly, ' + b[0] + ' not at all.</p>'; }
+    var head = [['term', 'Search term']].concat(act ? [] : [['now', 'Coverage now → new'], [null, 'Key words']]).concat([['impr', 'Impr.'], ['ctr', 'CTR'], ['conv', 'Conv.'], ['searches', 'Searches / mo']]).concat(act ? [['cost', 'Spend']] : []);
+    if (act) head.push([null, c.kind === 'exclude' ? 'Proposed negative' : 'Proposed action']);
+    var num = ['impr', 'ctr', 'conv', 'searches', 'cost'];
+    var th = head.map(function (h) { return '<th' + (num.indexOf(h[0]) >= 0 ? ' class="num"' : '') + '>' + (h[0] ? '<button class="sortbtn" data-cusort="' + h[0] + '" title="Click to sort by this column; Shift-click to add it as the next sort level">' + esc(h[1]) + MS.mark(STC.sorts, h[0]) + '</button>' : esc(h[1])) + '</th>'; }).join('');
+    var rowCls = function (o) {
+      if (o.k === STC.selRow) return ' class="on"';
+      if (!selL) return selR ? ' class="dim"' : '';
+      var inAds = selL.src === 'new' || selL.rows.indexOf(o.r) >= 0, v = inAds ? cluFit(o.t.concepts, selL) : 0;
+      return ' class="' + (v === 2 ? 'hl-full' : v === 1 ? 'hl-part' : 'dim') + '"'; };
+    var body = O.map(function (o) { var r = o.r, t = r.t;
+      return '<tr data-crow="' + esc(o.k) + '" tabindex="0"' + rowCls(o) + '><td>' + esc(t.term) + (t.scope === 'history' ? ' <span class="chip">history</span>' : '') +
+        ' <button type="button" class="linkbtn"' + dr(function () { drawerTerm({ name: r.campaign }, { name: r.adgroup }, t); }) + '>Details</button><div class="sub">' + esc(r.campaign + ' › ' + r.adgroup) + '</div></td>' +
+        (act ? '' : '<td class="cov">' + covChip(o.now) + ' <span class="sub">→</span> ' + covChip(o.with) + '</td><td class="sub">' + esc(o.t.concepts.map(function (k) { return D.concepts[k]; }).join(' · ')) + '</td>') +
+        '<td class="num">' + n0(t.impr) + '</td><td class="num">' + pct(t.clicks, t.impr) + '<div>' + verdictChip(r.x.verdict) + '</div></td><td class="num">' + n1(t.conv) + '</td>' +
+        '<td class="num">' + (o.p ? n0(o.p.avg) + (o.p.row !== t.term ? '<div class="sub" title="Keyword Planner reports it under “' + esc(o.p.row) + '”">pooled</div>' : '') : dash) + '</td>' +
+        (act ? '<td class="num">' + usd(t.cost) + '</td><td>' + (c.kind === 'exclude' ? '<code>[' + esc(t.term) + ']</code> <span class="sub">exact</span>' : esc('Move to the harassment ad group')) + '</td>' :
+          '') + '</tr>'; }).join('');
+    var terms = '<div class="clupanel"><h3>Search terms <span class="sub">' + O.length + ' rows</span></h3>' + (act ? '<p class="note">' + (c.kind === 'exclude' ? 'Proposed negatives only: nothing has been added in Google Ads.' : 'Proposed move only: nothing has been changed in Google Ads.') + '</p>' : '') + MS.bar(STC.sorts, head.filter(function (h) { return h[0]; }).concat(act ? [] : [['with', 'Coverage with suggested']]).concat([['grp', 'Campaign › ad group']]), 'data-cus') +
+      '<div class="scroll"><table class="tbl clutbl"><thead><tr>' + th + '</tr></thead><tbody>' + body + '</tbody></table></div></div>';
+    if (act) return terms;
+    var lineCls = function (L) {
+      if (L.key === STC.selLine) return ' class="on"';
+      if (!selR) return selL ? ' class="dim"' : '';
+      var inAds = L.src === 'new' || L.rows.indexOf(selR.r) >= 0, v = inAds ? cluFit(selR.t.concepts, L) : 0;
+      return ' class="' + (v === 2 ? 'hl-full' : v === 1 ? 'hl-part' : 'dim') + '"'; };
+    var covers = function (L) { var f = 0, p = 0; L.rows.forEach(function (r) { var v = cluFit(D.terms[r.t.term].concepts, L); if (v === 2) f++; else if (v === 1) p++; });
+      L.full = f; L.part = p; return '<b>' + f + '</b> fully · ' + p + ' partly <span class="sub">of ' + L.rows.length + '</span>'; };
+    var lt = function (L) { return '<span class="chip">' + (L.f === 'H' ? 'H' : 'D') + '</span> '; };
+    var flags = function (L) { return (L.off ? '<div class="sub"><span class="chip warn">off-intent</span> ' + esc(L.off) + '</div>' : '') +
+      (L.problems.length ? '<div class="sub"><span class="chip red">remove</span> ' + esc(L.problems.join('; ')) + '</div>' : ''); };
+    /* with a term selected, the lines that cover it come first */
+    var rel = function (L) { return !selR ? 0 : (L.src === 'new' || L.rows.indexOf(selR.r) >= 0) ? cluFit(selR.t.concepts, L) : -1; };
+    var cur = lines.map(function (L) { covers(L); return L; }).sort(function (a, b) { return rel(b) - rel(a) || b.full - a.full || b.part - a.part || b.m.impr - a.m.impr; });
+    sug.sort(function (a, b) { return rel(b) - rel(a); });
+    var curTbl = function (list) { return '<div class="scroll"><table class="tbl clutbl"><thead><tr><th>Line</th><th>Covers (rows)</th><th class="num">Impr.</th><th class="num">CTR</th></tr></thead><tbody>' + list.map(function (L) {
+      return '<tr data-cline="' + esc(L.key) + '" tabindex="0"' + lineCls(L) + '><td>' + lt(L) + esc(L.t) + (L.running ? '' : ' <span class="chip warn">not running</span>') + flags(L) + '</td><td>' + covers(L) + '</td><td class="num">' + n0(L.m.impr) + '</td><td class="num">' + pct(L.m.clicks, L.m.impr) + '</td></tr>'; }).join('') + '</tbody></table></div>'; };
+    /* lines that cover none of these rows fold away (they stay open while one of them is selected) */
+    var hit = cur.filter(function (L) { return L.full + L.part; }), miss = cur.filter(function (L) { return !(L.full + L.part); });
+    var curT = (hit.length ? curTbl(hit) : '<p class="empty">No current line covers these terms, even partly.</p>') + (miss.length ? '<details class="state"' + (miss.some(function (L) { return L.key === STC.selLine; }) ? ' open' : '') + '><summary>' + miss.length + ' lines that cover none of these terms</summary>' + curTbl(miss) + '</details>' : '');
+    var sugT = sug.length ? '<div class="scroll"><table class="tbl clutbl"><thead><tr><th>Line</th><th>Covers (rows)</th><th>Status</th></tr></thead><tbody>' + sug.map(function (L) {
+      return '<tr data-cline="' + esc(L.key) + '" tabindex="0"' + lineCls(L) + '><td>' + lt(L) + esc(L.t) + ' <span class="sub">' + L.chars + ' chars</span><div class="sub">' + esc(L.why) + '</div></td><td>' + covers(L) + '</td><td><span class="chip' + (L.status === 'approved' ? ' ok' : '') + '">' + esc(L.status) + '</span></td></tr>'; }).join('') + '</tbody></table></div>' : '<p class="empty">No suggested lines for this cluster.</p>';
+    var hint = selR ? '<p class="note">Lines for <b>' + esc(selR.r.t.term) + '</b> (' + esc(selR.r.adgroup) + '): green = a headline with all its key words, amber = partly, faded = not covering it or not in its ads. Click it again to clear.</p>' :
+      selL ? '<p class="note">Terms covered by <b>' + esc(selL.t) + '</b>: green = fully, amber = partly, faded = not covered or the line is not in their ads. Click it again to clear.</p>' : '';
+    return sum + hint + '<div class="clugrid">' + terms + '<div class="clupanel"><h3>Current lines <span class="sub">' + cur.length + ' in the ads serving these rows</span></h3>' + curT +
+      '<h3>Suggested lines <span class="sub">draft, attorney review</span></h3>' + sugT + '</div></div>';
+  }
+  function wireClusters(D, c) {
+    var box = $('clu-body'), MS = window.Hub.multiSort, defDir = function (k) { return k === 'term' || k === 'grp' ? 1 : -1; };
+    var redraw = function () { box.innerHTML = cluBodyHtml(D, c, cluRows(D, c.key, TAB === 'bad')); };
+    [].forEach.call(document.querySelectorAll('[data-stc]'), function (el) { el.addEventListener('change', function () { var k = el.getAttribute('data-stc');
+      if (k === 'scope') { STC.scope = el.value; route(); }
+      else if (k === 'bad') location.hash = '#/ads/clusters/' + enc(c.key) + (el.checked ? '?tab=bad' : ''); }); });
+    var pick = function (e) { if (e.target.closest('[data-dr], a, button, select')) return;
+      var r = e.target.closest('[data-crow]'), l = e.target.closest('[data-cline]');
+      var back = function (sel) { var el = box.querySelector(sel); if (el) el.focus({ preventScroll: true }); };   /* keep keyboard focus on the clicked row */
+      if (r) { var k = r.getAttribute('data-crow'); STC.selRow = STC.selRow === k ? null : k; STC.selLine = null; redraw(); back('[data-crow="' + CSS.escape(k) + '"]'); }
+      else if (l) { var k2 = l.getAttribute('data-cline'); STC.selLine = STC.selLine === k2 ? null : k2; STC.selRow = null; redraw(); back('[data-cline="' + CSS.escape(k2) + '"]'); } };
+    box.addEventListener('click', function (e) { var b = e.target.closest('[data-cusort]');
+      if (b) { STC.sorts = MS.click(STC.sorts, b.getAttribute('data-cusort'), e.shiftKey || e.metaKey || e.ctrlKey, defDir(b.getAttribute('data-cusort'))); redraw(); return; } pick(e); });
+    box.addEventListener('keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-crow], [data-cline]')) { e.preventDefault(); pick(e); } });
+    MS.wire(box, 'data-cus', function () { return STC.sorts; }, function (v) { STC.sorts = v.length ? v : [{ k: 'impr', dir: -1 }]; redraw(); }, defDir);
+  }
   /* ───────────── router ───────────── */
   function route() {
     DR = []; closeDrawer();
@@ -1535,6 +1684,7 @@
       crumbs.push(['Ads', '#/ads']);
       if (parts[1] === 'phones' && PM) { crumbs.push(['Ads → pages → phones', '#/ads/phones']); html = viewPhoneMap(); }
       else if (parts[1] === 'terms' && STG()) { crumbs.push(['Search terms', '#/ads/terms']); if (parts[2] === 'page' && parts[3]) crumbs.push([pageLabel(parts[3]), hash]); AFTER = null; html = viewSearchTerms(parts[2] === 'page' ? parts[3] : ''); after = AFTER; }
+      else if (parts[1] === 'clusters' && STG() && cluDoc()) { crumbs.push(['Search-term clusters', '#/ads/clusters']); AFTER = null; html = viewClusters(parts[2] || ''); after = AFTER; }
       else if (parts[1] === 'new-pages' && STG()) { crumbs.push(['New pages', '#/ads/new-pages']); html = viewNewPages(); }
       else {
       var f = findAd(parts[1], parts[2], parts[3], parts[4]);
