@@ -295,3 +295,5 @@ details.state summary { cursor:pointer; font-weight:600; font-size:13px; } detai
 .clu3 .curbox table { margin:0; } .clu3 .curbox thead th { position:sticky; top:0; background:var(--card); z-index:1; }
 .clucur tr.blk > td { border-top:2px solid var(--line); } .clucur tr.ph td { color:var(--mute); font-style:italic; }
 .adgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,460px),1fr)); gap:12px; } .adcard > p { margin:0 0 4px; }
+.clusug tr.editrow > td { background:#f7f9fc; } .adedit { display:grid; gap:4px; max-width:640px; } .adedit textarea { font:inherit; font-size:14px; padding:6px 8px; border:1px solid var(--line); border-radius:5px; width:100%; box-sizing:border-box; }
+.adedit label { font-size:12px; color:var(--mute); margin-top:4px; } .adedit .ewarn { color:var(--accent); } .editnote { margin-top:2px; }
