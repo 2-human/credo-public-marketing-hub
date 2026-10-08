@@ -294,3 +294,4 @@ details.state summary { cursor:pointer; font-weight:600; font-size:13px; } detai
 .clu3 .curbox { max-height:420px; overflow:auto; border:1px solid var(--line); border-radius:6px; background:var(--card); }
 .clu3 .curbox table { margin:0; } .clu3 .curbox thead th { position:sticky; top:0; background:var(--card); z-index:1; }
 .clucur tr.blk > td { border-top:2px solid var(--line); } .clucur tr.ph td { color:var(--mute); font-style:italic; }
+.adgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,460px),1fr)); gap:12px; } .adcard > p { margin:0 0 4px; }

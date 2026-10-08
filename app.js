@@ -1548,15 +1548,15 @@
     var n = need.filter(function (k) { return L.concepts.indexOf(k) >= 0; }).length; return n === need.length ? 2 : n ? 1 : 0; }
   function termLevel(need, lines) { if (!need.length) return -1;
     var h = lines.some(function (L) { return L.f === 'H' && lineLevel(need, L) === 2; }), d = lines.some(function (L) { return L.f === 'D' && lineLevel(need, L) === 2; });
-    return h && d ? 2 : h || d ? 1 : 0; }
+    return h ? 2 : d ? 1 : 0; }   /* MH-26: full = a headline has all the key words (Google matches the rest); partial = only a description */
   function cluAdLines(D) { var by = {}; (D.adLines || []).forEach(function (l) { by[l.id] = l; }); return by; }
   /* MH-25: a cluster's ad lines in block order: (problem, solution, call to action) × 5, then the 5 descriptions */
   function cluSetRows(D, key) { var S = (D.adSets || {})[key], L = cluAdLines(D), out = []; if (!S) return out;
     for (var i = 0; i < 5; i++) ['problem', 'solution', 'cta'].forEach(function (r, j) { var id = S[r][i]; if (id) out.push({ l: L[id], place: 'Block ' + (i + 1) + ' · ' + HROLE_L[r], first: !j && i > 0 }); });
     S.description.forEach(function (id, k) { out.push({ l: L[id], place: 'Description ' + (k + 1), first: !k }); });
     return out; }
-  function cluAdOf(D, term) { var a = D.terms[term].ad, L = cluAdLines(D); return a ? { h: a.h.map(function (i) { return L[i]; }), d: L[a.d], covers: a.covers } : null; }
-  var COV = { 2: ['full', 'ok', 'Full: a headline and a description each have all the term’s key words'], 1: ['partial', 'warn', 'Partial: only a headline or only a description has all the term’s key words'],
+  function cluAdsOf(D, term) { var L = cluAdLines(D); return (D.terms[term].ads || []).map(function (a) { return { h: a.h.map(function (i) { return L[i]; }), d: L[a.d], block: a.block, covers: a.covers }; }); }
+  var COV = { 2: ['full', 'ok', 'Full: a headline has all the term’s key words'], 1: ['partial', 'warn', 'Partial: only a description has all the term’s key words'],
     0: ['none', 'red', 'None: no headline or description has all the term’s key words'], '-1': ['no key words', '', 'The term has none of the key words'] };
   var LCOV = { 2: ['full', 'ok', 'Has all the term’s key words'], 1: ['partial', 'warn', 'Has some of the term’s key words'], 0: ['none', 'red', 'Has none of the term’s key words'] };
   var chipOf = function (x) { return '<span class="chip ' + x[1] + '" title="' + esc(x[2]) + '">' + esc(x[0]) + '</span>'; };
@@ -1586,9 +1586,9 @@
       c.pools.map(function (p) { return '<tr><td class="num">' + n0(p.avg) + '</td><td class="sub">' + esc(p.terms.join(' · ')) + '</td></tr>'; }).join('') + '</tbody></table></div></details>' : '';
     var method = '<details class="state"><summary>Method</summary><ul class="notes">' +
       '<li>Clusters: hand-written rules on the words of each search, applied in order (the first that matches wins): ' + esc(D.clusters.map(function (x) { return x.label; }).join(' → ')) + '. Every term of the intent, active and history, falls in one cluster.</li>' +
-      '<li>Key words of a term: ' + esc(Object.keys(D.concepts).map(function (k) { return D.concepts[k]; }).join(', ')) + '. Plurals, lawyer = attorney and collector = collection count as the same word; a city, a state or “near me” counts as “place”; “cost” needs a fee or price word.</li>' +
-      '<li>Coverage. A line against a term: full = all the term’s key words, partial = some, none = none; off-intent lines are none. A term against an ad: full = a headline and a description are full, partial = only one of them, none = neither. “Now” uses the lines of the ads that served the term’s keywords in the last 90 days (else the ad group’s responsive search ads), as in the drawer’s Ad Copy › Current; “ad” uses the suggested ad.</li>' +
-      '<li>Suggested lines: per cluster 15 headline options in five blocks of problem (a question), solution and call to action, and 5 descriptions that add detail and end with a call to action, written so that as many lines as fit carry the key words. The simulated ad for a term is the problem | solution | call to action + description that covers it fully with the most full headlines, then the fewest extra key words. Lines that mention a place are marked “confirm”. Draft copy for attorney review.</li>' +
+      '<li>Key words of a term: ' + esc(Object.keys(D.concepts).map(function (k) { return D.concepts[k]; }).join(', ')) + '. Plurals, lawyer = attorney and collector = collection count as the same word; “near me” (or in my area, nearby, local) is a key word; city and state names are not, since location targeting handles them and a multi-state ad cannot name them; “cost” needs a fee or price word.</li>' +
+      '<li>Coverage. A line against a term: full = all the term’s key words, partial = some, none = none; off-intent lines are none. A term against an ad: full = a headline is full (the key words need to be in one headline only; Google matches them to the search), partial = only a description is full, none = neither. “Now” uses the lines of the ads that served the term’s keywords in the last 90 days (else the ad group’s responsive search ads), as in the drawer’s Ad Copy › Current; “ad” uses its simulated ads.</li>' +
+      '<li>Suggested lines: per cluster five blocks, each one natural message: a problem question, a solution that refers to the firm (“Our…”, “We…”), a call to action, and a description that adds detail and ends with a call to action. The search’s key words sit in one headline, usually the question. Each term gets 5 simulated ads with at least one headline that has all its key words: whole blocks first, then combinations that bring in the most lines not yet shown. Lines that mention a place are marked “confirm”. Draft copy for attorney review.</li>' +
       '<li>Line flags: the copy rules and claim checks used for the Ad Copy recommendations (scripts/google-ads/check-ad-copy.py) and the brand-voice exclusions of the line pool. Line numbers are all-time, in the ads serving that term.</li>' +
       '<li>Monthly searches: ' + esc(D.planner) + '</li>' +
       '<li>Data: content/campaigns/google-ads/search-terms/clusters/ (rules hand-written ' + esc(D.written) + ') → scripts/google-ads/build-clusters.py.</li></ul></details>';
@@ -1627,33 +1627,37 @@
         if (!x) return '<tr class="ph"><td class="sub">' + esc(y.place) + '</td><td colspan="6" class="sub">No ' + esc(y.role === 'cta' ? 'call-to-action' : y.role) + ' headline left in these ads.</td></tr>';
         return '<tr data-lv="' + x.lv + '" data-f="' + L.f + '" data-place="' + esc(y.place) + '"' + (y.first ? ' class="blk"' : '') + '><td class="sub">' + esc(y.place) + '</td><td>' + esc(L.t) + flags(L) + '</td><td>' + chipOf(LCOV[x.lv]) + miss(L) + '</td><td class="num">' + n0(L.m.impr) + '</td><td class="num">' + pct(L.m.clicks, L.m.impr) + '</td><td class="num">' + n1(L.m.conv) + '</td><td class="num">' + per(L.m.cost, L.m.conv) + '</td></tr>'; }).join('') :
         '<tr><td colspan="7" class="empty">No current line at this level.</td></tr>') + '</tbody></table></div>';
-    var ad = cluAdOf(D, o.r.t.term), set = cluSetRows(D, c.key);
-    var inAd = ad ? ad.h.concat([ad.d]).map(function (l) { return l.id; }) : [];
+    var ads = cluAdsOf(D, o.r.t.term), set = cluSetRows(D, c.key);
+    var inAds = function (id) { return ads.map(function (a, n) { return a.h.concat([a.d]).some(function (l) { return l.id === id; }) ? n + 1 : 0; }).filter(Boolean); };
     var sn = { 2: 0, 1: 0, 0: 0 }; set.forEach(function (y) { sn[lineLevel(need, y.l)]++; });
-    var sugT = !set.length ? '<p class="empty">No suggested lines for this cluster.</p>' : '<p class="note">' + sn[2] + ' of the ' + set.length + ' lines cover it fully, ' + sn[1] + ' partly, ' + sn[0] + ' not at all.</p><div class="curbox"><table class="tbl clusug"><thead><tr><th>Place</th><th>Line</th><th class="num">Chars</th><th>Coverage</th><th>In the simulated ad</th></tr></thead><tbody>' +
-      set.map(function (y) { var l = y.l, lv = lineLevel(need, l), k = inAd.indexOf(l.id);
+    var sugT = !set.length ? '<p class="empty">No suggested lines for this cluster.</p>' : '<p class="note">' + sn[2] + ' of the ' + set.length + ' lines cover it fully, ' + sn[1] + ' partly, ' + sn[0] + ' not at all.</p><div class="curbox"><table class="tbl clusug"><thead><tr><th>Place</th><th>Line</th><th class="num">Chars</th><th>Coverage</th><th>In simulated ads</th></tr></thead><tbody>' +
+      set.map(function (y) { var l = y.l, lv = lineLevel(need, l), k = inAds(l.id);
         return '<tr data-sug="' + esc(l.id) + '" data-place="' + esc(y.place) + '"' + (y.first ? ' class="blk"' : '') + '><td class="sub">' + esc(y.place) + '</td><td>' + esc(l.t) + (l.confirm ? ' <span class="chip warn" title="' + esc(l.confirm) + '">confirm</span>' : '') + (l.status !== 'proposed' ? ' <span class="chip' + (l.status === 'approved' ? ' ok' : ' red') + '">' + esc(l.status) + '</span>' : '') + '</td><td class="num">' + l.chars + '</td><td>' + chipOf(LCOV[lv]) + '</td><td>' +
-          (k < 0 ? '' : '<span class="chip ok">' + (k < 3 ? 'headline ' + (k + 1) : 'description') + '</span>') + '</td></tr>'; }).join('') + '</tbody></table></div>';
-    var fh = ad ? ad.h.map(function (l, k) { return lineLevel(need, l) === 2 ? k + 1 : 0; }).filter(Boolean) : [];
-    var cov = ad ? [(fh.length > 1 ? 'Headlines ' + fh.slice(0, -1).join(', ') + ' and ' + fh[fh.length - 1] : 'Headline ' + fh[0]), 'the description'] : [];
-    var sim = !ad ? '' : '<div class="serp"><div class="sp-top"><span class="sp-badge">Sponsored</span></div><div class="sp-site"><span class="sp-ico">C</span><div><b>Credo Legal</b><div class="sp-url">start.credolegal.com</div></div></div>' +
-      '<span class="sp-hl">' + ad.h.map(function (l) { return cluBold(D, l.t, need); }).join(' | ') + '</span><div class="sp-desc">' + cluBold(D, ad.d.t, need) + '</div></div>' +
-      '<p class="note">' + (ad.h.concat([ad.d]).some(function (l) { return l.confirm; }) ? '<b>Confirm before use</b>: ' + esc(ad.h.concat([ad.d]).filter(function (l) { return l.confirm; })[0].confirm) + ' ' : '') + esc(cov.join(' and ')) + ' carry every key word (' + esc(kw) + '); key words in bold, as Google bolds the searched words. Google may show the headlines in another order or drop the third on small screens.</p>';
+          (k.length ? '<span class="sub">' + esc(k.map(function (n) { return 'Ad ' + n; }).join(', ')) + '</span>' : '') + '</td></tr>'; }).join('') + '</tbody></table></div>';
+    /* MH-26: 5 simulated ads, each with at least one headline that has all the key words */
+    var hn = ['headline 1', 'headline 2', 'headline 3'];
+    var sim = !ads.length ? '<p class="empty">No simulated ads for this term.</p>' : '<p class="note">Key words in bold, as Google bolds the searched words. Google may show the headlines in another order, or drop the third on small screens.' +
+      (ads.some(function (a) { return a.h.concat([a.d]).some(function (l) { return l.confirm; }); }) ? ' <b>Confirm before use</b> where an ad mentions a place: the firm needs a state-licensed attorney for the searcher’s state.' : '') + '</p><div class="adgrid">' +
+      ads.map(function (a, n) { var fh = a.h.map(function (l, k) { return lineLevel(need, l) === 2 ? hn[k] : ''; }).filter(Boolean);
+        return '<div class="adcard" data-ad="' + (n + 1) + '"><p class="sub"><b>Ad ' + (n + 1) + '</b> · ' + (a.block ? 'block ' + a.block : 'mixed') + ' · key words in ' + esc(fh.join(' and ')) + '</p>' +
+          '<div class="serp"><div class="sp-top"><span class="sp-badge">Sponsored</span></div><div class="sp-site"><span class="sp-ico">C</span><div><b>Credo Legal</b><div class="sp-url">start.credolegal.com</div></div></div>' +
+          '<span class="sp-hl">' + a.h.map(function (l) { return cluBold(D, l.t, need); }).join(' | ') + '</span><div class="sp-desc">' + cluBold(D, a.d.t, need) + '</div></div></div>'; }).join('') + '</div>';
     return '<div class="cluexp-in"><p class="note">Key words of <b>' + esc(o.r.t.term) + '</b>: ' + esc(kw) + '.</p><div class="clu3">' +
       '<section><h4>Current headlines and descriptions <span class="sub">' + cur.length + ' lines in the ads serving it</span></h4>' + curT + '</section>' +
-      '<section><h4>Suggested lines for this cluster <span class="sub">15 headlines in blocks of problem, solution, call to action, then 5 descriptions · draft, attorney review</span></h4>' + sugT + '</section>' +
-      '<section><h4>Simulated ad</h4>' + sim + '</section></div></div>';
+      '<section><h4>Suggested lines for this cluster <span class="sub">5 blocks of problem, solution, call to action, then the 5 descriptions · draft, attorney review</span></h4>' + sugT + '</section>' +
+      '<section><h4>Simulated ads <span class="sub">' + ads.length + ', each with a headline that has all the key words</span></h4>' + sim + '</section></div></div>';
   }
   function cluBodyHtml(D, c, rows) {
     if (!rows.length) { var other = STC.scope !== 'both' && allTerms().some(function (r) { var t = D.terms[r.t.term]; return r.t.intent === D.intent && t && t.cluster === c.key && r.t.scope !== STC.scope && (TAB !== 'bad' || chipOk(r, 'bad')); });
       return '<p class="empty">No rows in this cluster for this scope' + (TAB === 'bad' ? ' that are not working' : '') + '.' + (other ? ' Its terms ran in ' + (STC.scope === 'active' ? 'paused campaigns: choose History or Both above.' : 'the active campaigns: choose Active or Both above.') : '') + '</p>'; }
     var MS = window.Hub.multiSort, act = c.kind !== 'cluster';
-    var O = rows.map(function (r) { var t = D.terms[r.t.term], ad = act ? null : cluAdOf(D, r.t.term);
-      return { r: r, k: cluKey(r), t: t, p: t.planner, now: act ? null : termLevel(t.concepts, cluRowLines(D, r)), ad: ad ? termLevel(t.concepts, ad.h.concat([ad.d])) : null }; });
+    var O = rows.map(function (r) { var t = D.terms[r.t.term], ads = act ? [] : cluAdsOf(D, r.t.term);
+      /* "ad": the weakest of its simulated ads (each should be full) */
+      return { r: r, k: cluKey(r), t: t, p: t.planner, now: act ? null : termLevel(t.concepts, cluRowLines(D, r)), ad: act ? null : ads.length ? Math.min.apply(null, ads.map(function (a) { return termLevel(t.concepts, a.h.concat([a.d])); })) : 0 }; });
     O.sort(MS.compare(STC.sorts, cluSortVal, function (a, b) { return a.r.t.term.localeCompare(b.r.t.term); }));
     var sum = '';
     if (!act) { var cnt = function (f) { var n = { 2: 0, 1: 0, 0: 0, '-1': 0 }; O.forEach(function (o) { n[o[f]]++; }); return n; }, a = cnt('now'), b = cnt('ad');
-      sum = '<p class="note">Today: <b>' + a[2] + '</b> of ' + O.length + ' rows are covered fully (a headline and a description with all their key words), ' + a[1] + ' partly, ' + a[0] + ' not at all' + (a['-1'] ? ', ' + a['-1'] + ' have no key words' : '') + '. ' +
+      sum = '<p class="note">Today: <b>' + a[2] + '</b> of ' + O.length + ' rows are covered fully (a headline with all their key words), ' + a[1] + ' partly (only a description), ' + a[0] + ' not at all' + (a['-1'] ? ', ' + a['-1'] + ' have no key words' : '') + '. ' +
         'With the suggested ads: <b>' + b[2] + '</b> fully' + (b[1] + b[0] ? ', ' + b[1] + ' partly, ' + b[0] + ' not at all' : '') + '.</p>'; }
     var head = [['term', 'Search term']].concat(act ? [] : [['now', 'Coverage now → ad'], [null, 'Key words']]).concat([['impr', 'Impr.'], ['ctr', 'CTR'], ['conv', 'Conv.'], ['searches', 'Searches / mo']]).concat(act ? [['cost', 'Spend'], [null, c.kind === 'exclude' ? 'Proposed negative' : 'Proposed action']] : []);
     var num = ['impr', 'ctr', 'conv', 'searches', 'cost'];
@@ -1672,7 +1676,7 @@
     if (act) return terms;
     /* the cluster's ad lines and how many of its terms each covers fully (all terms of the cluster, any scope) */
     var set = cluSetRows(D, c.key), all = Object.keys(D.terms).filter(function (t) { return D.terms[t].cluster === c.key; });
-    var setT = '<h3>Ad lines for this cluster <span class="sub">draft, attorney review</span></h3><p class="note">15 headline options in five blocks of problem (a question), solution and call to action, and 5 description options that end with a call to action. Every one of the ' + all.length + ' terms of the cluster (any scope) gets an ad from them with a full headline and a full description; the counts show how many terms each line covers fully. One responsive search ad holds up to 4 descriptions: the 5th is an alternative.</p>' +
+    var setT = '<h3>Ad lines for this cluster <span class="sub">draft, attorney review</span></h3><p class="note">Five blocks, each one message: a problem question, a solution that refers to the firm, a call to action, and its description (detail plus a call to action). The search’s key words sit in one headline. Every one of the ' + all.length + ' terms of the cluster (any scope) gets 5 simulated ads from these lines with a headline that has all its key words; the counts show how many terms each line covers fully. One responsive search ad holds up to 4 descriptions.</p>' +
       '<div class="scroll"><table class="tbl clusug"><thead><tr><th>Place</th><th>Line</th><th class="num">Chars</th><th class="num">Terms covered fully</th><th>Status</th></tr></thead><tbody>' + set.map(function (y) { var l = y.l;
         var n = all.filter(function (t) { return lineLevel(D.terms[t].concepts, l) === 2; }).length;
         return '<tr data-set="' + esc(l.id) + '"' + (y.first ? ' class="blk"' : '') + '><td class="sub">' + esc(y.place) + '</td><td>' + esc(l.t) + (l.confirm ? ' <span class="chip warn" title="' + esc(l.confirm) + '">confirm</span>' : '') + '</td><td class="num">' + l.chars + '</td><td class="num">' + n + ' <span class="sub">of ' + all.length + '</span></td><td><span class="chip' + (l.status === 'approved' ? ' ok' : l.status === 'rejected' ? ' red' : '') + '">' + esc(l.status) + '</span></td></tr>'; }).join('') + '</tbody></table></div>';
