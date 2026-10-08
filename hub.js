@@ -110,6 +110,50 @@ if (!window.HUB) location.replace('app.html');
     return out;
   }
 
-  window.Hub = { init: init, period: period, periodKey: periodKey, pageMetrics: pageMetrics, googleStatus: googleStatus, alerts: alerts, adsBy: adsBy, pageBy: pageBy, pageByLive: pageByLive,
+  /* Multi-level table sorting (8 Oct 2026). A sort is a list of levels [{ k: column key, dir: 1 asc | -1 desc }].
+     Click a header: sort by that column only (a second click flips it). Shift-, Cmd- or Ctrl-click: add the column as
+     the next level (or flip it if it is already a level). The bar above the table shows the levels, removes one, and
+     adds one with a select (works without a keyboard). Ties fall through to the next level, then to `tie`. */
+  var multiSort = {
+    click: function (levels, k, add, defDir) {
+      var i = levels.map(function (l) { return l.k; }).indexOf(k), out = levels.slice();
+      if (add) { if (i >= 0) out[i] = { k: k, dir: -out[i].dir }; else out.push({ k: k, dir: defDir || -1 }); return out; }
+      return [{ k: k, dir: levels.length === 1 && i === 0 ? -levels[0].dir : (i >= 0 ? out[i].dir : defDir || -1) }];
+    },
+    compare: function (levels, val, tie) {   /* val(row, key) -> number | string | null (nulls last) */
+      return function (a, b) {
+        for (var i = 0; i < levels.length; i++) {
+          var x = val(a, levels[i].k), y = val(b, levels[i].k);
+          if (x === '') x = null; if (y === '') y = null;   /* empty values sort last in both directions */
+          if (x == null && y == null) continue; if (x == null) return 1; if (y == null) return -1;
+          var d = typeof x === 'string' || typeof y === 'string' ? String(x).localeCompare(String(y)) : x - y;
+          if (d) return d * levels[i].dir;
+        }
+        return tie ? tie(a, b) : 0;
+      };
+    },
+    mark: function (levels, k) {   /* header suffix: arrow, plus the level number when there are several */
+      var i = levels.map(function (l) { return l.k; }).indexOf(k); if (i < 0) return '';
+      return ' ' + (levels[i].dir < 0 ? '↓' : '↑') + (levels.length > 1 ? '<sup>' + (i + 1) + '</sup>' : '');
+    },
+    bar: function (levels, cols, attr) {   /* cols: [[key, label]]; attr: data attribute prefix for the controls */
+      var lab = {}; cols.forEach(function (c) { lab[c[0]] = c[1]; });
+      var rest = cols.filter(function (c) { return !levels.some(function (l) { return l.k === c[0]; }); });
+      return '<div class="sortbar" role="group" aria-label="Sort order"><span class="sub">Sorted by</span> ' + levels.map(function (l, i) {
+        return (i ? '<span class="sub">then</span> ' : '') + '<span class="sortlvl"><button type="button" ' + attr + '-flip="' + esc(l.k) + '" title="Flip direction">' + esc(lab[l.k] || l.k) + ' ' + (l.dir < 0 ? '↓' : '↑') + '</button>' +
+          (levels.length > 1 ? '<button type="button" ' + attr + '-drop="' + esc(l.k) + '" aria-label="Remove ' + esc(lab[l.k] || l.k) + ' from the sort">×</button>' : '') + '</span>';
+      }).join(' ') + (rest.length ? ' <select ' + attr + '-add aria-label="Add a sort level"><option value="">+ then by…</option>' + rest.map(function (c) { return '<option value="' + esc(c[0]) + '">' + esc(c[1]) + '</option>'; }).join('') + '</select>' : '') +
+        ' <span class="sub sort-hint">Shift-click a header to add it.</span></div>';
+    },
+    wire: function (root, attr, get, set, defDir) {   /* the bar's buttons and select */
+      root.addEventListener('click', function (e) {
+        var f = e.target.closest('[' + attr + '-flip]'), d = e.target.closest('[' + attr + '-drop]');
+        if (f) { var k = f.getAttribute(attr + '-flip'); set(get().map(function (l) { return l.k === k ? { k: k, dir: -l.dir } : l; })); }
+        if (d) { var k2 = d.getAttribute(attr + '-drop'); set(get().filter(function (l) { return l.k !== k2; })); }
+      });
+      root.addEventListener('change', function (e) { var s = e.target.closest('[' + attr + '-add]'); if (s && s.value) set(get().concat([{ k: s.value, dir: defDir ? defDir(s.value) : -1 }])); });
+    }
+  };
+  window.Hub = { init: init, multiSort: multiSort, period: period, periodKey: periodKey, pageMetrics: pageMetrics, googleStatus: googleStatus, alerts: alerts, adsBy: adsBy, pageBy: pageBy, pageByLive: pageByLive,
     fmt: { esc: esc, n0: n0, n1: n1, usd: usd, pct: pct, per: per, dash: dash }, CONV: CONV };
 })();

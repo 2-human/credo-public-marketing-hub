@@ -689,7 +689,7 @@
     [].forEach.call(box.querySelectorAll(':scope > [data-subpanel]'), function (p) { p.hidden = p.getAttribute('data-subpanel') !== b.getAttribute('data-subtab'); });
   });
   /* ───────────── MH-19: all search terms and the proposed new pages (was the public search-term review page) ───────────── */
-  var STF = { scope: 'active', campaign: '', debtType: '', intent: '', verdict: '', action: '', q: '', grp: 'intent', sort: 'impr', dir: -1, page: '' };
+  var STF = { scope: 'active', campaign: '', debtType: '', intent: '', verdict: '', action: '', q: '', grp: 'intent', sorts: [{ k: 'impr', dir: -1 }], page: '' };   /* sorts: multi-level (Hub.multiSort) */
   var CHIPS = [['all', 'All'], ['good', 'Working well'], ['bad', 'Not working'], ['leak', 'High CTR, weak conversion'], ['wrong', 'Not on the best page'], ['star', 'Analysed'], ['ideas', 'Keyword ideas from history'], ['neg', 'Hit by a negative']];
   var allTermsCache = null;
   function allTerms() {
@@ -706,12 +706,12 @@
       return (scope === 'both' || t.scope === scope) && chipOk(r, chip) && (!q || t.term.toLowerCase().indexOf(q) >= 0) && (!STF.campaign || r.campaign === STF.campaign) && (!STF.debtType || t.debtType === STF.debtType) &&
         (!STF.intent || t.intent === STF.intent || (t.keywords || []).some(function (k) { return k[6] === STF.intent; })) && (!STF.verdict || r.x.verdict === STF.verdict) && (!STF.action || t.action === STF.action) && (!STF.page || t.best === STF.page); });
   }
-  var sortVal = function (r, k) { return k === 'term' ? r.t.term : k === 'ctr' ? r.x.ctr : k === 'cpa' ? (r.x.cpa == null ? -1 : r.x.cpa) : k === 'share' ? (r.x.liveShare == null ? -1 : r.x.liveShare) : r.t[k]; };
+  var sortVal = function (r, k) { return k === 'term' ? r.t.term : k === 'ctr' ? r.x.ctr : k === 'cpa' ? r.x.cpa : k === 'share' ? (r.x.liveShare == null || r.x.liveShare < 0 ? null : r.x.liveShare) : r.t[k]; };
   function termsTableHtml(chip) {
-    var list = termsFiltered(chip).sort(function (a, b) { var x = sortVal(a, STF.sort), y = sortVal(b, STF.sort); return (typeof x === 'string' ? x.localeCompare(y) : x - y) * STF.dir; });
+    var MS = window.Hub.multiSort, list = termsFiltered(chip).sort(MS.compare(STF.sorts, sortVal, function (a, b) { return a.t.term.localeCompare(b.t.term); }));
     var head = [['term', 'Search term'], [null, 'Campaign › ad group'], [null, 'Intent'], ['impr', 'Impr.'], ['clicks', 'Clicks'], ['ctr', 'CTR'], ['cost', 'Spend'], ['conv', 'Conv.'], ['cpa', 'Cost / conv.'], [null, 'Best page'], ['share', 'On it today'], [null, 'Action']];
     var th = head.map(function (h2) { var num = ['impr', 'clicks', 'ctr', 'cost', 'conv', 'cpa', 'share'].indexOf(h2[0]) >= 0;
-      return '<th' + (num ? ' class="num"' : '') + '>' + (h2[0] ? '<button class="sortbtn" data-stsort="' + h2[0] + '">' + esc(h2[1]) + (STF.sort === h2[0] ? (STF.dir < 0 ? ' ↓' : ' ↑') : '') + '</button>' : esc(h2[1])) + '</th>'; }).join('');
+      return '<th' + (num ? ' class="num"' : '') + '>' + (h2[0] ? '<button class="sortbtn" data-stsort="' + h2[0] + '" title="Click to sort by this column; Shift-click to add it as the next sort level">' + esc(h2[1]) + MS.mark(STF.sorts, h2[0]) + '</button>' : esc(h2[1])) + '</th>'; }).join('');
     var row = function (r) { var t = r.t, x = r.x;
       return '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); drawerTerm({ name: r.campaign }, { name: r.adgroup }, t); }) + '><td>' + esc(t.term) + (r.f ? ' <span class="chip ok">analysed</span>' : '') + (t.scope === 'history' ? ' <span class="chip">history</span>' : '') +
         (x.flags.length ? '<div class="sub">' + esc(x.flags.join(' · ')) + '</div>' : '') + '</td><td class="sub">' + esc(r.campaign + ' › ' + r.adgroup) + '</td><td class="sub">' + esc(intentLabel(t.intent)) + '</td>' +
@@ -724,7 +724,7 @@
       order.forEach(function (k) { var g = groups[k], s2 = function (f) { return g.reduce(function (q, r) { return q + r.t[f]; }, 0); };
         body += '<tr class="grouprow"><td colspan="3"><b>' + esc(k) + '</b> <span class="sub">' + g.length + ' terms</span></td><td class="num">' + n0(s2('impr')) + '</td><td class="num">' + n0(s2('clicks')) + '</td><td class="num">' + pct(s2('clicks'), s2('impr')) + '</td><td class="num">' + usd(s2('cost')) + '</td><td class="num">' + n1(s2('conv')) + '</td><td class="num">' + per(s2('cost'), s2('conv')) + '</td><td colspan="3"></td></tr>' + g.map(row).join(''); });
     } else body = list.map(row).join('');
-    return '<p class="note" id="st-count">' + list.length + ' rows</p><div class="scroll"><table class="tbl sttbl"><thead><tr>' + th + '</tr></thead><tbody>' + (body || '<tr><td colspan="12" class="empty">No terms match these filters.</td></tr>') + '</tbody></table></div>';
+    return MS.bar(STF.sorts, head.filter(function (h2) { return h2[0]; }), 'data-sts') + '<p class="note" id="st-count">' + list.length + ' rows</p><div class="scroll"><table class="tbl sttbl"><thead><tr>' + th + '</tr></thead><tbody>' + (body || '<tr><td colspan="12" class="empty">No terms match these filters.</td></tr>') + '</tbody></table></div>';
   }
   function viewSearchTerms(pageFilter) {
     var st = STG(), A = st.account90d, B = st.bench, acpa = A.cost / A.conv, rows = allTerms(), act = rows.filter(function (r) { return r.t.scope === 'active'; }), hist = rows.filter(function (r) { return r.t.scope === 'history'; });
@@ -794,8 +794,10 @@
       el.addEventListener(el.tagName === 'INPUT' ? 'input' : 'change', function () { STF[el.getAttribute('data-stf')] = el.value;
         if (el.getAttribute('data-stf') === 'scope') { route(); return; }   /* the chip counts depend on the scope */
         clearTimeout(t0); t0 = setTimeout(redraw, el.tagName === 'INPUT' ? 150 : 0); }); });
+    var MS = window.Hub.multiSort, defDir = function (k) { return k === 'term' ? 1 : -1; };
     box.addEventListener('click', function (e) { var b = e.target.closest('[data-stsort]'); if (!b) return; var k = b.getAttribute('data-stsort');
-      if (STF.sort === k) STF.dir = -STF.dir; else { STF.sort = k; STF.dir = k === 'term' ? 1 : -1; } redraw(); });
+      STF.sorts = MS.click(STF.sorts, k, e.shiftKey || e.metaKey || e.ctrlKey, defDir(k)); redraw(); });
+    MS.wire(box, 'data-sts', function () { return STF.sorts; }, function (v) { STF.sorts = v.length ? v : [{ k: 'impr', dir: -1 }]; redraw(); }, defDir);
   }
   function newPageRows() {
     var st = STG(); return Object.keys(st.pages).filter(function (k) { return st.pages[k].kind === 'new'; }).map(function (code) {

@@ -56,3 +56,13 @@ tr.total td { font-weight:650; border-top:2px solid var(--ink); }
 .notes { margin-top:18px; color:var(--mute); font-size:13px; max-width:980px; } .notes li { margin-bottom:4px; }
 .placeholder { border:1px dashed #c3c8d0; border-radius:6px; padding:16px; color:var(--mute); background:#fafbfc; }
 @media (max-width:700px) { .mh-row1 { gap:10px; } main { padding:12px; } .matrix td { min-width:150px; } }
+
+/* multi-level sort bar (Hub.multiSort, 8 Oct 2026) */
+.sortbar { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:6px 0 8px; font-size:13px; }
+.sortbar .sortlvl { display:inline-flex; border:1px solid var(--line); border-radius:4px; background:var(--card); }
+.sortbar .sortlvl button { border:0; background:none; font:inherit; padding:2px 8px; cursor:pointer; color:var(--ink); }
+.sortbar .sortlvl button + button { border-left:1px solid var(--line); color:var(--mute); padding:2px 6px; }
+.sortbar select { font:inherit; padding:2px 4px; }
+th sup { font-size:9px; margin-left:1px; }
+.sortbtn, th[data-sort] { user-select:none; }
+@media (pointer: coarse) { .sort-hint, .sortbar .sb-hint { display:none; } }   /* touch: the "then by" select does it */
