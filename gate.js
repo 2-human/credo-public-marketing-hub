@@ -5,7 +5,7 @@
  * The derived key (not the password) is kept in sessionStorage for this tab only, so a reload does not ask again. */
 (function () {
   var FILES = ['registry', 'metrics', 'microsites', 'ads-tree', 'ads-metrics', 'phone-map', 'backlog-data', 'work', 'reviews', 'statutes', 'organic', 'ad-copy'];
-  var APP = ['hub.js?v=14', 'app.js?v=62'];
+  var APP = ['hub.js?v=14', 'app.js?v=63'];
   var KEY = 'mh-gate-key';
   function load(src) { return new Promise(function (ok, no) { var s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = no; document.head.appendChild(s); }); }
   function run(text) { var s = document.createElement('script'); s.textContent = text; document.head.appendChild(s); }
