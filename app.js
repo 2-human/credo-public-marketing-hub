@@ -2000,76 +2000,68 @@
     if (pgTab) abPageLoad();
   }
   /* MH-32: the search terms behind a line's Full / Partial count, in a drawer from the left (over the A/B drawer) */
-  /* ───────────── MH-36: landing-page recommendations per ad group (A/B drawer › Page) ─────────────
-     content/campaigns/google-ads/search-terms/page-recs/<group>.json (→ HUB_ADCOPY.pageRecs, encrypted bundle): per page
-     the copy edits (exact block text → new), the FAQ (5 items, about Credo's services) and the What you should know
-     items (title, first sentence, article; the information searches the page does not answer). The recommended page is
-     built here from the staging mirror (microsites/…): edits applied, FAQ replaced, the new section inserted before the
-     FAQ in the FAQ's own markup (title and first sentence, Read more opens the article), every change highlighted. */
-  var AB_PG = { page: null, view: 'rec' };
+  /* ───────────── MH-37: the new ad's landing page (A/B drawer › Page) ─────────────
+     content/campaigns/google-ads/search-terms/page-recs/<group>.json (→ HUB_ADCOPY.pageRecs, encrypted bundle): ONE new page
+     for the new ad (B) (operator 9 Oct: "one page per ad … we should not be comparing the new page to the old ones or
+     highlighting anything"). It keeps the structure and design of a current page (page.base, the staging mirror) with
+     every standard section's copy rewritten for the ad and its searches (blocks: exact old text → new; *word* = the
+     block's accent element), a What you should know section before the FAQ in the FAQ's own markup (title and first
+     sentence, Read more opens the article) and an FAQ about Credo's services. Built here, shown as a clean page. */
   function pageFile(slug) { var f = null; sites.forEach(function (s) { s.pages.forEach(function (p) { if (!f && p.kind === 'service' && p.label === slug) f = p.file; }); }); return f; }
   var pgNorm = function (t) { return String(t || '').replace(/\s+/g, ' ').trim(); };
   /* the page's text blocks: elements in <main> with text of their own (tools/marketing-hub/page-text.mjs uses the same rule) */
   function pageBlocks(doc) { var own = function (e) { return [].some.call(e.childNodes, function (n) { return n.nodeType === 3 && n.textContent.trim(); }); };
     return [].filter.call(doc.querySelectorAll('main *'), function (e) { if (e.closest('form, script, style, noscript, .w-form') || !own(e)) return false;
       return !(/^(STRONG|EM|B|I|SPAN|BR|A)$/.test(e.tagName) && e.parentElement && own(e.parentElement)); }); }
-  function pageRecApply(html, R, slug, file) { var P = R.pages[slug], doc = new DOMParser().parseFromString(html, 'text/html'), rep = { edits: 0, missing: [], faq: 0, items: 0 };
+  /* each block with the section it sits in (the small label above each section title), as page-text.mjs records it */
+  function pageBlockSections(doc) { var sec = 'hero'; return pageBlocks(doc).map(function (e) {
+    if (e.closest('h2.mjthankyousteps-copy, h2[class*="steps"]') || e.matches('h2 > strong')) sec = pgNorm(e.textContent); return { el: e, section: sec }; }); }
+  /* new text into a block; "*word*" re-creates the block's own accent element (em / strong / span) around that word */
+  function pageSetText(el, t) { var acc = [].filter.call(el.children, function (c) { return /^(EM|STRONG|SPAN|B|I)$/.test(c.tagName); })[0], raw = el.textContent;
+    t = (raw.match(/^\s*/)[0]) + String(t).trim() + (raw.match(/\s*$/)[0]);   /* the block keeps its own leading / trailing spaces (the hero headline's pieces need them) */
+    var m = t.match(/^([\s\S]*?)\*([^*]+)\*([\s\S]*)$/);
+    if (!acc || !m) { el.textContent = t.replace(/\*/g, ''); return; }
+    var a = acc.cloneNode(false); a.textContent = m[2]; var d = el.ownerDocument; el.textContent = ''; el.appendChild(d.createTextNode(m[1])); el.appendChild(a); el.appendChild(d.createTextNode(m[3])); }
+  function pageRecApply(html, R, file) { var doc = new DOMParser().parseFromString(html, 'text/html'), rep = { blocks: 0, missing: [], faq: 0, items: 0 };
     var base = doc.createElement('base'); base.href = new URL(file, location.href).href; doc.head.insertBefore(base, doc.head.firstChild);
-    var faqHead = doc.getElementById('faq'), items = doc.querySelectorAll('.faqitem');
-    /* the new section first, cloned from the pristine FAQ: label + title, then one item per article */
-    var W = (R.wysk.items || []).filter(function (it) { return (it.pages || []).indexOf(slug) >= 0; });
+    var faqHead = doc.getElementById('faq'), items = doc.querySelectorAll('.faqitem'), W = (R.wysk && R.wysk.items) || [];
     if (faqHead && items.length && W.length) { var head = faqHead.closest('.w-layout-layout'), list = items[0].closest('.w-layout-layout'), sep1 = head.previousElementSibling, sep2 = head.nextElementSibling;
-      var nodes = [sep1, head, sep2, list].filter(Boolean).map(function (n) { return n.cloneNode(true); }), h = nodes[1], l = nodes[3];
+      var h = head.cloneNode(true), l = list.cloneNode(true), nodes = [sep1 && sep1.cloneNode(true), h, sep2 && sep2.cloneNode(true), l].filter(Boolean);
       var lab = h.querySelector('#faq'); lab.id = 'wysk'; (lab.querySelector('strong') || lab).textContent = R.wysk.label; var t2 = h.querySelectorAll('h2')[1]; if (t2) t2.textContent = R.wysk.heading;
       var cell = l.querySelector('.faqitem').parentElement, tpl = cell.querySelector('.faqitem').cloneNode(true); cell.innerHTML = '';
-      W.forEach(function (it, k) { var n = tpl.cloneNode(true); n.querySelector('.lp-faq-q').textContent = it.title; n.querySelector('.mjfdcpatext-copy').textContent = it.first;
+      W.forEach(function (it) { var n = tpl.cloneNode(true); n.querySelector('.lp-faq-q').textContent = it.title; n.querySelector('.mjfdcpatext-copy').textContent = it.first;
         var more = doc.createElement('div'); more.className = 'mh-more'; more.hidden = true;
         (it.body || []).forEach(function (para) { var d = doc.createElement('div'); d.className = 'mjfdcpatext-copy'; d.textContent = para; more.appendChild(d); });
-        var a = doc.createElement('a'); a.href = '#'; a.className = 'mh-readmore'; a.setAttribute('data-mh-more', ''); a.textContent = 'Read more';
+        more.id = 'mh-more-' + it.key; var a = doc.createElement('a'); a.href = '#' + more.id; a.className = 'mh-readmore'; a.setAttribute('data-mh-more', ''); a.setAttribute('role', 'button'); a.setAttribute('aria-expanded', 'false'); a.setAttribute('aria-controls', more.id); a.textContent = 'Read more';
         n.appendChild(more); n.appendChild(a); n.setAttribute('data-mh', 'wysk:' + it.key); cell.appendChild(n); rep.items++; });
-      nodes.forEach(function (n) { if (n === h || n === l) n.classList.add('mh-new'); else n.classList.add('mh-sep'); sep1.parentNode.insertBefore(n, sep1); }); }
-    var blocks = pageBlocks(doc).filter(function (e) { return !e.closest('.mh-new, .mh-sep'); });
-    (P.edits || []).forEach(function (ed, i) { var el = blocks.filter(function (b) { return pgNorm(b.textContent) === pgNorm(ed.old); })[0];
-      if (!el) { rep.missing.push(ed.old); return; } el.textContent = ed.new; el.classList.add('mh-chg'); el.setAttribute('data-mh', 'edit:' + i); el.setAttribute('title', 'Was: ' + ed.old); rep.edits++; });
-    (P.faq || []).forEach(function (f, i) { var it = items[i]; if (!it) return; var q = it.querySelector('.lp-faq-q'), a = it.querySelector('.mjfdcpatext-copy'), oq = pgNorm(q.textContent), oa = pgNorm(a.textContent);
-      if (oq === pgNorm(f.q) && oa === pgNorm(f.a)) return; q.textContent = f.q; a.textContent = f.a; it.classList.add('mh-chg'); it.setAttribute('data-mh', 'faq:' + i); it.setAttribute('title', 'Was: ' + oq + ' — ' + oa); rep.faq++; });
-    var st = doc.createElement('style'); st.textContent = '.mh-chg{outline:2px solid #e0a800!important;outline-offset:3px;background:rgba(253,230,138,.45)!important}.mh-new{outline:2px dashed #2e9d4b!important;outline-offset:4px;background:rgba(205,236,207,.35)!important}' +
-      '.mh-readmore{display:inline-block;margin-top:8px;color:#b4232a;text-decoration:underline;cursor:pointer}.mh-more .mjfdcpatext-copy{margin-top:10px}';
+      nodes.forEach(function (n) { n.setAttribute('data-mh-new', ''); (sep1 || head).parentNode.insertBefore(n, sep1 || head); }); }
+    var blocks = pageBlockSections(doc).filter(function (x) { return !x.el.closest('[data-mh-new]'); }), used = [];
+    /* a block is found by its section and its text (repeated texts, e.g. the stat blocks, sit in different sections) */
+    (R.blocks || []).forEach(function (b, i) { var hit = blocks.filter(function (x) { return used.indexOf(x.el) < 0 && (!b.section || x.section === b.section) && pgNorm(x.el.textContent) === pgNorm(b.old); })[0], el = hit && hit.el; if (el) used.push(el);
+      if (!el) { rep.missing.push(b.old); return; } pageSetText(el, b.new); el.setAttribute('data-mh', 'block:' + i); rep.blocks++; });
+    (R.faq || []).forEach(function (f, i) { var it = items[i]; if (!it) return; it.querySelector('.lp-faq-q').textContent = f.q; it.querySelector('.mjfdcpatext-copy').textContent = f.a; it.setAttribute('data-mh', 'faq:' + i); rep.faq++; });
+    var st = doc.createElement('style'); st.textContent = '.mh-readmore{display:inline-block;margin-top:8px;color:inherit;text-decoration:underline;cursor:pointer}.mh-more .mjfdcpatext-copy{margin-top:10px}';
     doc.head.appendChild(st);
-    var sc = doc.createElement('script'); sc.textContent = "document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('[data-mh-more]');if(!a)return;e.preventDefault();var m=a.previousElementSibling;m.hidden=!m.hidden;a.textContent=m.hidden?'Read more':'Read less';});";
+    var sc = doc.createElement('script'); sc.textContent = "document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('[data-mh-more]');if(!a)return;e.preventDefault();var m=a.previousElementSibling;m.hidden=!m.hidden;a.textContent=m.hidden?'Read more':'Read less';a.setAttribute('aria-expanded',String(!m.hidden));});";
     doc.body.appendChild(sc);
     return { html: '<!doctype html>' + doc.documentElement.outerHTML, report: rep }; }
-  function abPageTab(g) { var R = (ADC.pageRecs || {})[g.key]; if (!R || !R.pages) return null;
-    var slugs = Object.keys(R.pages); if (slugs.indexOf(AB_PG.page) < 0) AB_PG.page = slugs[0];
-    return '<div id="abpg" data-group="' + esc(g.key) + '">' + abPageInner(g, R) + '</div>'; }
-  function abPageInner(g, R) { var slug = AB_PG.page, P = R.pages[slug], imp = {}; g.rows.forEach(function (x) { imp[x.r.t.term] = x.r.t.impr || 0; });
-    var sum = function (L) { return (L || []).reduce(function (q, t) { return q + (imp[t] || 0); }, 0); }, tn = function (L) { return n0((L || []).length) + ' searches · ' + n0(sum(L)) + ' impr.'; };
+  function abPageTab(g) { var R = (ADC.pageRecs || {})[g.key]; if (!R || !R.page) return null;
+    var imp = {}; g.rows.forEach(function (x) { imp[x.r.t.term] = x.r.t.impr || 0; });
+    var sum = function (L) { return (L || []).reduce(function (q, t) { return q + (imp[t] || 0); }, 0); };
+    var byT = {}; (R.terms || []).forEach(function (t) { if (t.kind === 'info' && t.topic) (byT[t.topic] = byT[t.topic] || []).push(t.term); });
     var info = (R.terms || []).filter(function (t) { return t.kind === 'info'; }).map(function (t) { return t.term; });
-    var W = (R.wysk.items || []).filter(function (it) { return (it.pages || []).indexOf(slug) >= 0; });
-    var seg = function (attr, val, cur, lab) { return '<button type="button" class="abpgbtn" ' + attr + '="' + esc(val) + '" aria-pressed="' + (val === cur) + '">' + esc(lab) + '</button>'; };
-    var ctl = '<div class="abpgctl"><span class="sub">Page</span> ' + Object.keys(R.pages).map(function (s2) { return seg('data-abpg', s2, slug, s2); }).join('') +
-      ' <span class="sub" style="margin-left:14px">View</span> ' + seg('data-abpv', 'cur', AB_PG.view, 'Current page') + seg('data-abpv', 'rec', AB_PG.view, 'Recommended') +
-      ' <a class="sub" href="' + esc(STAGING + slug) + '" target="_blank" rel="noopener">staging page ↗</a></div>';
-    var lead = '<p class="note">' + n0(info.length) + ' of the ad group’s ' + n0((R.terms || []).length) + ' searches ask for information (' + n0(sum(info)) + ' impr.); each is answered on this page by its current copy, a copy edit, a <b>What you should know</b> article or the FAQ. ' +
-      '<span class="mh-key mh-key-c">changed</span> <span class="mh-key mh-key-n">new section</span>. Draft for attorney review; the page on staging is not changed.</p>';
-    var changes = '<details class="state" open><summary>Changes on this page: ' + (P.edits || []).length + ' copy edits, ' + (P.faq || []).filter(function (f) { return f.was; }).length + ' FAQ items, ' + W.length + ' articles</summary>' +
-      (W.length ? '<h4>What you should know (new section, before the FAQ)</h4><ol class="notes">' + W.map(function (it) { return '<li data-abpgitem="' + esc(it.key) + '"><b>' + esc(it.title) + '</b> <span class="sub">' + tn(it.terms) + '</span><div>' + esc(it.first) + '</div>' +
-        '<details><summary class="sub">Article and searches</summary>' + (it.body || []).map(function (x) { return '<p>' + esc(x) + '</p>'; }).join('') + '<p class="sub">' + esc((it.terms || []).join(' · ')) + '</p></details></li>'; }).join('') + '</ol>' : '') +
-      ((P.edits || []).length ? '<h4>Copy edits</h4><ol class="notes">' + P.edits.map(function (e) { return '<li><span class="sub">' + esc(e.section) + '</span><div><s>' + esc(e.old) + '</s></div><div>' + esc(e.new) + '</div><div class="sub">' + esc(e.why || '') + (e.terms && e.terms.length ? ' · ' + tn(e.terms) : '') + '</div></li>'; }).join('') + '</ol>' : '') +
-      '<h4>FAQ (about Credo’s services)</h4><ol class="notes">' + (P.faq || []).map(function (f) { return '<li><b>' + esc(f.q) + '</b><div>' + esc(f.a) + '</div>' + (f.was ? '<div class="sub">replaces “' + esc(f.was) + '”' + (f.why ? ' · ' + esc(f.why) : '') + '</div>' : '<div class="sub">kept' + (f.why ? ' · ' + esc(f.why) : '') + '</div>') + '</li>'; }).join('') + '</ol>' +
-      (R.attorneyReview && R.attorneyReview.length ? '<h4>For attorney review</h4><ul class="notes">' + R.attorneyReview.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' : '') + '</details>';
-    return ctl + lead + '<div class="abpgwrap"><iframe class="abpgframe" title="' + esc(slug) + ' (' + (AB_PG.view === 'rec' ? 'recommended' : 'current') + ')" sandbox="allow-scripts allow-same-origin"></iframe><p class="sub abpgstat"></p></div>' + changes; }
-  function abPageLoad() { var box = $('abpg'); if (!box) return; var R = (ADC.pageRecs || {})[box.getAttribute('data-group')], slug = AB_PG.page, file = pageFile(slug), fr = box.querySelector('iframe'), stt = box.querySelector('.abpgstat');
-    if (!file) { stt.textContent = 'No mirror of this page in the hub.'; return; }
-    if (AB_PG.view === 'cur') { fr.removeAttribute('srcdoc'); fr.src = file; stt.textContent = 'Current page: the staging mirror (' + file + ').'; return; }
-    stt.textContent = 'Building the recommended page…';
-    fetch(file).then(function (r) { return r.text(); }).then(function (html) { var out = pageRecApply(html, R, slug, file); fr.removeAttribute('src'); fr.srcdoc = out.html;
-      stt.textContent = 'Recommended page: ' + out.report.edits + ' copy edits, ' + out.report.faq + ' FAQ items, ' + out.report.items + ' new articles highlighted' + (out.report.missing.length ? '; not found on the page: ' + out.report.missing.join(' | ') : '') + '.'; })
-      .catch(function () { stt.textContent = 'Could not load the page.'; }); }
-  document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('#abpg [data-abpg], #abpg [data-abpv]'); if (!b) return;
-    if (b.hasAttribute('data-abpg')) AB_PG.page = b.getAttribute('data-abpg'); else AB_PG.view = b.getAttribute('data-abpv');
-    var box = $('abpg'), g = AB_CTX && AB_CTX.g, R = (ADC.pageRecs || {})[box.getAttribute('data-group')]; if (!g || !R) return;
-    box.innerHTML = abPageInner(g, R); abPageLoad(); var nb = box.querySelector('[' + (b.hasAttribute('data-abpg') ? 'data-abpg' : 'data-abpv') + '="' + CSS.escape(b.getAttribute(b.hasAttribute('data-abpg') ? 'data-abpg' : 'data-abpv')) + '"]'); if (nb) nb.focus(); });
+    var where = function (a) { return a.where === 'wysk' ? 'article “' + (((R.wysk.items || []).filter(function (it) { return it.key === a.ref; })[0] || {}).title || a.ref) + '”' : a.where === 'faq' ? 'FAQ ' + (+a.ref + 1) : 'section ' + a.ref; };
+    var topics = '<details class="state"><summary>What the page answers: ' + n0(info.length) + ' information searches (' + n0(sum(info)) + ' impr.) in ' + (R.topics || []).length + ' topics</summary><ul class="notes">' +
+      (R.topics || []).map(function (t) { return '<li><b>' + esc(t.label) + '</b> <span class="sub">' + n0((byT[t.key] || []).length) + ' searches · ' + n0(sum(byT[t.key])) + ' impr. · ' + esc((t.answeredBy || []).map(where).join(', ')) + '</span></li>'; }).join('') + '</ul></details>';
+    var review = (R.attorneyReview || []).length ? '<details class="state"><summary>For attorney review (' + R.attorneyReview.length + ')</summary><ul class="notes">' + R.attorneyReview.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' + (R.disclaimer ? '<p class="sub">Disclaimer: ' + esc(R.disclaimer) + '</p>' : '') + '</details>' : '';
+    return '<div id="abpg" data-group="' + esc(g.key) + '"><p class="note">The landing page for the new ad (B): <b>' + esc(R.page.name || 'new page') + '</b>. It keeps the design of ' + esc(R.page.base) + ' with its copy written for the ad and its searches, a <b>What you should know</b> section and an FAQ about Credo’s services. Draft for attorney review; nothing is changed on staging.</p>' +
+      '<div class="abpgwrap"><iframe class="abpgframe" title="New landing page for ad B" sandbox="allow-scripts allow-same-origin"></iframe><p class="sub abpgstat"></p></div>' + topics + review + '</div>'; }
+  function abPageLoad() { var box = $('abpg'); if (!box) return; var R = (ADC.pageRecs || {})[box.getAttribute('data-group')], file = pageFile(R.page.base), fr = box.querySelector('iframe'), stt = box.querySelector('.abpgstat');
+    if (!file) { stt.textContent = 'No mirror of ' + R.page.base + ' in the hub.'; return; }
+    stt.textContent = 'Building the page…';
+    fetch(file).then(function (r) { return r.text(); }).then(function (html) { var out = pageRecApply(html, R, file); fr.srcdoc = out.html;
+      stt.textContent = 'New page: ' + out.report.blocks + ' texts written for the ad, ' + out.report.items + ' articles, ' + out.report.faq + ' FAQ items' + (out.report.missing.length ? '; not placed: ' + out.report.missing.join(' | ') : '') + '.'; })
+      .catch(function () { stt.textContent = 'Could not build the page.'; }); }
   var AB_LISTS = [], LD_FROM = null, AB_KEY = null, AB_EDIT = null, AB_CTX = null, AB_FLASH = null;
   /* MH-33: redraw the open A/B drawer in place (same tab and scroll); after Publish / Discard the plan behind it too */
   function abRedraw(planChanged, focusSel) { if (!AB_KEY || !$('app-drawer').classList.contains('open')) return;
