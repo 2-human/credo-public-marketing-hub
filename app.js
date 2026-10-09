@@ -1569,7 +1569,7 @@
   /* the new set (B) against a term, with the same rule as the current lines (termLevel) */
   function cluSetLevel(D, term) { var v = D.terms[term], S = (D.adSets || {})[v.cluster], L = cluAdLines(D); if (!S) return null;
     return termLevel(v, ['problem', 'solution', 'cta', 'description'].reduce(function (q, r) { return q.concat(S[r].map(function (i) { return L[i]; })); }, []).filter(function (l) { return l.status !== 'rejected'; })); }
-  window.HUB_TEST = { cluIntentAds: cluIntentAds, cluSetLevel: cluSetLevel, termLevel: termLevel, lineLevel: lineLevel, lineIn: lineIn, cluBase: function () { return CLUS; }, cluDoc: function () { return cluDoc(); } };   /* for check-clusters-hub */
+  window.HUB_TEST = { pageRecApply: function () { return pageRecApply.apply(null, arguments); }, pageBlocks: function (d) { return pageBlocks(d); }, cluIntentAds: cluIntentAds, cluSetLevel: cluSetLevel, termLevel: termLevel, lineLevel: lineLevel, lineIn: lineIn, cluBase: function () { return CLUS; }, cluDoc: function () { return cluDoc(); } };   /* for check-clusters-hub */
   var cluNum = function (c) { var n = parseInt(c.label, 10); return isNaN(n) ? 99 : n; };
   function cluOrder(D) { return D.clusters.slice().sort(function (a, b) { return cluNum(a) - cluNum(b); }); }
   function cluRows(D, key, bad) {
@@ -1618,13 +1618,13 @@
   function cluEditsOf(l) { var a = adAnchor(l);
     return COMMENTS ? Object.keys(COMMENTS).map(function (k) { COMMENTS[k]._k = k; return COMMENTS[k]; }).filter(function (c) { return c.page === 'credo-marketing-hub' && c.anchor === a; })
       .sort(function (x, y) { return (y.timestamp || 0) - (x.timestamp || 0); }) : []; }
-  var CTA_RX = /^(call|get|start|talk|speak|ask|request|book|see|find out|hire|contact)\b|^free (case )?(consultation|review|evaluation)\b/i;
+  var CTA_RX = /^(call|get|start|talk|speak|ask|request|book|see|find out|hire|contact|let['’]?s)\b|^free (case )?(consultation|review|evaluation)\b/i;
   function cluEditWarn(role, t) { var w = [], lim = role === 'description' ? 90 : 30, n = t.replace(/\{[^}:]*:([^}]*)\}/g, '$1').length;
     if (!t.trim()) w.push('empty');
     if (n > lim) w.push(n + ' characters (limit ' + lim + ')');
     if (role === 'problem' && !/\?\s*$/.test(t)) w.push('a problem headline is a question (ends with “?”)');
     if (role === 'solution' && !/^(our|we|we're|we've|we'll)\b/i.test(t)) w.push('a solution starts with “Our” or “We”');
-    if (role === 'cta' && !CTA_RX.test(t)) w.push('a call to action starts with a verb (call, get, start …)');
+    if (role === 'cta' && !CTA_RX.test(t)) w.push('a call to action starts with a verb (call, get, start …) or “Let’s”');
     if (role === 'description' && !CTA_RX.test(t.trim().split(/(?<=[.?!:])\s+/).pop())) w.push('a description ends with a call to action');
     if (/!/.test(t)) w.push('no exclamation marks (brand voice)');
     if (/\breal (lawyer|attorney)s?\b/i.test(t)) w.push('no “real lawyers / attorneys” (brand voice)');
@@ -1906,7 +1906,7 @@
       (body || '<tr><td colspan="10" class="empty">No ad groups with clustered search terms.</td></tr>') + '</tbody></table></div>';
   }
   function drawerAB(g) {
-    AB_KEY = g.key;
+    AB_KEY = g.key; var pgTab = abPageTab(g);
     var parts = g.top.split('|'), TD = cluDoc0(parts[0]), S = TD.adSets[parts[1]], L = cluAdLines(TD);
     var terms = g.rows.slice().sort(function (a, b) { return (b.r.t.impr || 0) - (a.r.t.impr || 0); }).map(function (x) {
       var cl = (x.D.clusters.filter(function (c) { return c.key === x.v.cluster; })[0] || {}).label;
@@ -1996,9 +1996,80 @@
     openDrawer(g.adgroup, [['Test', kv([['Campaign › ad group', esc(g.campaign + ' › ' + g.adgroup)], ['B from', esc(g.topLabel) + ' (' + Math.round(g.share * 100) + '% of impressions)'], ['Covered fully', (g.fullNow == null ? dash : Math.round(g.fullNow * 100) + '%') + ' now → ' + (g.fullB == null ? dash : Math.round(g.fullB * 100) + '%') + ' with B'], ['Opportunity', n0(g.gain) + ' impressions from terms B covers better'], ['Monthly searches (US)', g.searches == null ? dash : n0(g.searches) + ' for the terms of its ad clusters (Keyword Planner, each pool once)']]) +
         '<h4>A: ads running now</h4><ul class="notes">' + (A || '<li>none</li>') + '</ul>'],
       ['Search terms', '<p class="note">Every active term of the ad group, its coverage now and with B. Terms in Exclude or move clusters get no B coverage.</p><div class="scroll"><table class="tbl"><thead><tr><th>Term</th><th class="num">Impr.</th><th class="num">CTR</th><th>Now</th><th>With B</th></tr></thead><tbody>' + terms + '</tbody></table></div>'],
-      ['A vs B', (function () { var f = AB_FLASH || ''; AB_FLASH = null; return f; })() + '<p class="note">The ads running in this ad group now (A) and the new ad (B) side by side. Numbers are all time in that ad (to 29 Sep); a headline or description shows its own impressions, CTR, conversions and cost per conversion in that ad. Headlines are grouped by role, most impressions first. Full / Partial: how many of the ad group’s search terms (its ad clusters) a line has all / some of the key words of (in the new copy also their 90-day impressions); click to list them. <mark class="kwf">Green</mark>: words that give full coverage of a term; <mark class="kwp">yellow</mark>: words that only give partial coverage, including synonyms (lawyer for an attorney search).</p>' + cmp]], 'x');
+      ['A vs B', (function () { var f = AB_FLASH || ''; AB_FLASH = null; return f; })() + '<p class="note">The ads running in this ad group now (A) and the new ad (B) side by side. Numbers are all time in that ad (to 29 Sep); a headline or description shows its own impressions, CTR, conversions and cost per conversion in that ad. Headlines are grouped by role, most impressions first. Full / Partial: how many of the ad group’s search terms (its ad clusters) a line has all / some of the key words of (in the new copy also their 90-day impressions); click to list them. <mark class="kwf">Green</mark>: words that give full coverage of a term; <mark class="kwp">yellow</mark>: words that only give partial coverage, including synonyms (lawyer for an attorney search).</p>' + cmp], pgTab ? ['Page', pgTab] : null], 'x');
+    if (pgTab) abPageLoad();
   }
   /* MH-32: the search terms behind a line's Full / Partial count, in a drawer from the left (over the A/B drawer) */
+  /* ───────────── MH-36: landing-page recommendations per ad group (A/B drawer › Page) ─────────────
+     content/campaigns/google-ads/search-terms/page-recs/<group>.json (→ HUB_ADCOPY.pageRecs, encrypted bundle): per page
+     the copy edits (exact block text → new), the FAQ (5 items, about Credo's services) and the What you should know
+     items (title, first sentence, article; the information searches the page does not answer). The recommended page is
+     built here from the staging mirror (microsites/…): edits applied, FAQ replaced, the new section inserted before the
+     FAQ in the FAQ's own markup (title and first sentence, Read more opens the article), every change highlighted. */
+  var AB_PG = { page: null, view: 'rec' };
+  function pageFile(slug) { var f = null; sites.forEach(function (s) { s.pages.forEach(function (p) { if (!f && p.kind === 'service' && p.label === slug) f = p.file; }); }); return f; }
+  var pgNorm = function (t) { return String(t || '').replace(/\s+/g, ' ').trim(); };
+  /* the page's text blocks: elements in <main> with text of their own (tools/marketing-hub/page-text.mjs uses the same rule) */
+  function pageBlocks(doc) { var own = function (e) { return [].some.call(e.childNodes, function (n) { return n.nodeType === 3 && n.textContent.trim(); }); };
+    return [].filter.call(doc.querySelectorAll('main *'), function (e) { if (e.closest('form, script, style, noscript, .w-form') || !own(e)) return false;
+      return !(/^(STRONG|EM|B|I|SPAN|BR|A)$/.test(e.tagName) && e.parentElement && own(e.parentElement)); }); }
+  function pageRecApply(html, R, slug, file) { var P = R.pages[slug], doc = new DOMParser().parseFromString(html, 'text/html'), rep = { edits: 0, missing: [], faq: 0, items: 0 };
+    var base = doc.createElement('base'); base.href = new URL(file, location.href).href; doc.head.insertBefore(base, doc.head.firstChild);
+    var faqHead = doc.getElementById('faq'), items = doc.querySelectorAll('.faqitem');
+    /* the new section first, cloned from the pristine FAQ: label + title, then one item per article */
+    var W = (R.wysk.items || []).filter(function (it) { return (it.pages || []).indexOf(slug) >= 0; });
+    if (faqHead && items.length && W.length) { var head = faqHead.closest('.w-layout-layout'), list = items[0].closest('.w-layout-layout'), sep1 = head.previousElementSibling, sep2 = head.nextElementSibling;
+      var nodes = [sep1, head, sep2, list].filter(Boolean).map(function (n) { return n.cloneNode(true); }), h = nodes[1], l = nodes[3];
+      var lab = h.querySelector('#faq'); lab.id = 'wysk'; (lab.querySelector('strong') || lab).textContent = R.wysk.label; var t2 = h.querySelectorAll('h2')[1]; if (t2) t2.textContent = R.wysk.heading;
+      var cell = l.querySelector('.faqitem').parentElement, tpl = cell.querySelector('.faqitem').cloneNode(true); cell.innerHTML = '';
+      W.forEach(function (it, k) { var n = tpl.cloneNode(true); n.querySelector('.lp-faq-q').textContent = it.title; n.querySelector('.mjfdcpatext-copy').textContent = it.first;
+        var more = doc.createElement('div'); more.className = 'mh-more'; more.hidden = true;
+        (it.body || []).forEach(function (para) { var d = doc.createElement('div'); d.className = 'mjfdcpatext-copy'; d.textContent = para; more.appendChild(d); });
+        var a = doc.createElement('a'); a.href = '#'; a.className = 'mh-readmore'; a.setAttribute('data-mh-more', ''); a.textContent = 'Read more';
+        n.appendChild(more); n.appendChild(a); n.setAttribute('data-mh', 'wysk:' + it.key); cell.appendChild(n); rep.items++; });
+      nodes.forEach(function (n) { if (n === h || n === l) n.classList.add('mh-new'); else n.classList.add('mh-sep'); sep1.parentNode.insertBefore(n, sep1); }); }
+    var blocks = pageBlocks(doc).filter(function (e) { return !e.closest('.mh-new, .mh-sep'); });
+    (P.edits || []).forEach(function (ed, i) { var el = blocks.filter(function (b) { return pgNorm(b.textContent) === pgNorm(ed.old); })[0];
+      if (!el) { rep.missing.push(ed.old); return; } el.textContent = ed.new; el.classList.add('mh-chg'); el.setAttribute('data-mh', 'edit:' + i); el.setAttribute('title', 'Was: ' + ed.old); rep.edits++; });
+    (P.faq || []).forEach(function (f, i) { var it = items[i]; if (!it) return; var q = it.querySelector('.lp-faq-q'), a = it.querySelector('.mjfdcpatext-copy'), oq = pgNorm(q.textContent), oa = pgNorm(a.textContent);
+      if (oq === pgNorm(f.q) && oa === pgNorm(f.a)) return; q.textContent = f.q; a.textContent = f.a; it.classList.add('mh-chg'); it.setAttribute('data-mh', 'faq:' + i); it.setAttribute('title', 'Was: ' + oq + ' — ' + oa); rep.faq++; });
+    var st = doc.createElement('style'); st.textContent = '.mh-chg{outline:2px solid #e0a800!important;outline-offset:3px;background:rgba(253,230,138,.45)!important}.mh-new{outline:2px dashed #2e9d4b!important;outline-offset:4px;background:rgba(205,236,207,.35)!important}' +
+      '.mh-readmore{display:inline-block;margin-top:8px;color:#b4232a;text-decoration:underline;cursor:pointer}.mh-more .mjfdcpatext-copy{margin-top:10px}';
+    doc.head.appendChild(st);
+    var sc = doc.createElement('script'); sc.textContent = "document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('[data-mh-more]');if(!a)return;e.preventDefault();var m=a.previousElementSibling;m.hidden=!m.hidden;a.textContent=m.hidden?'Read more':'Read less';});";
+    doc.body.appendChild(sc);
+    return { html: '<!doctype html>' + doc.documentElement.outerHTML, report: rep }; }
+  function abPageTab(g) { var R = (ADC.pageRecs || {})[g.key]; if (!R || !R.pages) return null;
+    var slugs = Object.keys(R.pages); if (slugs.indexOf(AB_PG.page) < 0) AB_PG.page = slugs[0];
+    return '<div id="abpg" data-group="' + esc(g.key) + '">' + abPageInner(g, R) + '</div>'; }
+  function abPageInner(g, R) { var slug = AB_PG.page, P = R.pages[slug], imp = {}; g.rows.forEach(function (x) { imp[x.r.t.term] = x.r.t.impr || 0; });
+    var sum = function (L) { return (L || []).reduce(function (q, t) { return q + (imp[t] || 0); }, 0); }, tn = function (L) { return n0((L || []).length) + ' searches · ' + n0(sum(L)) + ' impr.'; };
+    var info = (R.terms || []).filter(function (t) { return t.kind === 'info'; }).map(function (t) { return t.term; });
+    var W = (R.wysk.items || []).filter(function (it) { return (it.pages || []).indexOf(slug) >= 0; });
+    var seg = function (attr, val, cur, lab) { return '<button type="button" class="abpgbtn" ' + attr + '="' + esc(val) + '" aria-pressed="' + (val === cur) + '">' + esc(lab) + '</button>'; };
+    var ctl = '<div class="abpgctl"><span class="sub">Page</span> ' + Object.keys(R.pages).map(function (s2) { return seg('data-abpg', s2, slug, s2); }).join('') +
+      ' <span class="sub" style="margin-left:14px">View</span> ' + seg('data-abpv', 'cur', AB_PG.view, 'Current page') + seg('data-abpv', 'rec', AB_PG.view, 'Recommended') +
+      ' <a class="sub" href="' + esc(STAGING + slug) + '" target="_blank" rel="noopener">staging page ↗</a></div>';
+    var lead = '<p class="note">' + n0(info.length) + ' of the ad group’s ' + n0((R.terms || []).length) + ' searches ask for information (' + n0(sum(info)) + ' impr.); each is answered on this page by its current copy, a copy edit, a <b>What you should know</b> article or the FAQ. ' +
+      '<span class="mh-key mh-key-c">changed</span> <span class="mh-key mh-key-n">new section</span>. Draft for attorney review; the page on staging is not changed.</p>';
+    var changes = '<details class="state" open><summary>Changes on this page: ' + (P.edits || []).length + ' copy edits, ' + (P.faq || []).filter(function (f) { return f.was; }).length + ' FAQ items, ' + W.length + ' articles</summary>' +
+      (W.length ? '<h4>What you should know (new section, before the FAQ)</h4><ol class="notes">' + W.map(function (it) { return '<li data-abpgitem="' + esc(it.key) + '"><b>' + esc(it.title) + '</b> <span class="sub">' + tn(it.terms) + '</span><div>' + esc(it.first) + '</div>' +
+        '<details><summary class="sub">Article and searches</summary>' + (it.body || []).map(function (x) { return '<p>' + esc(x) + '</p>'; }).join('') + '<p class="sub">' + esc((it.terms || []).join(' · ')) + '</p></details></li>'; }).join('') + '</ol>' : '') +
+      ((P.edits || []).length ? '<h4>Copy edits</h4><ol class="notes">' + P.edits.map(function (e) { return '<li><span class="sub">' + esc(e.section) + '</span><div><s>' + esc(e.old) + '</s></div><div>' + esc(e.new) + '</div><div class="sub">' + esc(e.why || '') + (e.terms && e.terms.length ? ' · ' + tn(e.terms) : '') + '</div></li>'; }).join('') + '</ol>' : '') +
+      '<h4>FAQ (about Credo’s services)</h4><ol class="notes">' + (P.faq || []).map(function (f) { return '<li><b>' + esc(f.q) + '</b><div>' + esc(f.a) + '</div>' + (f.was ? '<div class="sub">replaces “' + esc(f.was) + '”' + (f.why ? ' · ' + esc(f.why) : '') + '</div>' : '<div class="sub">kept' + (f.why ? ' · ' + esc(f.why) : '') + '</div>') + '</li>'; }).join('') + '</ol>' +
+      (R.attorneyReview && R.attorneyReview.length ? '<h4>For attorney review</h4><ul class="notes">' + R.attorneyReview.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' : '') + '</details>';
+    return ctl + lead + '<div class="abpgwrap"><iframe class="abpgframe" title="' + esc(slug) + ' (' + (AB_PG.view === 'rec' ? 'recommended' : 'current') + ')" sandbox="allow-scripts allow-same-origin"></iframe><p class="sub abpgstat"></p></div>' + changes; }
+  function abPageLoad() { var box = $('abpg'); if (!box) return; var R = (ADC.pageRecs || {})[box.getAttribute('data-group')], slug = AB_PG.page, file = pageFile(slug), fr = box.querySelector('iframe'), stt = box.querySelector('.abpgstat');
+    if (!file) { stt.textContent = 'No mirror of this page in the hub.'; return; }
+    if (AB_PG.view === 'cur') { fr.removeAttribute('srcdoc'); fr.src = file; stt.textContent = 'Current page: the staging mirror (' + file + ').'; return; }
+    stt.textContent = 'Building the recommended page…';
+    fetch(file).then(function (r) { return r.text(); }).then(function (html) { var out = pageRecApply(html, R, slug, file); fr.removeAttribute('src'); fr.srcdoc = out.html;
+      stt.textContent = 'Recommended page: ' + out.report.edits + ' copy edits, ' + out.report.faq + ' FAQ items, ' + out.report.items + ' new articles highlighted' + (out.report.missing.length ? '; not found on the page: ' + out.report.missing.join(' | ') : '') + '.'; })
+      .catch(function () { stt.textContent = 'Could not load the page.'; }); }
+  document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('#abpg [data-abpg], #abpg [data-abpv]'); if (!b) return;
+    if (b.hasAttribute('data-abpg')) AB_PG.page = b.getAttribute('data-abpg'); else AB_PG.view = b.getAttribute('data-abpv');
+    var box = $('abpg'), g = AB_CTX && AB_CTX.g, R = (ADC.pageRecs || {})[box.getAttribute('data-group')]; if (!g || !R) return;
+    box.innerHTML = abPageInner(g, R); abPageLoad(); var nb = box.querySelector('[' + (b.hasAttribute('data-abpg') ? 'data-abpg' : 'data-abpv') + '="' + CSS.escape(b.getAttribute(b.hasAttribute('data-abpg') ? 'data-abpg' : 'data-abpv')) + '"]'); if (nb) nb.focus(); });
   var AB_LISTS = [], LD_FROM = null, AB_KEY = null, AB_EDIT = null, AB_CTX = null, AB_FLASH = null;
   /* MH-33: redraw the open A/B drawer in place (same tab and scroll); after Publish / Discard the plan behind it too */
   function abRedraw(planChanged, focusSel) { if (!AB_KEY || !$('app-drawer').classList.contains('open')) return;
