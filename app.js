@@ -2022,41 +2022,21 @@
     var m = t.match(/^([\s\S]*?)\*([^*]+)\*([\s\S]*)$/);
     if (!acc || !m) { el.textContent = t.replace(/\*/g, ''); return; }
     var a = acc.cloneNode(false); a.textContent = m[2]; var d = el.ownerDocument; el.textContent = ''; el.appendChild(d.createTextNode(m[1])); el.appendChild(a); el.appendChild(d.createTextNode(m[3])); }
-  /* MH-39 (operator 9 Oct): four layouts for the What to know and FAQ sections, to pick one (the others go after):
-     cards — What to know as a 3-column card grid in the page's "What we see" card style (Read more opens the card across
-             its row), the FAQ in two columns (title and a review button left, questions as an accordion right);
-     accordion — both as full-width accordion rows (+ / –), opened text up to 720px;
-     columns — both in two columns (title left, items right; a review button under the FAQ title);
-     centred — the current design in a centred 760px column. Only these two sections change. */
-  var PG_LAYOUTS = [['cards', '1 · Cards + two-column FAQ'], ['accordion', '2 · Accordions'], ['columns', '3 · Two columns'], ['centred', '4 · Centred column']];
-  var PG_CSS = '.mh-hide{display:none!important}' +
-    '.mh-cards{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));border-left:1px solid #e2e4e9;border-top:1px solid #e2e4e9}' +
-    '.mh-cards>.faqitem{border-right:1px solid #e2e4e9;border-bottom:1px solid #e2e4e9!important;padding:28px 24px!important;width:auto!important;background:#fff}' +
-    '.mh-cards>.faqitem .mjfdcpatext-copy{max-width:none!important}.mh-cards>.faqitem.mh-open{grid-column:1/-1}.mh-cards>.faqitem.mh-open .mh-more .mjfdcpatext-copy{max-width:760px!important}.mh-num{margin-bottom:10px;text-align:left!important}' +
-    '@media (max-width:991px){.mh-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}@media (max-width:640px){.mh-cards{grid-template-columns:1fr}}' +
-    '.mh-2col{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:56px;align-items:start}.mh-2col-l{position:sticky;top:24px}.mh-2col-l .mh-cta{margin-top:28px;display:inline-block;align-self:flex-start}.mh-2col-l>.w-layout-layout{padding-top:0!important}.mh-2col-l h2.mjthankyousteps-copy{margin-top:0!important}.mh-2col-r>.w-layout-layout,.mh-2col-r .w-layout-cell{width:100%}' +
-    '.mh-2col .faqitem{width:auto!important}.mh-2col .mjfdcpatext-copy{max-width:640px!important}@media (max-width:767px){.mh-2col{grid-template-columns:1fr;gap:12px}.mh-2col-l{position:static}}' +
-    '.mh-acc .faqitem{width:100%!important;box-sizing:border-box}.mh-acc .lp-faq-q{cursor:pointer;display:flex;justify-content:space-between;gap:24px;align-items:baseline;margin-bottom:0!important}.mh-acc .lp-faq-q::after{content:"+";font-weight:400;font-size:26px;line-height:1;color:#c92028;flex:none}' +
-    '.mh-acc .faqitem.mh-open .lp-faq-q::after{content:"–"}.mh-acc .faqitem:not(.mh-open)>.mjfdcpatext-copy,.mh-acc .faqitem:not(.mh-open)>.mh-more,.mh-acc [data-mh-more]{display:none!important}' +
-    '.mh-acc .faqitem.mh-open>.mjfdcpatext-copy{margin-top:12px}.mh-acc .faqitem.mh-open>.mh-more{display:block!important}.mh-acc .mjfdcpatext-copy{max-width:720px!important}' +
-    '.mh-center{max-width:760px!important;margin-left:auto!important;margin-right:auto!important}.mh-center .faqitem{width:auto!important}.mh-center .mjfdcpatext-copy{max-width:none!important}';
-  function pageLayout(doc, layout) {
-    var sect = function (id) { var h = doc.getElementById(id), head = h && h.closest('.w-layout-layout'); if (!head) return null; var sep2 = head.nextElementSibling, list = sep2 && sep2.nextElementSibling;   /* an unexpected page structure leaves the section as it is */
-      if (!list || !list.querySelector('.faqitem')) return null; return { head: head, sep1: head.previousElementSibling, sep2: sep2, list: list, cell: list.querySelector('.faqitem').parentElement, items: [].slice.call(list.querySelectorAll('.faqitem')) }; };
-    var W = sect('wysk'), F = sect('faq'); if (!layout || !F) return;
-    var cta = function () { var a = doc.createElement('a'); a.href = '#herosec'; a.className = 'button-7 w-button mh-cta'; a.textContent = 'GET A FREE CASE REVIEW →'; return a; };
-    var twoCol = function (S, withCta) { var w = doc.createElement('div'), l = doc.createElement('div'), r = doc.createElement('div'); w.className = 'mh-2col'; l.className = 'mh-2col-l'; r.className = 'mh-2col-r';
-      S.head.parentNode.insertBefore(w, S.head); l.appendChild(S.head); if (withCta) (S.head.querySelector('.w-layout-cell') || l).appendChild(cta()); r.appendChild(S.list); w.appendChild(l); w.appendChild(r); if (S.sep2) S.sep2.classList.add('mh-hide'); };
-    var acc = function (S) { S.list.classList.add('mh-acc'); S.items.forEach(function (it, k) { var q = it.querySelector('.lp-faq-q'); if (!q) return; if (!it.id) it.id = 'mh-acc-' + (S === W ? 'w' : 'f') + k;
-      q.setAttribute('role', 'button'); q.setAttribute('tabindex', '0'); q.setAttribute('aria-expanded', 'false'); q.setAttribute('aria-controls', it.id); }); };
-    var cards = function (S) { S.cell.classList.add('mh-cards'); S.items.forEach(function (it, k) { var n = doc.createElement('div'); n.className = 'mjfdcpaboxtext-copy mh-num'; n.textContent = (k < 9 ? '0' : '') + (k + 1); it.insertBefore(n, it.firstChild); }); };
-    var centre = function (S) { [S.sep1, S.head, S.sep2, S.list].forEach(function (n) { if (n) n.classList.add('mh-center'); }); };
-    if (layout === 'cards') { if (W) cards(W); twoCol(F, true); acc(F); }
-    else if (layout === 'accordion') { if (W) acc(W); acc(F); }
-    else if (layout === 'columns') { if (W) twoCol(W, false); twoCol(F, true); }
-    else if (layout === 'centred') { if (W) centre(W); centre(F); }
-    doc.body.setAttribute('data-mh-layout', layout); }
-  function pageRecApply(html, R, file, variant, layout) { var doc = new DOMParser().parseFromString(html, 'text/html'), rep = { blocks: 0, missing: [], faq: 0, items: 0, nav: 0 };
+  /* MH-39 (operator 9 Oct, picked from four options): What to know and FAQ as full-width accordion rows — question left,
+     +/– right, opened text up to 720px (the FAQ's 400px column left a wide empty band to the right). Questions are
+     buttons for keyboards and screen readers (role, aria-expanded, aria-controls, Enter/Space). */
+  var PG_CSS = '.mh-acc .faqitem{width:100%!important;box-sizing:border-box}.mh-acc .lp-faq-q{cursor:pointer;display:flex;justify-content:space-between;gap:24px;align-items:baseline;margin-bottom:0!important}' +
+    '.mh-acc .lp-faq-q::after{content:"+";font-weight:400;font-size:26px;line-height:1;color:#c92028;flex:none}.mh-acc .faqitem.mh-open .lp-faq-q::after{content:"–"}' +
+    '.mh-acc .faqitem:not(.mh-open)>.mjfdcpatext-copy,.mh-acc .faqitem:not(.mh-open)>.mh-more,.mh-acc [data-mh-more]{display:none!important}' +
+    '.mh-acc .faqitem.mh-open>.mjfdcpatext-copy{margin-top:12px}.mh-acc .faqitem.mh-open>.mh-more{display:block!important}.mh-acc .mjfdcpatext-copy{max-width:720px!important}';
+  function pageLayout(doc) {
+    [['wysk', 'w'], ['faq', 'f']].forEach(function (x) { var h = doc.getElementById(x[0]), head = h && h.closest('.w-layout-layout'), sep2 = head && head.nextElementSibling, list = sep2 && sep2.nextElementSibling;
+      if (!list || !list.querySelector('.faqitem')) return;   /* an unexpected page structure leaves the section as it is */
+      list.classList.add('mh-acc');
+      [].forEach.call(list.querySelectorAll('.faqitem'), function (it, k) { var q = it.querySelector('.lp-faq-q'); if (!q) return; if (!it.id) it.id = 'mh-acc-' + x[1] + k;
+        q.setAttribute('role', 'button'); q.setAttribute('tabindex', '0'); q.setAttribute('aria-expanded', 'false'); q.setAttribute('aria-controls', it.id); }); });
+    doc.body.setAttribute('data-mh-layout', 'accordion'); }
+  function pageRecApply(html, R, file, variant) { var doc = new DOMParser().parseFromString(html, 'text/html'), rep = { blocks: 0, missing: [], faq: 0, items: 0, nav: 0 };
     var base = doc.createElement('base'); base.href = new URL(file, location.href).href; doc.head.insertBefore(base, doc.head.firstChild);
     var faqHead = doc.getElementById('faq'), items = doc.querySelectorAll('.faqitem'), W = (R.wysk && R.wysk.items) || [];
     if (faqHead && items.length && W.length) { var head = faqHead.closest('.w-layout-layout'), list = items[0].closest('.w-layout-layout'), sep1 = head.previousElementSibling, sep2 = head.nextElementSibling;
@@ -2081,7 +2061,7 @@
       if (ul) { [].slice.call(ul.children).forEach(function (li) { if (li !== keep) li.remove(); });
         V.nav.forEach(function (n) { var li = doc.createElement('li'), a = doc.createElement('a'); a.href = n[1]; a.className = 'nav-link track-redirect'; a.textContent = n[0]; a.setAttribute('data-mh-nav', ''); li.appendChild(a); ul.insertBefore(li, keep || null); rep.nav++; });
         var cta = doc.getElementById('btnCTA'); if (cta && V.cta) cta.setAttribute('href', V.cta); } }
-    pageLayout(doc, layout);
+    pageLayout(doc);
     var st = doc.createElement('style'); st.textContent = PG_CSS + '.mh-readmore{display:inline-block;margin-top:8px;color:inherit;text-decoration:underline;cursor:pointer}.mh-more .mjfdcpatext-copy{margin-top:10px}';
     doc.head.appendChild(st);
     /* in-page links scroll inside the page (the preview's <base> would otherwise send "#x" to the mirror's address) */
@@ -2102,18 +2082,16 @@
     var review = (R.attorneyReview || []).length ? '<details class="state"><summary>For attorney review (' + R.attorneyReview.length + ')</summary><ul class="notes">' + R.attorneyReview.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' + (R.disclaimer ? '<p class="sub">Disclaimer: ' + esc(R.disclaimer) + '</p>' : '') + '</details>' : '';
     var VS = (R.page.variants || {}), vk = Object.keys(VS).filter(function (k) { return k[0] !== '_'; }); if (vk.indexOf(AB_PV) < 0) AB_PV = vk[0] || null;
     var sw = vk.length > 1 ? '<div class="abpgctl"><span class="sub">Show as</span> ' + vk.map(function (k) { return '<button type="button" class="abpgbtn" data-abpvar="' + esc(k) + '" aria-pressed="' + (k === AB_PV) + '">' + esc(VS[k].label || k) + '</button>'; }).join('') + '</div>' : '';
-    sw += '<div class="abpgctl"><span class="sub">Layout of What to know and FAQ</span> ' + PG_LAYOUTS.map(function (l) { return '<button type="button" class="abpgbtn" data-abplay="' + l[0] + '" aria-pressed="' + (l[0] === AB_PL) + '">' + esc(l[1]) + '</button>'; }).join('') + '</div>';
     return '<div id="abpg" data-group="' + esc(g.key) + '">' + sw + '<p class="note">The landing page for the new ad (B): <b>' + esc(R.page.name || 'new page') + '</b>. It keeps the design of ' + esc(R.page.base) + ' with its copy written for the ad and its searches, a <b>What you should know</b> section and an FAQ about Credo’s services. Draft for attorney review; nothing is changed on staging.</p>' +
       '<div class="abpgwrap"><iframe class="abpgframe" title="New landing page for ad B" sandbox="allow-scripts allow-same-origin"></iframe><p class="sub abpgstat"></p></div>' + topics + review + '</div>'; }
-  var AB_PV = null, AB_PL = 'cards';   /* MH-38: which variant of the new page the tab shows (landing page | microsite page); MH-39: which layout */
-  document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('#abpg [data-abpvar], #abpg [data-abplay]'); if (!b) return; var at = b.hasAttribute('data-abpvar') ? 'data-abpvar' : 'data-abplay';
-    if (at === 'data-abpvar') AB_PV = b.getAttribute(at); else AB_PL = b.getAttribute(at);
-    [].forEach.call(document.querySelectorAll('#abpg [' + at + ']'), function (x) { x.setAttribute('aria-pressed', String(x === b)); }); abPageLoad(); });
+  var AB_PV = null;   /* MH-38: which variant of the new page the tab shows (landing page | microsite page) */
+  document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('#abpg [data-abpvar]'); if (!b) return; AB_PV = b.getAttribute('data-abpvar');
+    [].forEach.call(document.querySelectorAll('#abpg [data-abpvar]'), function (x) { x.setAttribute('aria-pressed', String(x === b)); }); abPageLoad(); });
   function abPageLoad() { var box = $('abpg'); if (!box) return; var R = (ADC.pageRecs || {})[box.getAttribute('data-group')], file = pageFile(R.page.base), fr = box.querySelector('iframe'), stt = box.querySelector('.abpgstat');
     if (!file) { stt.textContent = 'No mirror of ' + R.page.base + ' in the hub.'; return; }
     stt.textContent = 'Building the page…';
-    fetch(file).then(function (r) { return r.text(); }).then(function (html) { var out = pageRecApply(html, R, file, AB_PV, AB_PL); fr.srcdoc = out.html;
-      stt.textContent = 'New page' + (AB_PV && (R.page.variants || {})[AB_PV] ? ' (' + R.page.variants[AB_PV].label.toLowerCase() + ', layout ' + (PG_LAYOUTS.filter(function (l) { return l[0] === AB_PL; })[0] || [0, AB_PL])[1] + ')' : '') + ': ' + out.report.blocks + ' texts written for the ad, ' + out.report.items + ' articles, ' + out.report.faq + ' FAQ items' + (out.report.missing.length ? '; not placed: ' + out.report.missing.join(' | ') : '') + '.'; })
+    fetch(file).then(function (r) { return r.text(); }).then(function (html) { var out = pageRecApply(html, R, file, AB_PV); fr.srcdoc = out.html;
+      stt.textContent = 'New page' + (AB_PV && (R.page.variants || {})[AB_PV] ? ' (' + R.page.variants[AB_PV].label.toLowerCase() + ')' : '') + ': ' + out.report.blocks + ' texts written for the ad, ' + out.report.items + ' articles, ' + out.report.faq + ' FAQ items' + (out.report.missing.length ? '; not placed: ' + out.report.missing.join(' | ') : '') + '.'; })
       .catch(function () { stt.textContent = 'Could not build the page.'; }); }
   var AB_LISTS = [], LD_FROM = null, AB_KEY = null, AB_EDIT = null, AB_CTX = null, AB_FLASH = null;
   /* MH-33: redraw the open A/B drawer in place (same tab and scroll); after Publish / Discard the plan behind it too */
