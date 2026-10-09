@@ -114,7 +114,7 @@ html:has(.app-body) { overflow:hidden; }   /* the parked drawer must not widen t
 .btn.dl:hover { background:#262b33; }
 
 /* drawer tabs */
-.dtabs { display:flex; gap:2px; border-bottom:1px solid var(--line); margin:4px -16px 6px; padding:0 12px; position:sticky; top:0; background:#fff; z-index:1; }
+.dtabs { display:flex; gap:2px; border-bottom:1px solid var(--line); margin:4px -16px 6px; padding:0 12px; position:sticky; top:0; background:#fff; z-index:1; box-shadow:0 -12px 0 #fff; }   /* MH-31: covers the body padding above the stuck bar */
 .dtabs button { font:inherit; font-size:12.5px; background:none; border:0; border-bottom:2px solid transparent; padding:9px 10px 8px; color:var(--mute); cursor:pointer; }
 .dtabs button[aria-selected="true"] { color:var(--ink); border-bottom-color:var(--accent); font-weight:600; }
 .dpanel[hidden] { display:none; }
@@ -324,4 +324,21 @@ details.abad > .scroll { padding:0 6px 8px; } .intentbox { border-left:3px solid
   table.clupair td.num { text-align:left; }
   table.clupair tr.editrow td { grid-column:1 / -1; grid-row:auto; }
   table.clupair tr.editrow td::before { content:none; }
+}
+/* MH-31: A/B drawer, A ads and B side by side */
+.app-drawer.xwide { width:min(1480px, 94vw); }
+.abcmp { display:grid; gap:0 14px; align-items:start; min-width:0; }
+.abcmp .absec { grid-column:1 / -1; margin:14px 0 4px; padding-top:8px; border-top:1px solid var(--line); font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--mute); }
+.abcell { min-width:0; }
+.abcell.abh { padding:8px 0 4px; }
+.abcell.abb { background:#f3f8f4; padding-left:8px; padding-right:8px; border-radius:4px; }
+.abtag { font-weight:600; margin-bottom:2px; }
+.abm { display:grid; grid-template-columns:repeat(3,1fr); gap:4px; margin:6px 0 2px; }
+.abm .m { border:1px solid var(--line); border-radius:4px; padding:3px 6px; }
+.abm .m .k { font-size:11px; color:var(--mute); text-transform:uppercase; letter-spacing:.03em; } .abm .m .v { font-weight:600; }
+ol.abl { margin:0; padding-left:20px; } ol.abl li { margin:0 0 6px; }
+@media (max-width:700px) {
+  .app-drawer.xwide { width:100vw; }
+  .abcmp { grid-template-columns:1fr !important; }
+  .abcell[data-abcol]::before { content:attr(data-abcol); display:block; font-size:11px; color:var(--mute); margin-top:6px; }
 }

@@ -226,7 +226,7 @@
     if (typeof tabs === 'string') tabs = [['Basic info', tabs]];
     tabs = tabs.filter(function (t) { return t && t[1]; });
     var pick = Math.max(0, tabs.map(function (t) { return t[0]; }).indexOf(lastTab));
-    $('app-drawer').classList.toggle('wide', !!wide); $('drawer-title').textContent = title;
+    $('app-drawer').classList.toggle('wide', !!wide); $('app-drawer').classList.toggle('xwide', wide === 'x'); $('drawer-title').textContent = title;
     var bar = tabs.length > 1 ? '<div class="dtabs" role="tablist">' + tabs.map(function (t, i) {
       return '<button role="tab" id="dtab-' + i + '" aria-controls="dpanel-' + i + '" aria-selected="' + (i === pick) + '" data-dtab="' + i + '">' + esc(t[0]) + '</button>'; }).join('') + '</div>' : '';
     $('drawer-body').innerHTML = bar + tabs.map(function (t, i) {
@@ -1888,13 +1888,36 @@
     var terms = g.rows.slice().sort(function (a, b) { return (b.r.t.impr || 0) - (a.r.t.impr || 0); }).map(function (x) {
       var cl = (x.D.clusters.filter(function (c) { return c.key === x.v.cluster; })[0] || {}).label;
       return '<tr><td><a href="#/ads/clusters/' + enc(x.D.intent) + '/' + enc(x.v.cluster) + '">' + esc(x.r.t.term) + '</a><div class="sub">' + esc((x.D.label || intentLabel(x.D.intent)) + ' › ' + cl) + '</div></td><td class="num">' + n0(x.r.t.impr) + '</td><td class="num">' + pct(x.r.t.clicks, x.r.t.impr) + '</td><td>' + covChip(x.now) + '</td><td>' + (x.b == null ? '<span class="chip">' + esc(x.kind || '') + '</span>' : covChip(x.b)) + '</td></tr>'; }).join('');
-    var Bset = ['problem', 'solution', 'cta'].map(function (r) { return '<h4>' + HROLE_N[r] + 's</h4><ol class="notes">' + S[r].map(function (i) { return '<li>' + esc(L[i].t) + '</li>'; }).join('') + '</ol>'; }).join('') +
-      '<h4>Descriptions</h4><ol class="notes">' + S.description.map(function (i) { return '<li>' + esc(L[i].t) + '</li>'; }).join('') + '</ol>';
+    /* MH-31 (operator 9 Oct): the ads running now (A) and the new ad (B) side by side, one column each; per A ad its
+       numbers and each headline's and description's numbers in that ad (all time); headlines grouped by role so the
+       columns line up (problem, solution, call to action; a current line's role from the cluster files) */
+    var roleOf = function (key) { var r = null; [TD].concat(Object.keys(CLUS).map(function (k) { return CLUS[k]; })).some(function (D) { var x = (D.lines || {})[key]; if (x && x.role) r = x.role; return !!r; }); return r || 'solution'; };
+    var lm = function (m) { return m && m.impr ? n0(m.impr) + ' impr. · ' + pct(m.clicks, m.impr) + ' CTR · ' + n1(m.conv) + ' conv. · ' + per(m.cost, m.conv) + ' / conv.' : 'no impressions recorded'; };
+    var SECS = [['problem', 'Problems'], ['solution', 'Solutions'], ['cta', 'Calls to action'], ['description', 'Descriptions']];
+    var abAds = g.ads.slice().sort(function (a, b) { return ((b.serving || {}).running ? 1 : 0) - ((a.serving || {}).running ? 1 : 0); });
+    var fgp = findGroup(g.campaign, g.adgroup), P = Hub.period();
+    var cols = abAds.map(function (a) { var met = {}; (((AM.google.ads || {})[a.id] || {}).assets || []).forEach(function (x) { met[x.field[0] + '|' + x.text] = x; });
+      var sec = { problem: [], solution: [], cta: [], description: [] }, byImpr = function (x, y) { return ((y.m || {}).impr || 0) - ((x.m || {}).impr || 0); };
+      (a.headlines || []).forEach(function (t) { sec[roleOf('H|' + t)].push({ t: t, m: met['H|' + t] }); });
+      (a.descriptions || []).forEach(function (t) { sec.description.push({ t: t, m: met['D|' + t] }); });
+      Object.keys(sec).forEach(function (k) { sec[k].sort(byImpr); });
+      var all = gAll([a.id]), pp = gPeriod([a.id]);
+      var head = '<div class="abtag">A · <a href="' + adHref(platBy.google, fgp.c, fgp.g, a) + '">ad ' + esc(a.id) + '</a> ' + runChip(a).replace(/<div[^>]*>.*<\/div>/, '') + '</div>' +
+        '<div class="sub">' + (a.headlines || []).length + ' headlines, ' + (a.descriptions || []).length + ' descriptions' + (a.strength ? ' · strength ' + esc(String(a.strength).toLowerCase()) : '') + '</div>' +
+        (all ? '<div class="abm">' + mt('Impr.', n0(all.impr)) + mt('Clicks', n0(all.clicks)) + mt('CTR', pct(all.clicks, all.impr)) + mt('Conv.', n1(all.conv)) + mt('Spend', usd(all.cost)) + mt('Cost / conv.', per(all.cost, all.conv)) + '</div><div class="sub">All time to 29 Sep</div>' : '<div class="sub">No numbers recorded for this ad.</div>') +
+        (pp ? '<div class="sub">' + esc(P.label) + ': ' + n0(pp.impr) + ' impr. · ' + pct(pp.clicks, pp.impr) + ' CTR · ' + usd(pp.cost) + ' · ' + n1(pp.form) + ' form leads · ' + n1(pp.calls) + ' calls</div>' : '');
+      return { head: head, sec: SECS.map(function (q) { return sec[q[0]].length ? '<ol class="abl">' + sec[q[0]].map(function (x) { return '<li>' + esc(x.t) + '<div class="sub">' + lm(x.m) + '</div></li>'; }).join('') + '</ol>' : '<p class="sub">none</p>'; }), tag: 'A · ad ' + a.id }; });
+    cols.push({ head: '<div class="abtag">B · new ad <span class="chip warn">draft</span></div><div class="sub">From ' + esc(g.topLabel) + '. Problem i, solution i, call to action i and description i form block i. Draft copy for attorney review; an ad takes 4 descriptions.</div>' +
+        '<div class="sub">Covers ' + (g.fullB == null ? dash : Math.round(g.fullB * 100) + '%') + ' of the ad group’s impressions fully (A: ' + (g.fullNow == null ? dash : Math.round(g.fullNow * 100) + '%') + ')</div>',
+      sec: SECS.map(function (q) { return '<ol class="abl">' + S[q[0]].map(function (i, k) { var l = L[i]; return '<li>' + esc(l.t) + (l.confirm ? ' <span class="chip warn" title="' + esc(l.confirm) + '">confirm</span>' : '') + '<div class="sub">block ' + (k + 1) + ' · new</div></li>'; }).join('') + '</ol>'; }), tag: 'B · new ad', b: true });
+    var cmp = '<div class="scroll"><div class="abcmp" style="grid-template-columns:repeat(' + cols.length + ',minmax(230px,1fr))">' +
+      cols.map(function (c) { return '<div class="abcell abh' + (c.b ? ' abb' : '') + '">' + c.head + '</div>'; }).join('') +
+      SECS.map(function (q, k) { return '<h4 class="absec">' + q[1] + '</h4>' + cols.map(function (c) { return '<div class="abcell' + (c.b ? ' abb' : '') + '" data-abcol="' + esc(c.tag) + '" data-absec="' + q[0] + '">' + c.sec[k] + '</div>'; }).join(''); }).join('') + '</div></div>';
     var A = g.ads.map(function (a) { return '<li><a href="' + adHref(platBy.google, findGroup(g.campaign, g.adgroup).c, findGroup(g.campaign, g.adgroup).g, a) + '">ad ' + esc(a.id) + '</a> ' + runChip(a).replace(/<div[^>]*>.*<\/div>/, '') + ' · ' + a.headlines.length + ' headlines, ' + a.descriptions.length + ' descriptions</li>'; }).join('');
     openDrawer(g.adgroup, [['Test', kv([['Campaign › ad group', esc(g.campaign + ' › ' + g.adgroup)], ['B from', esc(g.topLabel) + ' (' + Math.round(g.share * 100) + '% of impressions)'], ['Covered fully', (g.fullNow == null ? dash : Math.round(g.fullNow * 100) + '%') + ' now → ' + (g.fullB == null ? dash : Math.round(g.fullB * 100) + '%') + ' with B'], ['Opportunity', n0(g.gain) + ' impressions from terms B covers better'], ['Monthly searches (US)', g.searches == null ? dash : n0(g.searches) + ' for the terms of its ad clusters (Keyword Planner, each pool once)']]) +
         '<h4>A: ads running now</h4><ul class="notes">' + (A || '<li>none</li>') + '</ul>'],
       ['Search terms', '<p class="note">Every active term of the ad group, its coverage now and with B. Terms in Exclude or move clusters get no B coverage.</p><div class="scroll"><table class="tbl"><thead><tr><th>Term</th><th class="num">Impr.</th><th class="num">CTR</th><th>Now</th><th>With B</th></tr></thead><tbody>' + terms + '</tbody></table></div>'],
-      ['Ad B', '<p class="note">Draft copy for attorney review. Problem i, solution i, call to action i and description i form block i.</p>' + Bset]], true);
+      ['A vs B', '<p class="note">The ads running in this ad group now (A) and the new ad (B) side by side. Numbers are all time in that ad (to 29 Sep); a headline or description shows its own impressions, CTR, conversions and cost per conversion in that ad. Headlines are grouped by role, most impressions first.</p>' + cmp]], 'x');
   }
   /* ───────────── router ───────────── */
   function route() {
