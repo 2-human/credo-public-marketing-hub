@@ -357,3 +357,8 @@ mark.kwp { background:#fbe7a6; color:inherit; border-radius:2px; padding:0 1px; 
 .chip.miss { border-style:dashed; color:var(--mute); }
 .ldq { margin:4px 0 10px; padding:6px 10px; border-left:3px solid var(--line); background:#fafbfc; }
 @media (max-width:700px) { .app-ldrawer { width:100vw; } }
+/* MH-33: editing B in the A/B drawer */
+ol.abl li.abprev > .abt { outline:1px dashed #d9b44a; outline-offset:2px; border-radius:2px; }
+.abedit { margin:6px 0 4px; padding:8px; border:1px solid var(--line); border-radius:4px; background:#fff; }
+.abedit textarea { width:100%; box-sizing:border-box; font:inherit; }
+.abflash { margin:8px 0; padding:8px 10px; border:1px solid #e5c76b; background:#fdf6de; border-radius:4px; }

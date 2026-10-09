@@ -1627,6 +1627,20 @@
         (w.length ? ' <span class="chip red" title="' + esc(w.join('; ')) + '">' + w.length + ' warning' + (w.length > 1 ? 's' : '') + '</span>' : '') +
         ' <button type="button" class="linkbtn" data-pub="' + esc(e._k) + '">Publish</button> <button type="button" class="linkbtn" data-rej="' + esc(e._k) + '">Discard</button></div>'; });
     return out; }
+  /* MH-33: shared by the clusters view and the A/B drawer: the reviewer's name, posting an edit, changing its status */
+  function reviewerName() { var who = (function () { try { return localStorage.getItem('credo_reviewer'); } catch (x) { return null; } })() || (window.prompt('Your name:', '') || '').trim();
+    if (who) { try { localStorage.setItem('credo_reviewer', who); } catch (x) {} } return who || null; }
+  function postLineEdit(rec) { return fetch(RTDB + '.json', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rec) }).then(function (r) { if (!r.ok) throw 0; return r.json(); })
+    .then(function (d) { COMMENTS = COMMENTS || {}; COMMENTS[d.name] = rec; CLU_VER++; return d; }); }
+  /* Publish / Discard a pending edit (after the checks and a confirmation); resolves true when the record changed */
+  function setEditStatus(id, publish) { var rec0 = COMMENTS && COMMENTS[id]; if (!rec0) return Promise.resolve(false);
+    var w = cluEditWarn(rec0.role, rec0.replacement || ''), hard = w.filter(function (x) { return /characters|empty/.test(x); });
+    if (publish && hard.length) { window.alert('This edit cannot be published: ' + hard.join('; ') + '. Post a corrected edit.'); return Promise.resolve(false); }
+    if (!window.confirm(publish ? 'Publish “' + rec0.replacement + '”? It replaces “' + rec0.original + '” everywhere in the hub.' + (w.length ? '\n\nWarnings: ' + w.join('; ') : '') : 'Discard the edit “' + rec0.replacement + '”?')) return Promise.resolve(false);
+    var who = reviewerName(); if (!who) return Promise.resolve(false);
+    var body = publish ? { status: 'published', published_at: Date.now(), published_by: who } : { status: 'rejected', rejected_at: Date.now(), rejected_by: who };
+    return fetch(RTDB + '/' + id + '.json', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) { if (!r.ok) throw 0; return r.json(); })
+      .then(function () { Object.assign(rec0, body); CLU_VER++; return true; }).catch(function () { window.alert('Could not update the edit. Try again.'); return false; }); }
   var editBtn = function (l, where) { return ' <button type="button" class="linkbtn" data-edit="' + esc(where + ':' + l.id) + '">Edit</button>'; };
   function cluEditRow(l, where, cols) { if (STC.edit !== where + ':' + l.id) return '';
     var lim = l.role === 'description' ? 90 : 30;
@@ -1803,16 +1817,7 @@
       /* MH-29: publish or discard a pending edit: the record's status in the shared review database; a published edit
          replaces the line everywhere in the hub at once (the rules file follows when edits are folded in) */
       var pb = e.target.closest('[data-pub]'), rj = e.target.closest('[data-rej]');
-      if (pb || rj) { var id = (pb || rj).getAttribute(pb ? 'data-pub' : 'data-rej'), rec0 = COMMENTS[id]; if (!rec0) return;
-        var w = cluEditWarn(rec0.role, rec0.replacement || ''), hard = w.filter(function (x) { return /characters|empty/.test(x); });
-        if (pb && hard.length) { window.alert('This edit cannot be published: ' + hard.join('; ') + '. Post a corrected edit.'); return; }
-        if (!window.confirm(pb ? 'Publish “' + rec0.replacement + '”? It replaces “' + rec0.original + '” everywhere in the hub.' + (w.length ? '\n\nWarnings: ' + w.join('; ') : '') : 'Discard the edit “' + rec0.replacement + '”?')) return;
-        var who = (function () { try { return localStorage.getItem('credo_reviewer'); } catch (x) { return null; } })() || (window.prompt('Your name:', '') || '').trim(); if (!who) return;
-        try { localStorage.setItem('credo_reviewer', who); } catch (x) {}
-        var body = pb ? { status: 'published', published_at: Date.now(), published_by: who } : { status: 'rejected', rejected_at: Date.now(), rejected_by: who };
-        fetch(RTDB + '/' + id + '.json', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) { if (!r.ok) throw 0; return r.json(); })
-          .then(function () { Object.assign(rec0, body); CLU_VER++; redraw(); }).catch(function () { window.alert('Could not update the edit. Try again.'); });
-        return; }
+      if (pb || rj) { setEditStatus((pb || rj).getAttribute(pb ? 'data-pub' : 'data-rej'), !!pb).then(function (ok) { if (ok) redraw(); }); return; }
       if (e.target.closest('[data-dr], a, button, select, .cluexp')) return;
       var tr = e.target.closest('[data-crow]'); if (tr) toggle(tr); });
     box.addEventListener('keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-crow]')) { e.preventDefault(); toggle(e.target); } });
@@ -1823,14 +1828,11 @@
     box.addEventListener('submit', function (e) { var f = e.target.closest('.adedit'); if (!f) return; e.preventDefault();
       var t = f.querySelector('[name=t]').value.trim(), cm = f.querySelector('[name=c]').value.trim(), L = cluAdLines(D)[f.getAttribute('data-line')], st = f.querySelector('.estatus');
       if (!t || t === L.t) { st.textContent = 'Change the text first (or add a comment in the term drawer).'; return; }
-      var who = (function () { try { return localStorage.getItem('credo_reviewer'); } catch (x) { return null; } })() || (window.prompt('Your name:', '') || '').trim();
-      if (!who) { st.textContent = 'A name is needed to post.'; return; } try { localStorage.setItem('credo_reviewer', who); } catch (x) {}
+      var who = reviewerName(); if (!who) { st.textContent = 'A name is needed to post.'; return; }
       var rec = { page: 'credo-marketing-hub', anchor: f.getAttribute('data-anchor'), kind: 'ad-line-edit', intent: D.intent, cluster: c.key, line: L.id, role: L.role,
         original: L.t, replacement: t, comment: cm, warnings: cluEditWarn(L.role, t), author: who, status: 'pending', timestamp: Date.now() };
       st.textContent = 'Posting…';
-      fetch(RTDB + '.json', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rec) }).then(function (r) { if (!r.ok) throw 0; return r.json(); })
-        .then(function (d) { COMMENTS = COMMENTS || {}; COMMENTS[d.name] = rec; CLU_VER++; STC.edit = null; redraw(); })
-        .catch(function () { st.textContent = 'Could not post the edit. Try again.'; }); });
+      postLineEdit(rec).then(function () { STC.edit = null; redraw(); }).catch(function () { st.textContent = 'Could not post the edit. Try again.'; }); });
     MS.wire(box, 'data-cus', function () { return STC.sorts; }, function (v) { STC.sorts = v.length ? v : [{ k: 'impr', dir: -1 }]; redraw(); }, defDir);
   }
   /* ───────────── MH-30: A/B test plan, per ad group ───────────── */
@@ -1882,7 +1884,7 @@
       '<li>B is draft copy for attorney review; lines that mention a place need the firm’s confirmation first.</li></ul></details>';
     var tot = P.reduce(function (q, g) { return q + g.gain; }, 0);
     var body = P.map(function (g) {
-      return '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); drawerAB(g); }) + '><td><b>' + esc(g.adgroup) + '</b><div class="sub">' + esc(g.campaign) + '</div></td><td class="num">' + n0(g.rows.length) + '</td><td class="num">' + n0(g.impr) + '</td><td class="num">' + pct(g.clicks, g.impr) + '</td><td class="num">' + n1(g.conv) + '</td>' +
+      return '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); AB_EDIT = null; drawerAB(g); }) + '><td><b>' + esc(g.adgroup) + '</b><div class="sub">' + esc(g.campaign) + '</div></td><td class="num">' + n0(g.rows.length) + '</td><td class="num">' + n0(g.impr) + '</td><td class="num">' + pct(g.clicks, g.impr) + '</td><td class="num">' + n1(g.conv) + '</td>' +
         '<td>' + esc(g.topLabel) + '<div class="sub">' + Math.round(g.share * 100) + '% of impressions' + (g.biggest ? '' : ' (not the biggest cluster: its copy covers more)') + (g.clusters.length > 1 ? ' · ' + (g.clusters.length - 1) + ' other cluster' + (g.clusters.length > 2 ? 's' : '') : '') + '</div>' + (g.worse ? '<span class="chip red">B covers less than A: split the ad group first</span>' : '') + '</td>' +
         '<td class="num">' + n0(g.ads.length) + '<div class="sub">' + g.ads.filter(function (a) { return (a.serving || {}).running; }).length + ' running</div></td>' +
         '<td class="num">' + pctf(g.fullNow) + ' → <b>' + pctf(g.fullB) + '</b></td><td class="num">' + n0(g.gain) + '</td><td class="num">' + (g.searches == null ? dash : n0(g.searches)) + '</td></tr>'; }).join('');
@@ -1891,6 +1893,7 @@
       (body || '<tr><td colspan="10" class="empty">No ad groups with clustered search terms.</td></tr>') + '</tbody></table></div>';
   }
   function drawerAB(g) {
+    AB_KEY = g.key;
     var parts = g.top.split('|'), TD = cluDoc0(parts[0]), S = TD.adSets[parts[1]], L = cluAdLines(TD);
     var terms = g.rows.slice().sort(function (a, b) { return (b.r.t.impr || 0) - (a.r.t.impr || 0); }).map(function (x) {
       var cl = (x.D.clusters.filter(function (c) { return c.key === x.v.cluster; })[0] || {}).label;
@@ -1936,12 +1939,40 @@
       return { head: head, sec: SECS.map(function (q) { var f = q[0] === 'description' ? 'D' : 'H';
         return sec[q[0]].length ? '<ol class="abl">' + sec[q[0]].map(function (x) { var c = lineCov(f, x.t, true); return '<li>' + mark(x.t, c.hl) + '<div class="sub">' + lm(x.m) + '</div>' + stat(c, f, x.t, 'A · ad ' + a.id) + '</li>'; }).join('') + '</ol>' : '<p class="sub">none</p>'; }), tag: 'A · ad ' + a.id }; });
     var pc0 = function (v) { return v == null ? dash : Math.round(v * 100) + '%'; };
+    /* MH-33 (operator 9 Oct): B's lines can be edited here as on the clusters view (a pending edit in the shared review
+       database). The tab previews the newest pending edit of each line at once: its text, highlights, Full / Partial
+       counts and B's coverage card; Publish makes it the line everywhere (and updates the plan), Discard drops it. */
+    var pendOf = function (l) { return cluEditsOf(l).filter(function (e) { return (e.status || 'pending') === 'pending'; }); };
+    var shown = function (l) { var pe = pendOf(l); return pe.length ? pe[0].replacement : l.t; };
+    var nPend = 0, prev = [];
+    ['problem', 'solution', 'cta', 'description'].forEach(function (r) { S[r].forEach(function (i) { var l = L[i]; if (l.status === 'rejected') return; if (pendOf(l).length) nPend++; prev.push({ f: l.f, t: shown(l) }); }); });
+    var fullPrev = (function () { var tot = 0, ok = 0; linked.forEach(function (x) { var im = x.r.t.impr || 0; tot += im;
+      if (termLevel(x.v.concepts, prev.map(function (l) { return { f: l.f, concepts: conIn(x.D, l.t) }; })) === 2) ok += im; }); return tot ? ok / tot : null; })();
+    var place = ((TD.adLines || []).filter(function (l) { return l.confirm; })[0] || {}).confirm || 'Mentions a place: confirm with the firm before use.';
+    var abNotes = function (l, pe) { var out = '';
+      if (l.base) out += '<div class="sub editnote"><span class="chip ok">published edit</span> was “' + esc(l.base) + '” · ' + esc(l.edit.author || '') + ' ' + dayOf(l.edit.published_at || l.edit.timestamp) + '</div>';
+      pe.forEach(function (e, k) { var w = cluEditWarn(l.role, e.replacement || '');
+        out += '<div class="sub editnote" data-abpend="' + esc(e._k) + '"><span class="chip warn">' + (k ? 'edit pending' : 'pending edit, previewed') + '</span> ' + (k ? '“' + esc(e.replacement || '') + '”' : 'was “' + esc(l.t) + '”') + ' · ' + esc(e.author || 'Anonymous') + ' ' + dayOf(e.timestamp) + (e.comment ? ': ' + esc(e.comment) : '') +
+          (w.length ? ' <span class="chip red" title="' + esc(w.join('; ')) + '">' + w.length + ' warning' + (w.length > 1 ? 's' : '') + '</span>' : '') +
+          ' <button type="button" class="linkbtn" data-abpub="' + esc(e._k) + '">Publish</button> <button type="button" class="linkbtn" data-abrej="' + esc(e._k) + '">Discard</button></div>'; });
+      return out; };
+    var abForm = function (l, t) { if (AB_EDIT !== l.id) return ''; var lim = l.role === 'description' ? 90 : 30, w = cluEditWarn(l.role, t);
+      return '<form class="adedit abedit" data-line="' + esc(l.id) + '" data-role="' + esc(l.role) + '" data-anchor="' + esc(adAnchor(l)) + '">' +
+        '<label>Proposed ' + esc(l.role === 'description' ? 'description' : l.role === 'cta' ? 'call to action' : l.role + ' headline') + ' <span class="sub">(limit ' + lim + ' characters)</span></label>' +
+        '<textarea name="t" rows="' + (l.role === 'description' ? 3 : 1) + '">' + esc(t) + '</textarea><div class="sub ecount">' + t.length + ' / ' + lim + (w.length ? ' · <span class="ewarn">' + esc(w.join('; ')) + '</span>' : '') + '</div>' +
+        '<label>Comment <span class="sub">(optional)</span></label><textarea name="c" rows="2"></textarea>' +
+        '<div><button class="btn" type="submit">Save edit</button> <button type="button" class="linkbtn" data-abedit-cancel>Cancel</button> <span class="sub estatus">Saving posts a pending edit to the shared review database and previews it here at once; nothing changes in Google Ads.</span></div></form>'; };
     cols.push({ head: '<div class="abtag">B · new ad <span class="chip warn">draft</span></div>' +
         '<div class="sub">' + (S.problem.length + S.solution.length + S.cta.length) + ' headlines, ' + S.description.length + ' descriptions · from ' + esc(g.topLabel) + '</div>' +
-        '<div class="abm">' + mt('Covered fully, B', pc0(g.fullB)) + mt('Covered fully, A', pc0(g.fullNow)) + '</div><div class="sub">Share of the ad group’s impressions</div>' +
+        '<div class="abm">' + mt('Covered fully, B', pc0(nPend ? fullPrev : g.fullB)) + mt('Covered fully, A', pc0(g.fullNow)) + '</div><div class="sub">Share of the ad group’s impressions' +
+        (nPend ? ' · B with ' + nPend + ' pending edit' + (nPend > 1 ? 's' : '') + ' previewed (published copy: ' + pc0(g.fullB) + ')' : '') + '</div>' +
         '<div class="sub">Problem i, solution i, call to action i and description i form block i. Draft copy for attorney review; an ad takes 4 descriptions.</div>',
       sec: SECS.map(function (q) { var f = q[0] === 'description' ? 'D' : 'H';
-        return '<ol class="abl">' + S[q[0]].map(function (i) { var l = L[i], c = lineCov(f, l.t, false); return '<li>' + mark(l.t, c.hl) + (l.confirm ? ' <span class="chip warn" title="' + esc(l.confirm) + '">confirm</span>' : '') + stat(c, f, l.t, 'B · new ad') + '</li>'; }).join('') + '</ol>'; }), tag: 'B · new ad', b: true });
+        return '<ol class="abl">' + S[q[0]].map(function (i) { var l = L[i], pe = pendOf(l), t = pe.length ? pe[0].replacement : l.t, c = lineCov(f, t, false);
+          var cf = pe.length ? (conIn(TD, t).indexOf('local') >= 0 ? place : null) : l.confirm;
+          return '<li data-abline="' + esc(l.id) + '"' + (pe.length ? ' class="abprev"' : '') + '>' + mark(t, c.hl) + (cf ? ' <span class="chip warn" title="' + esc(cf) + '">confirm</span>' : '') +
+            ' <button type="button" class="linkbtn" data-abedit="' + esc(l.id) + '" aria-expanded="' + (AB_EDIT === l.id) + '">Edit</button>' + stat(c, f, t, 'B · new ad') + abNotes(l, pe) + abForm(l, t) + '</li>'; }).join('') + '</ol>'; }), tag: 'B · new ad', b: true });
+    AB_CTX = { g: g, TD: TD, cluster: parts[1], L: L };
     AB_LISTS = LISTS;
     var cmp = '<div class="scroll"><div class="abcmp" style="grid-template-columns:repeat(' + cols.length + ',minmax(230px,1fr))">' +
       cols.map(function (c) { return '<div class="abcell abh' + (c.b ? ' abb' : '') + '">' + c.head + '</div>'; }).join('') +
@@ -1950,10 +1981,38 @@
     openDrawer(g.adgroup, [['Test', kv([['Campaign › ad group', esc(g.campaign + ' › ' + g.adgroup)], ['B from', esc(g.topLabel) + ' (' + Math.round(g.share * 100) + '% of impressions)'], ['Covered fully', (g.fullNow == null ? dash : Math.round(g.fullNow * 100) + '%') + ' now → ' + (g.fullB == null ? dash : Math.round(g.fullB * 100) + '%') + ' with B'], ['Opportunity', n0(g.gain) + ' impressions from terms B covers better'], ['Monthly searches (US)', g.searches == null ? dash : n0(g.searches) + ' for the terms of its ad clusters (Keyword Planner, each pool once)']]) +
         '<h4>A: ads running now</h4><ul class="notes">' + (A || '<li>none</li>') + '</ul>'],
       ['Search terms', '<p class="note">Every active term of the ad group, its coverage now and with B. Terms in Exclude or move clusters get no B coverage.</p><div class="scroll"><table class="tbl"><thead><tr><th>Term</th><th class="num">Impr.</th><th class="num">CTR</th><th>Now</th><th>With B</th></tr></thead><tbody>' + terms + '</tbody></table></div>'],
-      ['A vs B', '<p class="note">The ads running in this ad group now (A) and the new ad (B) side by side. Numbers are all time in that ad (to 29 Sep); a headline or description shows its own impressions, CTR, conversions and cost per conversion in that ad. Headlines are grouped by role, most impressions first. Full / Partial: how many of the ad group’s search terms (its ad clusters) a line has all / some of the key words of; click to list them. <mark class="kwf">Green</mark>: words that give full coverage of a term; <mark class="kwp">yellow</mark>: words that only give partial coverage.</p>' + cmp]], 'x');
+      ['A vs B', (function () { var f = AB_FLASH || ''; AB_FLASH = null; return f; })() + '<p class="note">The ads running in this ad group now (A) and the new ad (B) side by side. Numbers are all time in that ad (to 29 Sep); a headline or description shows its own impressions, CTR, conversions and cost per conversion in that ad. Headlines are grouped by role, most impressions first. Full / Partial: how many of the ad group’s search terms (its ad clusters) a line has all / some of the key words of; click to list them. <mark class="kwf">Green</mark>: words that give full coverage of a term; <mark class="kwp">yellow</mark>: words that only give partial coverage.</p>' + cmp]], 'x');
   }
   /* MH-32: the search terms behind a line's Full / Partial count, in a drawer from the left (over the A/B drawer) */
-  var AB_LISTS = [], LD_FROM = null;
+  var AB_LISTS = [], LD_FROM = null, AB_KEY = null, AB_EDIT = null, AB_CTX = null, AB_FLASH = null;
+  /* MH-33: redraw the open A/B drawer in place (same tab and scroll); after Publish / Discard the plan behind it too */
+  function abRedraw(planChanged, focusSel) { if (!AB_KEY || !$('app-drawer').classList.contains('open')) return;
+    var old = AB_CTX && AB_CTX.g, P = abPlan(), g = P.filter(function (x) { return x.key === AB_KEY; })[0]; if (!g) return;
+    /* a published edit can make another cluster's copy cover more of the ad group: B then comes from it; say so */
+    if (planChanged && old && old.top !== g.top) { var op = old.top.split('|');
+      AB_FLASH = '<div class="abflash" role="status"><b>B now comes from ' + esc(g.topLabel) + '</b>: with the published edit, its copy covers more of this ad group’s impressions fully (' + Math.round((g.fullB || 0) * 100) + '%) than ' + esc(old.topLabel) +
+        ', where the edited line is (<a href="#/ads/clusters/' + enc(op[0]) + '/' + enc(op[1]) + '">open that cluster</a>).</div>'; }
+    if (planChanged && /^#\/ads\/ab-tests/.test(location.hash)) { var m = $('app-main'), y = m.scrollTop; DR = []; m.innerHTML = viewABPlan(); m.scrollTop = y; }
+    var b = $('drawer-body'), y2 = b.scrollTop; drawerAB(g); b.scrollTop = y2;
+    var el = focusSel && b.querySelector(focusSel); if (el) { el.focus({ preventScroll: true }); if (el.setSelectionRange) { el.setSelectionRange(el.value.length, el.value.length); var fm = el.closest('form'); if (fm && fm.scrollIntoView) fm.scrollIntoView({ block: 'nearest' }); } } }
+  document.addEventListener('click', function (e) { if (!e.target.closest || !e.target.closest('#drawer-body')) return;
+    var ed = e.target.closest('[data-abedit]'), ec = e.target.closest('[data-abedit-cancel]'), pb = e.target.closest('[data-abpub]'), rj = e.target.closest('[data-abrej]');
+    if (ed) { var id = ed.getAttribute('data-abedit'); AB_EDIT = AB_EDIT === id ? null : id; abRedraw(false, AB_EDIT ? '.abedit textarea[name=t]' : '[data-abedit="' + CSS.escape(id) + '"]'); return; }
+    if (ec) { var id2 = AB_EDIT; AB_EDIT = null; abRedraw(false, '[data-abedit="' + CSS.escape(id2 || '') + '"]'); return; }
+    if (pb || rj) { var line = (pb || rj).closest('[data-abline]').getAttribute('data-abline');
+      setEditStatus((pb || rj).getAttribute(pb ? 'data-abpub' : 'data-abrej'), !!pb).then(function (ok) { if (ok) abRedraw(!!pb, '[data-abedit="' + CSS.escape(line) + '"]'); }); } });
+  document.addEventListener('input', function (e) { var f = e.target.closest && e.target.closest('#drawer-body .abedit'); if (!f || e.target.name !== 't') return;
+    var role = f.getAttribute('data-role'), t = e.target.value, w = cluEditWarn(role, t), lim = role === 'description' ? 90 : 30;
+    f.querySelector('.ecount').innerHTML = t.length + ' / ' + lim + (w.length ? ' · <span class="ewarn">' + esc(w.join('; ')) + '</span>' : ''); });
+  document.addEventListener('submit', function (e) { var f = e.target.closest && e.target.closest('#drawer-body .abedit'); if (!f || !AB_CTX) return; e.preventDefault();
+    var L = AB_CTX.L[f.getAttribute('data-line')], t = f.querySelector('[name=t]').value.trim(), cm = f.querySelector('[name=c]').value.trim(), st = f.querySelector('.estatus');
+    var cur = (cluEditsOf(L).filter(function (x) { return (x.status || 'pending') === 'pending'; })[0] || {}).replacement || L.t;
+    if (!t || t === cur) { st.textContent = 'Change the text first.'; return; }
+    var who = reviewerName(); if (!who) { st.textContent = 'A name is needed to save.'; return; }
+    var rec = { page: 'credo-marketing-hub', anchor: f.getAttribute('data-anchor'), kind: 'ad-line-edit', intent: AB_CTX.TD.intent, cluster: AB_CTX.cluster, line: L.id, role: L.role,
+      original: L.t, replacement: t, comment: cm, warnings: cluEditWarn(L.role, t), author: who, status: 'pending', timestamp: Date.now(), source: 'ab-test ' + AB_CTX.g.key };
+    st.textContent = 'Saving…';
+    postLineEdit(rec).then(function () { AB_EDIT = null; abRedraw(false, '[data-abedit="' + CSS.escape(L.id) + '"]'); }).catch(function () { st.textContent = 'Could not save the edit. Try again.'; }); });
   function openLDrawer(o, from) {
     var rows = o.list.slice().sort(function (a, b) { return (b.r.t.impr || 0) - (a.r.t.impr || 0); }), tot = { impr: 0, clicks: 0, conv: 0, cost: 0 };
     rows.forEach(function (x) { ['impr', 'clicks', 'conv', 'cost'].forEach(function (k) { tot[k] += x.r.t[k] || 0; }); });
