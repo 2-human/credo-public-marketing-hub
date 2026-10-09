@@ -2030,7 +2030,7 @@
     '.mh-acc .faqitem:not(.mh-open)>.mjfdcpatext-copy,.mh-acc .faqitem:not(.mh-open)>.mh-more,.mh-acc [data-mh-more]{display:none!important}' +
     '.mh-acc .faqitem.mh-open>.mjfdcpatext-copy{margin-top:12px}.mh-acc .faqitem.mh-open>.mh-more{display:block!important}.mh-acc .mjfdcpatext-copy{max-width:720px!important}';
   function pageLayout(doc) {
-    [['wysk', 'w'], ['faq', 'f']].forEach(function (x) { var h = doc.getElementById(x[0]), head = h && h.closest('.w-layout-layout'), sep2 = head && head.nextElementSibling, list = sep2 && sep2.nextElementSibling;
+    [['faq', 'f']].forEach(function (x) { var h = doc.getElementById(x[0]), head = h && h.closest('.w-layout-layout'), sep2 = head && head.nextElementSibling, list = sep2 && sep2.nextElementSibling;
       if (!list || !list.querySelector('.faqitem')) return;   /* an unexpected page structure leaves the section as it is */
       list.classList.add('mh-acc');
       [].forEach.call(list.querySelectorAll('.faqitem'), function (it, k) { var q = it.querySelector('.lp-faq-q'); if (!q) return; if (!it.id) it.id = 'mh-acc-' + x[1] + k;
@@ -2038,24 +2038,25 @@
     doc.body.setAttribute('data-mh-layout', 'accordion'); }
   function pageRecApply(html, R, file, variant) { var doc = new DOMParser().parseFromString(html, 'text/html'), rep = { blocks: 0, missing: [], faq: 0, items: 0, nav: 0 };
     var base = doc.createElement('base'); base.href = new URL(file, location.href).href; doc.head.insertBefore(base, doc.head.firstChild);
-    var faqHead = doc.getElementById('faq'), items = doc.querySelectorAll('.faqitem'), W = (R.wysk && R.wysk.items) || [];
-    if (faqHead && items.length && W.length) { var head = faqHead.closest('.w-layout-layout'), list = items[0].closest('.w-layout-layout'), sep1 = head.previousElementSibling, sep2 = head.nextElementSibling;
-      var h = head.cloneNode(true), l = list.cloneNode(true), nodes = [sep1 && sep1.cloneNode(true), h, sep2 && sep2.cloneNode(true), l].filter(Boolean);
-      var lab = h.querySelector('#faq'); lab.id = 'wysk'; (lab.querySelector('strong') || lab).textContent = R.wysk.label; var t2 = h.querySelectorAll('h2')[1]; if (t2) t2.textContent = R.wysk.heading;
-      var cell = l.querySelector('.faqitem').parentElement, tpl = cell.querySelector('.faqitem').cloneNode(true); cell.innerHTML = '';
-      W.forEach(function (it) { var n = tpl.cloneNode(true); n.querySelector('.lp-faq-q').textContent = it.title; n.querySelector('.mjfdcpatext-copy').textContent = it.first;
-        var more = doc.createElement('div'); more.className = 'mh-more'; more.hidden = true;
-        (it.body || []).forEach(function (para) { var d = doc.createElement('div'); d.className = 'mjfdcpatext-copy'; d.textContent = para; more.appendChild(d); });
-        more.id = 'mh-more-' + it.key; var a = doc.createElement('a'); a.href = '#' + more.id; a.className = 'mh-readmore'; a.setAttribute('data-mh-more', ''); a.setAttribute('role', 'button'); a.setAttribute('aria-expanded', 'false'); a.setAttribute('aria-controls', more.id); a.textContent = 'Read more';
-        n.appendChild(more); n.appendChild(a); n.setAttribute('data-mh', 'wysk:' + it.key); cell.appendChild(n); rep.items++; });
-      nodes.forEach(function (n) { n.setAttribute('data-mh-new', ''); (sep1 || head).parentNode.insertBefore(n, sep1 || head); }); }
-    var blocks = pageBlockSections(doc).filter(function (x) { return !x.el.closest('[data-mh-new]'); }), used = [];
+    /* MH-43 (operator 9 Oct): ONE FAQ section under the FAQ's own label and title, the topical questions and answers first
+       (wysk.items: title, first sentence, then the article when opened) and the questions about Credo (faq) last — always
+       in that order. Each is an item in the FAQ's own markup. */
+    var fh = doc.getElementById('faq'), fhead = fh && fh.closest('.w-layout-layout'), flist = fhead && fhead.nextElementSibling && fhead.nextElementSibling.nextElementSibling,
+      items = flist ? flist.querySelectorAll('.faqitem') : [], W = (R.wysk && R.wysk.items) || [];   /* the FAQ's own list (after its heading and separator) */
+    if (items.length) { var cell = items[0].parentElement, tpl = items[0].cloneNode(true);
+      [].slice.call(tpl.children).forEach(function (c) { if (c !== tpl.querySelector('.lp-faq-q') && c !== tpl.querySelector('.mjfdcpatext-copy')) c.remove(); });   /* the template: question + answer only */
+      [].slice.call(cell.querySelectorAll('.faqitem')).forEach(function (n) { n.remove(); });
+      var add = function (q, paras, mh) { var n = tpl.cloneNode(true); n.querySelector('.lp-faq-q').textContent = q; n.querySelector('.mjfdcpatext-copy').textContent = paras[0];
+        if (paras.length > 1) { var more = doc.createElement('div'); more.className = 'mh-more'; paras.slice(1).forEach(function (t) { var d = doc.createElement('div'); d.className = 'mjfdcpatext-copy'; d.textContent = t; more.appendChild(d); }); n.appendChild(more); }
+        n.setAttribute('data-mh', mh); cell.appendChild(n); };
+      W.forEach(function (it) { add(it.title, [it.first].concat(it.body || []), 'wysk:' + it.key); rep.items++; });
+      (R.faq || []).forEach(function (f, i) { add(f.q, [f.a], 'faq:' + i); rep.faq++; }); }
+    var blocks = pageBlockSections(doc), used = [];
     /* a block is found by its section and its text (repeated texts, e.g. the stat blocks, sit in different sections) */
     (R.blocks || []).forEach(function (b, i) { var hit = blocks.filter(function (x) { return used.indexOf(x.el) < 0 && (!b.section || x.section === b.section) && pgNorm(x.el.textContent) === pgNorm(b.old); })[0], el = hit && hit.el; if (el) used.push(el);
       if (!el) { rep.missing.push(b.old); return; } pageSetText(el, b.new); el.setAttribute('data-mh', 'block:' + i); rep.blocks++; });
-    (R.faq || []).forEach(function (f, i) { var it = items[i]; if (!it) return; it.querySelector('.lp-faq-q').textContent = f.q; it.querySelector('.mjfdcpatext-copy').textContent = f.a; it.setAttribute('data-mh', 'faq:' + i); rep.faq++; });
     /* MH-38: the standalone landing-page variant (like start.credolegal.com): the site menu's links give way to links to the
-       page's own sections ("What to know" → the new section); the call line stays; the review button goes to the form */
+       page's own sections; the call line stays; the review button goes to the form */
     var V = ((R.page || {}).variants || {})[variant];
     if (V && V.nav) { var ul = doc.querySelector('nav.w-nav-menu > ul'), keep = ul && ul.querySelector('#mjmobile') && ul.querySelector('#mjmobile').closest('li');
       if (ul) { [].slice.call(ul.children).forEach(function (li) { if (li !== keep) li.remove(); });
@@ -2076,13 +2077,13 @@
     var sum = function (L) { return (L || []).reduce(function (q, t) { return q + (imp[t] || 0); }, 0); };
     var byT = {}; (R.terms || []).forEach(function (t) { if (t.kind === 'info' && t.topic) (byT[t.topic] = byT[t.topic] || []).push(t.term); });
     var info = (R.terms || []).filter(function (t) { return t.kind === 'info'; }).map(function (t) { return t.term; });
-    var where = function (a) { return a.where === 'wysk' ? 'article “' + (((R.wysk.items || []).filter(function (it) { return it.key === a.ref; })[0] || {}).title || a.ref) + '”' : a.where === 'faq' ? 'FAQ ' + (+a.ref + 1) : 'section ' + a.ref; };
+    var where = function (a) { return a.where === 'wysk' ? 'FAQ “' + (((R.wysk.items || []).filter(function (it) { return it.key === a.ref; })[0] || {}).title || a.ref) + '”' : a.where === 'faq' ? 'FAQ ' + (+a.ref + 1) : 'section ' + a.ref; };
     var topics = '<details class="state"><summary>What the page answers: ' + n0(info.length) + ' information searches (' + n0(sum(info)) + ' impr.) in ' + (R.topics || []).length + ' topics</summary><ul class="notes">' +
       (R.topics || []).map(function (t) { return '<li><b>' + esc(t.label) + '</b> <span class="sub">' + n0((byT[t.key] || []).length) + ' searches · ' + n0(sum(byT[t.key])) + ' impr. · ' + esc((t.answeredBy || []).map(where).join(', ')) + '</span></li>'; }).join('') + '</ul></details>';
     var review = (R.attorneyReview || []).length ? '<details class="state"><summary>For attorney review (' + R.attorneyReview.length + ')</summary><ul class="notes">' + R.attorneyReview.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' + (R.disclaimer ? '<p class="sub">Disclaimer: ' + esc(R.disclaimer) + '</p>' : '') + '</details>' : '';
     var VS = (R.page.variants || {}), vk = Object.keys(VS).filter(function (k) { return k[0] !== '_'; }); if (vk.indexOf(AB_PV) < 0) AB_PV = vk[0] || null;
     var sw = vk.length > 1 ? '<div class="abpgctl"><span class="sub">Show as</span> ' + vk.map(function (k) { return '<button type="button" class="abpgbtn" data-abpvar="' + esc(k) + '" aria-pressed="' + (k === AB_PV) + '">' + esc(VS[k].label || k) + '</button>'; }).join('') + '</div>' : '';
-    return '<div id="abpg" data-group="' + esc(g.key) + '">' + sw + '<p class="note">The landing page for the new ad (B): <b>' + esc(R.page.name || 'new page') + '</b>. It keeps the design of ' + esc(R.page.base) + ' with its copy written for the ad and its searches, a <b>What you should know</b> section and an FAQ about Credo’s services. Draft for attorney review; nothing is changed on staging.</p>' +
+    return '<div id="abpg" data-group="' + esc(g.key) + '">' + sw + '<p class="note">The landing page for the new ad (B): <b>' + esc(R.page.name || 'new page') + '</b>. It keeps the design of ' + esc(R.page.base) + ' with its copy written for the ad and its searches, and one FAQ: the questions people search first, then the questions about Credo. Draft for attorney review; nothing is changed on staging.</p>' +
       '<div class="abpgwrap"><iframe class="abpgframe" title="New landing page for ad B" sandbox="allow-scripts allow-same-origin"></iframe><p class="sub abpgstat"></p></div>' + topics + review + '</div>'; }
   var AB_PV = null;   /* MH-38: which variant of the new page the tab shows (landing page | microsite page) */
   document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('#abpg [data-abpvar]'); if (!b) return; AB_PV = b.getAttribute('data-abpvar');
@@ -2091,7 +2092,7 @@
     if (!file) { stt.textContent = 'No mirror of ' + R.page.base + ' in the hub.'; return; }
     stt.textContent = 'Building the page…';
     fetch(file).then(function (r) { return r.text(); }).then(function (html) { var out = pageRecApply(html, R, file, AB_PV); fr.srcdoc = out.html;
-      stt.textContent = 'New page' + (AB_PV && (R.page.variants || {})[AB_PV] ? ' (' + R.page.variants[AB_PV].label.toLowerCase() + ')' : '') + ': ' + out.report.blocks + ' texts written for the ad, ' + out.report.items + ' articles, ' + out.report.faq + ' FAQ items' + (out.report.missing.length ? '; not placed: ' + out.report.missing.join(' | ') : '') + '.'; })
+      stt.textContent = 'New page' + (AB_PV && (R.page.variants || {})[AB_PV] ? ' (' + R.page.variants[AB_PV].label.toLowerCase() + ')' : '') + ': ' + out.report.blocks + ' texts written for the ad, FAQ with ' + out.report.items + ' topical questions then ' + out.report.faq + ' about Credo' + (out.report.missing.length ? '; not placed: ' + out.report.missing.join(' | ') : '') + '.'; })
       .catch(function () { stt.textContent = 'Could not build the page.'; }); }
   var AB_LISTS = [], LD_FROM = null, AB_KEY = null, AB_EDIT = null, AB_CTX = null, AB_FLASH = null;
   /* MH-33: redraw the open A/B drawer in place (same tab and scroll); after Publish / Discard the plan behind it too */
