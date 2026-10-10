@@ -362,6 +362,7 @@ ol.abl li.abprev > .abt { outline:1px dashed #d9b44a; outline-offset:2px; border
 .abedit { margin:6px 0 4px; padding:8px; border:1px solid var(--line); border-radius:4px; background:#fff; }
 .abedit textarea { width:100%; box-sizing:border-box; font:inherit; }
 .abflash { margin:8px 0; padding:8px 10px; border:1px solid #e5c76b; background:#fdf6de; border-radius:4px; }
+.abflash.aborphan ul { margin:6px 0 0; padding-left:18px; } .abflash.aborphan li { margin:2px 0; }
 /* MH-36/37: A/B drawer › Page */
 .abpgctl { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:8px 0; }
 .abpgbtn { font:inherit; font-size:12.5px; border:1px solid var(--line); background:#fff; border-radius:14px; padding:3px 12px; cursor:pointer; }

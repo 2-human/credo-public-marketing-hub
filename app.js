@@ -1982,7 +1982,16 @@
         '<textarea name="t" rows="' + (l.role === 'description' ? 3 : 1) + '">' + esc(t) + '</textarea><div class="sub ecount">' + t.length + ' / ' + lim + (w.length ? ' · <span class="ewarn">' + esc(w.join('; ')) + '</span>' : '') + '</div>' +
         '<label>Comment <span class="sub">(optional)</span></label><textarea name="c" rows="2"></textarea>' +
         '<div><button class="btn" type="submit">Save edit</button> <button type="button" class="linkbtn" data-abedit-cancel>Cancel</button> <span class="sub estatus">Saving posts a pending edit to the shared review database and previews it here at once; nothing changes in Google Ads.</span></div></form>'; };
-    cols.push({ head: '<div class="abtag">B · new ad <span class="chip warn">draft</span></div>' +
+    /* MH-49 (operator 10 Oct): an edit made on a line that is no longer in this set (the suggested copy was rewritten
+       while the hub was open) matches no line and would vanish; list it so it can be re-applied to a current line */
+    var anchors = {}; ['problem', 'solution', 'cta', 'description'].forEach(function (r) { S[r].forEach(function (i) { anchors[adAnchor(L[i])] = 1; }); });
+    var orphans = Object.keys(COMMENTS || {}).map(function (k) { return COMMENTS[k]; }).filter(function (e) {
+      return e && e.page === 'credo-marketing-hub' && e.kind === 'ad-line-edit' && (e.status === 'published' || e.status === 'pending') &&
+        (e.intent || 'debt_lawyer') === TD.intent && e.cluster === parts[1] && !anchors[e.anchor]; });
+    var orphanBox = orphans.length ? '<div class="abflash aborphan" role="status"><b>' + orphans.length + ' edit' + (orphans.length > 1 ? 's' : '') + ' not shown in this ad</b>: ' +
+      (orphans.length > 1 ? 'their lines are' : 'its line is') + ' no longer in this ad’s suggested copy (rewritten since the edit was made; other clusters may still use the line and show the edit). Use Edit on a current line to apply ' + (orphans.length > 1 ? 'them' : 'it') + ' here.<ul>' +
+      orphans.map(function (e) { return '<li>“' + esc(e.original || String(e.anchor).replace(/^adline:[HD]\|/, '')) + '” → “' + esc(e.replacement) + '” <span class="sub">' + esc(e.status) + ' · ' + esc(e.author || '') + ' ' + dayOf(e.published_at || e.timestamp) + '</span></li>'; }).join('') + '</ul></div>' : '';
+    cols.push({ head: '<div class="abtag">B · new ad <span class="chip warn">draft</span></div>' + orphanBox +
         '<div class="sub">' + (S.problem.length + S.solution.length + S.cta.length) + ' headlines, ' + S.description.length + ' descriptions · from ' + esc(g.topLabel) + '</div>' +
         '<div class="abm">' + mt('Covered fully, B', pc0(nPend ? fullPrev : g.fullB)) + mt('Covered fully, A', pc0(g.fullNow)) + '</div><div class="sub">Share of the ad group’s impressions' +
         (nPend ? ' · B with ' + nPend + ' pending edit' + (nPend > 1 ? 's' : '') + ' previewed (published copy: ' + pc0(g.fullB) + ')' : '') + '</div>' +
