@@ -1541,8 +1541,15 @@
     var c = CLU_CACHE[STC.intent]; if (c && c.v === CLU_VER) return c.d;
     var pub = {}; Object.keys(COMMENTS).forEach(function (k) { var e = COMMENTS[k];
       if (e && e.page === 'credo-marketing-hub' && e.kind === 'ad-line-edit' && e.status === 'published' && (e.intent || 'debt_lawyer') === B.intent) { var at = e.published_at || e.timestamp || 0; if (!pub[e.anchor] || at > pub[e.anchor].at) pub[e.anchor] = { e: e, at: at }; } });
+    /* MH-51 (operator 10 Oct): an edit folded into the rules file (status applied) is a processed edit: the line whose text
+       is its replacement (end punctuation aside) is marked with it, so the history stays visible after processing */
+    var pnorm = function (t) { return String(t || '').trim().replace(/[.!]+$/, '').toLowerCase(); }, proc = {};
+    Object.keys(COMMENTS).forEach(function (k) { var e = COMMENTS[k];
+      if (e && e.page === 'credo-marketing-hub' && e.kind === 'ad-line-edit' && e.status === 'applied' && (e.intent || 'debt_lawyer') === B.intent) {
+        var key = String(e.anchor || '').slice(7, 9) + pnorm(e.replacement); (proc[key] = proc[key] || []).push(e); } });
     var d = B;
-    if (Object.keys(pub).length) {
+    if (Object.keys(proc).length) d = Object.assign({}, B, { adLines: B.adLines.map(function (l) { var p = proc[l.f + '|' + pnorm(l.t)]; return p ? Object.assign({}, l, { procs: p }) : l; }) });
+    if (Object.keys(pub).length) { B = d;
       var place = ((B.adLines || []).filter(function (l) { return l.confirm; })[0] || {}).confirm || 'Mentions a place: confirm with the firm before use.';
       d = Object.assign({}, B, { adLines: B.adLines.map(function (l) { var p = pub[adAnchor(l)]; if (!p) return l;
         var t = p.e.replacement, li = lineIn(B, t), con = li.concepts;
@@ -1630,8 +1637,14 @@
     if (/\breal (lawyer|attorney)s?\b/i.test(t)) w.push('no “real lawyers / attorneys” (brand voice)');
     return w; }
   var dayOf = function (t) { return t ? new Date(t).toISOString().slice(0, 10) : ''; };
-  function cluEditNote(l) { var out = '';
+  /* MH-51: a published edit once applied to the rules file, shown in the set it was made on (ck; a line text can sit in
+     several sets) as "was" the suggested line it replaced (its anchor), the latest one when edits were chained */
+  function procNote(l, ck) { var es = (l.procs || []).filter(function (e) { return !ck || !e.cluster || e.cluster === ck; }); if (!es.length) return '';
+    var e = es.slice().sort(function (a, b) { return (b.applied_at || b.published_at || 0) - (a.applied_at || a.published_at || 0); })[0];
+    return '<div class="sub editnote"><span class="chip">processed edit</span> was “' + esc(String(e.anchor || '').slice(9) || e.original || '') + '” · ' + esc(e.author || '') + ' ' + dayOf(e.published_at || e.timestamp) + (e.applied_at ? ', processed ' + dayOf(e.applied_at) : '') + (e.comment ? ': ' + esc(e.comment) : '') + '</div>'; }
+  function cluEditNote(l, ck) { var out = '';
     if (l.base) out += '<div class="sub editnote"><span class="chip ok">published edit</span> was “' + esc(l.base) + '” · ' + esc(l.edit.author || '') + (l.edit.published_by && l.edit.published_by !== l.edit.author ? ', published by ' + esc(l.edit.published_by) : '') + ' ' + dayOf(l.edit.published_at || l.edit.timestamp) + (l.edit.comment ? ': ' + esc(l.edit.comment) : '') + '</div>';
+    else if (l.procs) out += procNote(l, ck);
     cluEditsOf(l).filter(function (e) { return (e.status || 'pending') === 'pending'; }).forEach(function (e) { var w = cluEditWarn(l.role, e.replacement || '');
       out += '<div class="sub editnote"><span class="chip warn">edit pending</span> “' + esc(e.replacement || '') + '” · ' + esc(e.author || 'Anonymous') + ' ' + dayOf(e.timestamp) + (e.comment ? ': ' + esc(e.comment) : '') +
         (w.length ? ' <span class="chip red" title="' + esc(w.join('; ')) + '">' + w.length + ' warning' + (w.length > 1 ? 's' : '') + '</span>' : '') +
@@ -1758,7 +1771,7 @@
           return '<tr data-place="' + esc(y.place) + '"' + (cu ? ' data-key="' + esc(Lc.key) + '" data-lv="' + cu.lv + '"' : '') + (nw ? ' data-new="' + esc(nw.id) + '"' : '') + (y.first ? ' class="blk"' : '') + '><td class="sub">' + esc(y.place) + '</td>' +
             (cu ? '<td>' + esc(Lc.mod || Lc.t) + flags(Lc) + '</td><td class="num">' + n0(Lc.m.impr) + '</td><td class="num">' + pct(Lc.m.clicks, Lc.m.impr) + '</td><td class="num">' + n1(Lc.m.conv) + '</td><td class="num">' + per(Lc.m.cost, Lc.m.conv) + '</td><td>' + chipOf(LCOV[cu.lv]) + miss(Lc) + '</td>'
               : '<td class="sub">—</td><td></td><td></td><td></td><td></td><td></td>') +
-            (nw ? '<td class="newc">' + esc(nw.t) + (nw.confirm ? ' <span class="chip warn" title="' + esc(nw.confirm) + '">confirm</span>' : '') + (nw.status !== 'proposed' ? ' <span class="chip' + (nw.status === 'approved' ? ' ok' : ' red') + '">' + esc(nw.status) + '</span>' : '') + editBtn(nw, 'x' + ai) + cluFrom(nw) + cluEditNote(nw) + '</td><td>' + chipOf(LCOV[lineLevel(o.t, nw)]) + '</td>'
+            (nw ? '<td class="newc">' + esc(nw.t) + (nw.confirm ? ' <span class="chip warn" title="' + esc(nw.confirm) + '">confirm</span>' : '') + (nw.status !== 'proposed' ? ' <span class="chip' + (nw.status === 'approved' ? ' ok' : ' red') + '">' + esc(nw.status) + '</span>' : '') + editBtn(nw, 'x' + ai) + cluFrom(nw) + cluEditNote(nw, o.t.cluster) + '</td><td>' + chipOf(LCOV[lineLevel(o.t, nw)]) + '</td>'
               : '<td class="sub newc">' + (y.place.indexOf('More') === 0 ? 'not in the new ad' : '—') + '</td><td></td>') + '</tr>' + (nw ? cluEditRow(nw, 'x' + ai, 9) : ''); }).join('');
         return '<details class="abad"' + (ai ? '' : ' open') + ' data-ad="' + esc(a.id) + '"><summary><b>' + esc(x.c.name + ' › ' + x.g.name) + '</b> · ad <a href="' + adHref(platBy.google, x.c, x.g, a) + '">' + esc(a.id) + '</a> ' + runChip(a).replace(/<div[^>]*>.*<\/div>/, '') +
           ' · now (A) ' + covChip(A) + ' → new (B) ' + (B == null ? dash : covChip(B)) + '</summary>' +
@@ -1808,7 +1821,7 @@
     var setT = '<h3>Ad lines for this cluster <span class="sub">draft, attorney review</span></h3><p class="note">15 headlines by role (5 problem questions, 5 solutions, 5 calls to action) and 5 descriptions; problem i, solution i, call to action i and description i form block i, one message. The search’s key words sit in one headline. Every one of the ' + all.length + ' terms of the cluster (any scope) has a headline here with all its key words in its own words' + (function () { var n = all.filter(function (t) { return D.terms[t].partialOk; }).length; return n ? ', except ' + n + ' marked “partial accepted” (they do not fit one headline)' : ''; })() + '; the counts show how many terms each line covers fully. One responsive search ad holds up to 4 descriptions.</p>' +
       '<div class="scroll"><table class="tbl clusug"><thead><tr><th>Place</th><th>Line</th><th class="num">Chars</th><th class="num">Terms covered fully</th><th title="The line’s status in the rules file (proposed, approved, rejected); edits have their own notes under the line">Rules status</th></tr></thead><tbody>' + set.map(function (y) { var l = y.l;
         var n = all.filter(function (t) { return lineLevel(D.terms[t], l) === 2; }).length;
-        return '<tr data-set="' + esc(l.id) + '"' + (y.first ? ' class="blk"' : '') + '><td class="sub">' + esc(y.place) + '</td><td>' + esc(l.t) + (l.confirm ? ' <span class="chip warn" title="' + esc(l.confirm) + '">confirm</span>' : '') + editBtn(l, 'c') + cluFrom(l) + cluEditNote(l) + '</td><td class="num">' + l.chars + '</td><td class="num">' + n + ' <span class="sub">of ' + all.length + '</span></td><td><span class="chip' + (l.status === 'approved' ? ' ok' : l.status === 'rejected' ? ' red' : '') + '">' + esc(l.status) + '</span></td></tr>' + cluEditRow(l, 'c', 5); }).join('') + '</tbody></table></div>';
+        return '<tr data-set="' + esc(l.id) + '"' + (y.first ? ' class="blk"' : '') + '><td class="sub">' + esc(y.place) + '</td><td>' + esc(l.t) + (l.confirm ? ' <span class="chip warn" title="' + esc(l.confirm) + '">confirm</span>' : '') + editBtn(l, 'c') + cluFrom(l) + cluEditNote(l, c.key) + '</td><td class="num">' + l.chars + '</td><td class="num">' + n + ' <span class="sub">of ' + all.length + '</span></td><td><span class="chip' + (l.status === 'approved' ? ' ok' : l.status === 'rejected' ? ' red' : '') + '">' + esc(l.status) + '</span></td></tr>' + cluEditRow(l, 'c', 5); }).join('') + '</tbody></table></div>';
     return sum + terms + setT;
   }
   function wireClusters(D, c) {
@@ -1971,6 +1984,7 @@
     var place = ((TD.adLines || []).filter(function (l) { return l.confirm; })[0] || {}).confirm || 'Mentions a place: confirm with the firm before use.';
     var abNotes = function (l, pe) { var out = '';
       if (l.base) out += '<div class="sub editnote"><span class="chip ok">published edit</span> was “' + esc(l.base) + '” · ' + esc(l.edit.author || '') + ' ' + dayOf(l.edit.published_at || l.edit.timestamp) + '</div>';
+      else if (l.procs) out += procNote(l, parts[1]);
       pe.forEach(function (e, k) { var w = cluEditWarn(l.role, e.replacement || '');
         out += '<div class="sub editnote" data-abpend="' + esc(e._k) + '"><span class="chip warn">' + (k ? 'edit pending' : 'pending edit, previewed') + '</span> ' + (k ? '“' + esc(e.replacement || '') + '”' : 'was “' + esc(l.t) + '”') + ' · ' + esc(e.author || 'Anonymous') + ' ' + dayOf(e.timestamp) + (e.comment ? ': ' + esc(e.comment) : '') +
           (w.length ? ' <span class="chip red" title="' + esc(w.join('; ')) + '">' + w.length + ' warning' + (w.length > 1 ? 's' : '') + '</span>' : '') +
