@@ -1882,6 +1882,10 @@
       /* MH-30: B = the ad of the cluster whose 15 + 5 lines cover the most of the ad group's impressions fully (a broad ad
          group's biggest cluster can cover less than the ads running now); ties → the cluster with more impressions */
       var best = null;
+      /* MH-54 (operator 10 Oct): a cluster file can pin an ad group's B to one of its sets (ads.abPin): only that set is
+         measured and used, even where another set would cover a little more */
+      var pin = null; Object.keys(CLUS).some(function (ik) { var c = (CLUS[ik].abPin || {})[k]; if (c && (CLUS[ik].adSets || {})[c]) { pin = ik + '|' + c; return true; } return false; });
+      g.pinned = !!pin; if (pin) { ks = [pin]; if (g.cl[pin] == null) g.cl[pin] = 0; }
       ks.forEach(function (ck) { var parts = ck.split('|'), TD = cluDoc0(parts[0]), S = TD.adSets[parts[1]], L = cluAdLines(TD);
         var lines = ['problem', 'solution', 'cta', 'description'].reduce(function (q, r) { return q.concat(S[r].map(function (i) { return L[i]; })); }, []).filter(function (l) { return l.status !== 'rejected'; });
         var lv = g.rows.map(function (x) { return x.kind === 'cluster' ? termLevel(x.v, lines.map(function (l) { var li = lineIn(x.D, l.t); return { f: l.f, concepts: li.concepts, fam: li.fam }; })) : null; });
@@ -1889,7 +1893,8 @@
         var f = tot ? ok / tot : 0; if (!best || f > best.f) best = { ck: ck, f: f, lv: lv, TD: TD, key: parts[1] }; });
       g.top = best.ck; g.rows.forEach(function (x, n) { x.b = best.lv[n]; });
       g.topLabel = (best.TD.label || intentLabel(best.TD.intent)) + ' › ' + (best.TD.clusters.filter(function (c) { return c.key === best.key; })[0] || {}).label;
-      g.share = g.impr ? g.cl[g.top] / g.impr : 0; g.biggest = ks[0] === g.top;
+      if (g.pinned) g.topLabel += ' (pinned)';
+      g.share = g.impr ? g.cl[g.top] / g.impr : 0; g.biggest = g.clusters[0] === g.top;
       g.gain = g.rows.reduce(function (q, x) { return q + (x.b != null && x.b > x.now ? x.r.t.impr || 0 : 0); }, 0);
       g.fullB = w('b'); g.worse = g.fullB != null && g.fullNow != null && g.fullB < g.fullNow;
       var pools = {}; g.rows.forEach(function (x) { var p = x.v.planner; if (x.kind === 'cluster' && p) pools[p.pool] = p.avg; });   /* Keyword Planner: each pool once (MH-30) */
@@ -1916,7 +1921,7 @@
     var body = P.map(function (g) {
       var run = runG(g), lab = run ? '<span class="chip ok">running</span>' : runChip(g.ads[0]);
       return '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); AB_EDIT = null; drawerAB(g); }) + '><td><b>' + esc(g.adgroup) + '</b> ' + lab + '<div class="sub">' + esc(g.campaign) + '</div></td><td class="num">' + n0(g.rows.length) + '</td><td class="num">' + n0(g.impr) + '</td><td class="num">' + pct(g.clicks, g.impr) + '</td><td class="num">' + n1(g.conv) + '</td>' +
-        '<td>' + esc(g.topLabel) + '<div class="sub">' + Math.round(g.share * 100) + '% of impressions' + (g.biggest ? '' : ' (not the biggest cluster: its copy covers more)') + (g.clusters.length > 1 ? ' · ' + (g.clusters.length - 1) + ' other cluster' + (g.clusters.length > 2 ? 's' : '') : '') + '</div>' + (g.worse ? '<span class="chip red">B covers less than A: split the ad group first</span>' : '') + '</td>' +
+        '<td>' + esc(g.topLabel) + '<div class="sub">' + Math.round(g.share * 100) + '% of impressions' + (g.pinned ? ' (pinned in its cluster file)' : g.biggest ? '' : ' (not the biggest cluster: its copy covers more)') + (g.clusters.length > 1 ? ' · ' + (g.clusters.length - 1) + ' other cluster' + (g.clusters.length > 2 ? 's' : '') : '') + '</div>' + (g.worse ? '<span class="chip red">B covers less than A: split the ad group first</span>' : '') + '</td>' +
         '<td class="num">' + n0(g.ads.length) + '<div class="sub">' + g.ads.filter(function (a) { return (a.serving || {}).running; }).length + ' running</div></td>' +
         '<td class="num">' + pctf(g.fullNow) + ' → <b>' + pctf(g.fullB) + '</b></td><td class="num">' + n0(g.gain) + '</td><td class="num">' + (g.searches == null ? dash : n0(g.searches)) + '</td></tr>'; }).join('');
     return '<h1>A/B test plan</h1>' + lead + '<div class="mgrid wide">' + mt('Ad groups', n0(P.length)) + mt('Running (7 Oct)', n0(nRun) + ' of ' + n0(P.length)) + mt('Impressions (90 days)', n0(P.reduce(function (q, g) { return q + g.impr; }, 0))) + mt('Impressions B would cover better', n0(tot)) + '</div>' + how +
