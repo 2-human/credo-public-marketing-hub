@@ -2088,6 +2088,9 @@
     /* a block is found by its section and its text (repeated texts, e.g. the stat blocks, sit in different sections) */
     (R.blocks || []).forEach(function (b, i) { var hit = blocks.filter(function (x) { return used.indexOf(x.el) < 0 && (!b.section || x.section === b.section) && pgNorm(x.el.textContent) === pgNorm(b.old); })[0], el = hit && hit.el; if (el) used.push(el);
       if (!el) { rep.missing.push(b.old); return; } pageSetText(el, b.new); el.setAttribute('data-mh', 'block:' + i); rep.blocks++; });
+    /* MH-56: no space before a headline piece that is only punctuation (a base page whose accent piece ends with a space) */
+    [].forEach.call(doc.querySelectorAll('h1'), function (h) { var k = [].slice.call(h.children);
+      k.forEach(function (c, n) { var nx = k[n + 1]; if (nx && /^[?.!,:;]/.test(nx.textContent.trim())) { var last = c.lastChild || c; if (last.nodeType === 3 || !c.children.length) { if (c.children.length) last.textContent = last.textContent.replace(/\s+$/, ''); else c.textContent = c.textContent.replace(/\s+$/, ''); } } }); });
     /* MH-38: the standalone landing-page variant (like start.credolegal.com): the site menu's links give way to links to the
        page's own sections; the call line stays; the review button goes to the form */
     var V = ((R.page || {}).variants || {})[variant];
