@@ -2106,6 +2106,7 @@
       "document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('[data-mh-more]');if(!a)return;e.preventDefault();var m=a.previousElementSibling;m.hidden=!m.hidden;a.textContent=m.hidden?'Read more':'Read less';a.setAttribute('aria-expanded',String(!m.hidden));var it=a.closest('.faqitem');if(it)it.classList.toggle('mh-open',!m.hidden);});" +
       "document.addEventListener('click',function(e){var q=e.target.closest&&e.target.closest('.mh-acc .lp-faq-q');if(!q)return;var o=q.closest('.faqitem').classList.toggle('mh-open');q.setAttribute('aria-expanded',String(o));});" +
       "document.addEventListener('keydown',function(e){if(e.key!=='Enter'&&e.key!==' ')return;var q=e.target.closest&&e.target.closest('.mh-acc .lp-faq-q');if(!q)return;e.preventDefault();q.click();});";
+    sc.textContent += "document.documentElement.setAttribute('data-mh-ready','1');";   /* MH-59: the handlers are in place (checks wait for it) */
     doc.body.appendChild(sc);
     return { html: '<!doctype html>' + doc.documentElement.outerHTML, report: rep }; }
   function abPageTab(g) { var R = (ADC.pageRecs || {})[g.key]; if (!R || !R.page) return null;
