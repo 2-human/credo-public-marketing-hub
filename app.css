@@ -395,3 +395,5 @@ ol.abl li.abprev > .abt { outline:1px dashed #d9b44a; outline-offset:2px; border
 .ptabs button { font:inherit; font-size:13px; background:none; border:0; border-bottom:2px solid transparent; padding:7px 12px 6px; color:var(--mute); cursor:pointer; }
 .ptabs button[aria-selected="true"] { color:var(--ink); border-bottom-color:var(--accent); font-weight:600; cursor:default; }
 .adpglink { margin:4px 0 8px; } .abcell.adflash { outline:2px solid #8fa9d6; outline-offset:-2px; transition:outline-color .4s; }
+/* MH-79: Copy link in the top bar and the drawer head */
+.linkchip { cursor:pointer; background:none; font:inherit; } .drawer-head .drawer-link { margin-left:auto; margin-right:10px; font-size:12.5px; white-space:nowrap; }

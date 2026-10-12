@@ -246,10 +246,29 @@
   function pickDrawerTab(i) {
     [].forEach.call(document.querySelectorAll('#drawer-body [data-dtab]'), function (b) { var on = +b.getAttribute('data-dtab') === i; b.setAttribute('aria-selected', String(on)); if (on) { lastTab = b.textContent; try { sessionStorage.setItem('mh-drawer-tab', lastTab); } catch (e) {} } });
     [].forEach.call(document.querySelectorAll('#drawer-body .dpanel'), function (p, k) { p.hidden = k !== i; });
+    if (/[?&]d=/.test(location.hash)) setHashParams({ dt: drTab() });   /* MH-79 */
   }
+  /* MH-79 (operator 12 Oct): a permalink for every screen and every open drawer. Screens have their hash (#/…, ?tab=…); a
+     drawer adds d=<the item that opened it> and dt=<its tab> to the hash: the item's own text, lowercased and dashed, with
+     ~n when several items read the same. Loading such a hash renders the screen, finds the item and opens its drawer on that
+     tab. history.replaceState keeps the address current without a new history step or a re-route. */
+  var ROUTE_CLOSE = false;
+  /* the item's name, not its numbers or status: a row's first cell with text, else a card's first titled element, without status chips */
+  function drLabel(el) { var n = el.tagName === 'TR' ? ([].filter.call(el.cells, function (c) { return c.textContent.trim(); })[0] || el) : ([].filter.call(el.querySelectorAll('h3, b, strong, .cap'), function (x) { return x.textContent.trim(); })[0] || el); n = n.cloneNode(true);
+    [].forEach.call(n.querySelectorAll('.chip, button'), function (x) { x.remove(); }); [].forEach.call(n.querySelectorAll('div, small, p'), function (x) { x.insertAdjacentText('beforebegin', ' '); }); return n.textContent || ''; }
+  function drSig(el) { return drLabel(el).toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 60).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); }
+  function drKey(el) { var sig = drSig(el), same = [].filter.call($('app-main').querySelectorAll('[data-dr]'), function (x) { return drSig(x) === sig; });
+    return sig + (same.length > 1 ? '~' + (same.indexOf(el) + 1) : ''); }
+  function drFind(key) { var m = /^(.*?)(?:~(\d+))?$/.exec(key || ''), same = [].filter.call($('app-main').querySelectorAll('[data-dr]'), function (x) { return drSig(x) === m[1]; });
+    return same[(+m[2] || 1) - 1] || null; }
+  function setHashParams(set) { var h = location.hash || '#/overview', i = h.indexOf('?'), base = i < 0 ? h : h.slice(0, i), q = new URLSearchParams(i < 0 ? '' : h.slice(i + 1));
+    Object.keys(set).forEach(function (k) { if (set[k] == null) q.delete(k); else q.set(k, set[k]); });
+    var qs = q.toString().replace(/%7E/g, '~'); history.replaceState(history.state, '', location.pathname + location.search + base + (qs ? '?' + qs : '')); }
+  var drTab = function () { var t = document.querySelector('#drawer-body [data-dtab][aria-selected="true"]'); return t ? t.textContent : null; };
   function closeDrawer() {
     if (typeof closeLDrawer === 'function') closeLDrawer(true);
     var d = $('app-drawer'); d.classList.remove('open'); d.setAttribute('aria-hidden', 'true');
+    if (!ROUTE_CLOSE && /[?&]d=/.test(location.hash)) setHashParams({ d: null, dt: null });   /* MH-79: the permalink drops the drawer */
     /* MH-32: focus never stays on a control in a closed drawer */
     var a = document.activeElement; if (a && a.closest && a.closest('#app-drawer, #app-ldrawer')) $('app-main').focus({ preventScroll: true });
     [].forEach.call(document.querySelectorAll('.sel'), function (e) { e.classList.remove('sel'); });
@@ -2383,8 +2402,8 @@
     if (!quiet && LD_FROM && document.body.contains(LD_FROM)) LD_FROM.focus(); LD_FROM = null; return true; }
   /* ───────────── router ───────────── */
   function route() {
-    DR = []; closeDrawer();
-    var hash = location.hash || '#/overview', qs = hash.split('?'); hash = qs[0]; TAB = ((qs[1] || '').match(/(?:^|&)tab=([a-z0-9-]+)/) || [])[1] || null;
+    DR = []; ROUTE_CLOSE = true; closeDrawer(); ROUTE_CLOSE = false;
+    var hash = location.hash || '#/overview', qs = hash.split('?'), PQ = new URLSearchParams(qs[1] || ''); hash = qs[0]; TAB = ((qs[1] || '').match(/(?:^|&)tab=([a-z0-9-]+)/) || [])[1] || null;
     var parts = hash.replace(/^#\//, '').split('/').map(dec), main = $('app-main'), html = '', crumbs = [];
     main.classList.remove('flush'); var after = null;
     if (parts[0] === 'website') {
@@ -2442,6 +2461,9 @@
     } else if (parts[0] === 'overview') { crumbs.push(['Overview', '#/overview']); html = viewOverview();
     } else { location.replace('#/overview'); return; }
     main.innerHTML = html; main.scrollTop = 0; if (after) after();
+    if (PQ.get('d')) setTimeout(function () { var el = drFind(PQ.get('d')); if (!el) { setHashParams({ d: null, dt: null }); return; }   /* MH-79: reopen the drawer of a permalink */
+      if (PQ.get('dt')) lastTab = PQ.get('dt'); el.classList.add('sel'); if (el.scrollIntoView) el.scrollIntoView({ block: 'nearest' }); DR[+el.getAttribute('data-dr')](el);
+      if (PQ.get('dt') && drTab() !== PQ.get('dt')) setHashParams({ dt: drTab() }); }, 0);
     $('app-crumbs').innerHTML = crumbs.map(function (c, i) { return (i ? '<span class="sep">›</span>' : '') + '<a href="' + esc(c[1]) + '">' + esc(c[0]) + '</a>'; }).join('');
     document.title = (crumbs.length ? crumbs[crumbs.length - 1][0] + ' · ' : '') + 'Marketing Hub · Crēdo Legal';
     renderTree(); $('app-nav').classList.remove('open'); $('app-menu').setAttribute('aria-expanded', 'false');
@@ -2452,7 +2474,7 @@
     var r = '';
     if (M) r += '<label>Period <select id="app-period">' + Object.keys(M.periods).map(function (k) { return '<option value="' + k + '"' + (k === Hub.periodKey ? ' selected' : '') + '>' + esc(M.periods[k].label) + '</option>'; }).join('') + '</select></label><span class="mh-chip ok">Metrics: local</span>';
     else r += '<span class="mh-chip warn">Metrics locked</span>';
-    $('app-right').innerHTML = r + '<span class="mh-chip">Local only</span>';
+    $('app-right').innerHTML = r + '<span class="mh-chip">Local only</span><button type="button" class="mh-chip linkchip" id="app-copylink" title="Copy a link to this screen (and the open drawer, with its tab)">Copy link</button>';
     var sel = $('app-period'); if (sel) sel.addEventListener('change', function () { try { localStorage.setItem('mh-period', sel.value); } catch (e) {} location.reload(); });
   }
   document.addEventListener('click', function (e) {
@@ -2461,9 +2483,15 @@
     var t = e.target.closest('[data-tog]');
     if (t) { var k = t.getAttribute('data-tog'); expanded[k] = t.getAttribute('aria-expanded') !== 'true'; renderTree(); return; }
     var d = e.target.closest('[data-dr]');
-    if (d && !e.target.closest('a')) { [].forEach.call(document.querySelectorAll('.sel'), function (x) { x.classList.remove('sel'); }); DR[+d.getAttribute('data-dr')](d); }
+    if (d && !e.target.closest('a')) { [].forEach.call(document.querySelectorAll('.sel'), function (x) { x.classList.remove('sel'); });
+      var dk = $('app-main').contains(d) && drSig(d) ? drKey(d) : null; DR[+d.getAttribute('data-dr')](d);   /* an item without a usable name gets no d= */
+      if (dk && $('app-drawer').classList.contains('open')) setHashParams({ d: dk, dt: drTab() }); }   /* MH-79: the open drawer's permalink */
   });
   $('drawer-close').addEventListener('click', closeDrawer);
+  /* MH-79: Copy link (top bar and drawer): the current address, which carries the screen, its tab and the open drawer */
+  document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('#app-copylink, #drawer-copylink'); if (!b) return;
+    var done = function (t) { var o = b.textContent; b.textContent = t; setTimeout(function () { b.textContent = o; }, 1500); };
+    (navigator.clipboard ? navigator.clipboard.writeText(location.href) : Promise.reject()).then(function () { done('Link copied'); }, function () { window.prompt('Copy this link:', location.href); }); });
   $('ldrawer-close').addEventListener('click', function () { closeLDrawer(); });
   /* while the term list is open, the A/B drawer behind it is dimmed and a click on it closes the list (one active layer) */
   $('app-drawer').addEventListener('click', function (e) { if ($('app-drawer').classList.contains('under')) { e.preventDefault(); e.stopPropagation(); closeLDrawer(); } }, true);
