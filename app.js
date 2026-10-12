@@ -69,6 +69,15 @@
     return { angle: s.angle, home: s.home != null ? s.home : s.angle, label: s.label, homeCopy: s.homeCopy, pages: pages, types: s.types };   /* home: staging address of the home (PBI-43: '' for the default site) */
   });
   var siteBy = {}; sites.forEach(function (s) { siteBy[s.angle] = s; });
+  /* MH-66 (operator 12 Oct): Website › Landing pages — every landing page (each microsite's Services pages, the default site's
+     Defense Services pages included) grouped by debt type, beside Website › Microsites */
+  var LP_BASE = '#/website/landing-pages', lpTypes = [], lpTypeBy = {};
+  sites.forEach(function (s) { s.types.forEach(function (t) {
+    var g = lpTypeBy[t.type] || (lpTypeBy[t.type] = lpTypes[lpTypes.push({ key: t.type, label: t.label, pages: [] }) - 1]);
+    s.pages.forEach(function (p) { if (p.kind === 'service' && p.debt === t.label) g.pages.push({ s: s, p: p }); }); }); });
+  lpTypes.forEach(function (g) { var seen = {}; g.pages = g.pages.filter(function (x) { if (seen[x.p.label]) return false; seen[x.p.label] = 1; return true; }); });
+  var lpCount = lpTypes.reduce(function (t, g) { return t + g.pages.length; }, 0);
+  var lpHref = function (g, x) { return LP_BASE + (g ? '/' + g.key + (x ? '/' + enc(x.p.label) : '') : ''); };
 
   /* ───────────── model: ads ───────────── */
   var plats = A.platforms, platBy = {}; plats.forEach(function (p) { platBy[p.key] = p; });
@@ -274,7 +283,10 @@
       { label: 'Rules', href: '#/work/rules' }, { label: 'Change log', href: '#/work/changelog' }] : [];
     var more = [['index.html', 'Overview'], ['funnel.html', 'Funnel'], ['tracking.html', 'Tracking'], ['reference.html', 'Reference']]
       .map(function (x) { return { label: x[1], href: '#/more/' + x[0] }; });
-    return [{ sec: 'Website', label: 'All microsites', href: '#/website', count: sites.length, children: web },
+    var lps = lpTypes.map(function (g) { return { label: g.label, href: lpHref(g), count: g.pages.length,
+      children: g.pages.map(function (x) { return { label: x.p.label, href: lpHref(g, x), dot: x.p.running ? 'on' : null }; }) }; });
+    return [{ sec: 'Website', label: 'Microsites', href: '#/website', count: sites.length, children: web },
+            { label: 'Landing pages', href: LP_BASE, count: lpCount, children: lps },
             { sec: 'Ads', label: 'All platforms', href: '#/ads', count: plats.length, children: ads },
             { label: 'Ads → pages → phones', href: '#/ads/phones', count: PM ? PM.rows.length : 0 },
             { label: 'Search terms', href: '#/ads/terms', count: STG() ? allTerms().length : 0 }, { label: 'Search-term clusters', href: '#/ads/clusters', count: Object.keys(CLUS).length || 0 }, { label: 'A/B test plan', href: '#/ads/ab-tests' }, { label: 'New pages', href: '#/ads/new-pages', count: STG() ? newPageRows().length : 0 },
@@ -314,7 +326,7 @@
     return { spend: b.total.cost, visits: b.total.sessions, formSubmit: b.total.formSubmit, sa_signed: b.total.sa_signed };
   }
   function viewWebsite() {
-    var h = '<h1>Website</h1><p class="lead">The default site (staging’s root domain: the home page and six Defense Services pages) and the seven cluster microsites, mirrored 1:1 from staging.credolegal.com (local only). Each has a home page, about and legal pages, ' +
+    var h = '<h1>Microsites</h1><p class="lead">The default site (staging’s root domain: the home page and six Defense Services pages) and the seven cluster microsites, mirrored 1:1 from staging.credolegal.com (local only). Each has a home page, about and legal pages, ' +
       'a thank-you page and its cluster’s landing pages under Services. Choose a microsite on the left to see its pages; click a card here for details and metrics.</p><div class="tiles">';
     sites.forEach(function (s) {
       var m = siteSum(s), svc = s.pages.filter(function (p) { return p.kind === 'service'; }).length;
@@ -322,6 +334,35 @@
         '<div class="big">' + (m.any ? usd(m.spend) : dash) + '</div><p>spend* · ' + (m.any ? n0(m.visits) + ' sessions · ' + n1(m.sa_signed) + ' signed*' : 'no paid traffic in the period') + '</p></button>';
     });
     return h + '</div>';
+  }
+  function lpSum(g) { var o = { spend: 0, visits: 0, sa_signed: 0, any: false };
+    g.pages.forEach(function (x) { var m = pageNums(x.p.liveSlug); if (!m) return; o.any = true; o.spend += m.spend; o.visits += m.visits; o.sa_signed += m.sa_signed; }); return o; }
+  function viewLandingPages() {
+    var h = '<h1>Landing pages</h1><p class="lead">All ' + lpCount + ' landing pages of the website, grouped by debt type: each microsite’s Services pages and the default site’s Defense Services pages, mirrored 1:1 from staging.credolegal.com. ' +
+      'Open a debt type in the navigation to see its pages; click a card here for details and metrics.</p><div class="tiles">';
+    lpTypes.forEach(function (g) {
+      var m = lpSum(g), run = g.pages.filter(function (x) { return x.p.running; }).length;
+      h += '<button class="tile"' + dr(function (el) { el.classList.add('sel'); drawerLpType(g); }) + '><h3>' + esc(g.label) + '</h3><p>' + g.pages.length + ' landing pages · ' + run + ' with a running ad</p>' +
+        '<div class="big">' + (m.any ? usd(m.spend) : dash) + '</div><p>spend* · ' + (m.any ? n0(m.visits) + ' sessions · ' + n1(m.sa_signed) + ' signed*' : 'no paid traffic in the period') + '</p></button>';
+    });
+    return h + '</div><p class="note">* Spend and signed clients are allocated to a page by the share of each ad’s sessions that landed there (estimate).</p>';
+  }
+  function drawerLpType(g) {
+    var m = lpSum(g), h = kv([['Debt type', esc(g.label)], ['Landing pages', String(g.pages.length)], ['Running ads', String(g.pages.filter(function (x) { return x.p.running; }).length)],
+      ['Microsites', esc(g.pages.map(function (x) { return x.s.label; }).filter(function (v, i, a) { return a.indexOf(v) === i; }).join(' · '))]]);
+    var mh = '<h3>Metrics · ' + esc(periodLabel()) + ' (landing pages summed)</h3>' + (m.any ? '<div class="mgrid">' + mt('Spend*', usd(m.spend)) + mt('Sessions', n0(m.visits)) + mt('Signed*', n1(m.sa_signed)) + '</div><p class="note">* allocated to the pages by each ad’s share of sessions (estimate).</p>' : '<p class="note">No paid traffic in the period.</p>');
+    openDrawer(g.label, [['Basic info', h + '<div class="toolbar">' + go(lpHref(g), 'Open the landing pages') + '</div>'], ['Metrics', mh]]);
+  }
+  function viewLpType(g) {
+    var h = '<h1>' + esc(g.label) + '</h1><p class="lead">Landing pages for ' + esc(g.label.toLowerCase()) + ' · ' + g.pages.length + ' pages. Click a row for details and metrics; click a page name to open it.</p>' +
+      '<div class="scroll"><table class="tbl"><thead><tr><th>Page</th><th>Microsite</th><th>Ad</th><th class="num">Spend*</th><th class="num">Sessions</th><th class="num">Form sends</th><th class="num">Signed*</th></tr></thead><tbody>';
+    g.pages.forEach(function (x) {
+      var m = pageNums(x.p.liveSlug);
+      h += '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); drawerPage(x.s, x.p); }) + '><td><a href="' + lpHref(g, x) + '">' + esc(x.p.label) + '</a></td>' +
+        '<td><a href="#/website/' + x.s.angle + '">' + esc(x.s.label) + '</a></td><td>' + (x.p.running ? '<span class="chip ok">running</span>' : x.p.hadAd ? '<span class="chip">had an ad</span>' : '') + '</td>' +
+        '<td class="num">' + (m ? usd(m.spend) : dash) + '</td><td class="num">' + (m ? n0(m.visits) : dash) + '</td><td class="num">' + (m ? n0(m.formSubmit) : dash) + '</td><td class="num">' + (m ? n1(m.sa_signed) : dash) + '</td></tr>';
+    });
+    return h + '</tbody></table></div><p class="note">Sessions and form sends are measured on each page. * Spend and signed clients are allocated to a page by the share of each ad’s sessions that landed there (estimate).</p>';
   }
   function viewSite(s) {
     var h = '<h1>' + esc(s.label) + '</h1><p class="lead">Microsite <code>' + esc(s.angle) + '</code> · ' + s.pages.length + ' pages. Click a row for details and metrics; ' +
@@ -336,8 +377,8 @@
     return h + '</tbody></table></div><p class="note">Sessions and form sends are measured on each page. * Spend and signed clients are allocated to a page by the share of each ad’s sessions that landed there (estimate).</p>';
   }
   var phoneView = (function () { try { return localStorage.getItem('mh-phone') === '1'; } catch (e) { return false; } })();
-  function viewPage(s, p) {
-    var base = '#/website/' + s.angle + '/' + enc(p.id), stp = ST && p.kind === 'service' ? (ST.pages[p.label] || []) : [], pads = adsForPage(p.liveSlug);
+  function viewPage(s, p, base) {
+    base = base || '#/website/' + s.angle + '/' + enc(p.id); var stp = ST && p.kind === 'service' ? (ST.pages[p.label] || []) : [], pads = adsForPage(p.liveSlug);
     var head = '<h1>' + esc(p.label) + '</h1>' + tabsBar(base, [['preview', 'Preview'], ['ads', 'Ads', pads.length], ['statutes', 'Statutes', stp.length]], TAB);
     if (TAB === 'ads') return head + pageAdsHtml(pads);
     if (TAB === 'statutes') return head + pageStatutesHtml(stp);
@@ -2213,7 +2254,11 @@
     if (parts[0] === 'website') {
       crumbs.push(['Website', '#/website']);
       var s = siteBy[parts[1]];
-      if (!s) html = viewWebsite();
+      if (parts[1] === 'landing-pages') {   /* MH-66 */
+        crumbs.push(['Landing pages', LP_BASE]); var lg = lpTypeBy[parts[2]], lx = lg && parts[3] ? lg.pages.filter(function (x) { return x.p.label === parts[3]; })[0] : null;
+        if (lg) crumbs.push([lg.label, lpHref(lg)]);
+        if (lx) { crumbs.push([lx.p.label, hash]); html = viewPage(lx.s, lx.p, lpHref(lg, lx)); after = TAB ? null : wirePage; } else html = lg ? viewLpType(lg) : viewLandingPages(); }
+      else if (!s) html = viewWebsite();
       else {
         crumbs.push([s.label, '#/website/' + s.angle]);
         var pg = parts[2] ? s.pages.filter(function (x) { return x.id === parts.slice(2).join('/'); })[0] : null;
