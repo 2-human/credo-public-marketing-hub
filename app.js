@@ -1973,7 +1973,30 @@
   /* MH-75 (operator 12 Oct): the page has the A/B plan's layout (a row per ad group, summary tiles, how to launch); a row opens
      the ad group in the side drawer with the A/B drawer's layout: Ad group, Search terms, Ads (the new ads side by side), Page
      (each ad's landing page, the A/B page preview), Negatives */
-  var NC_PAGE = null, NC_OPEN = null;
+  var NC_PAGE = null, NC_OPEN = null, NC_EDIT = null;
+  /* MH-76 (operator 12 Oct: "every new ad needs to be editable, for now"): a new ad's line is edited as B's lines in the A/B
+     drawer: Edit → a pending edit in the shared review database (credo-712c4 /comments, kind ad-line-edit), previewed at once
+     with its coverage; Publish / Discard; the operator's published edits are applied to new-clusters/<key>.json
+     (cluster-edits.py --apply). The anchor names the cluster, the ad and the line ("ncline:<key>|<ad>|<H|D>|<text>"), so an edit
+     never shows on an A/B line with the same text. Shown: the newest pending edit (previewed), else a published one not yet applied. */
+  var ncDoc = function (c) { return { intent: 'new:' + c.key, lineRx: c.lineRx || {}, families: c.families || {} }; };
+  function ncEditsOf(an) { return COMMENTS ? Object.keys(COMMENTS).map(function (k) { if (COMMENTS[k]) COMMENTS[k]._k = k; return COMMENTS[k]; })
+    .filter(function (e) { return e && e.page === 'credo-marketing-hub' && e.kind === 'ad-line-edit' && e.anchor === an; }).sort(function (x, y) { return (y.timestamp || 0) - (x.timestamp || 0); }) : []; }
+  function ncLines(c, a) { var n = {}, ab = { problem: 'P', solution: 'S', cta: 'C', description: 'D' };
+    return a.lines.map(function (l) { var r = ab[l.role]; n[r] = (n[r] || 0) + 1; var L = { id: a.key + ':' + r + n[r], line: r + n[r], ad: a.key, f: l.f, role: l.role, t0: l.t };
+      L.anchor = 'ncline:' + c.key + '|' + a.key + '|' + l.f + '|' + l.t; var E = ncEditsOf(L.anchor);
+      L.pend = E.filter(function (e) { return (e.status || 'pending') === 'pending'; }); L.pub = E.filter(function (e) { return e.status === 'published'; })[0] || null;
+      L.t = L.pend.length ? L.pend[0].replacement : L.pub ? L.pub.replacement : l.t; return L; }); }
+  /* coverage with the lines as shown (the A/B plan's rule, termLevel): per ad, either ad, and per line on its own */
+  function ncCover(c) { var D = ncDoc(c), lit = function (L) { var li = lineIn(D, L.t); return { f: L.f, concepts: li.concepts, fam: li.fam }; };
+    var T = c.terms.filter(function (t) { return t.concepts && t.concepts.length; }), tot = T.reduce(function (q, t) { return q + t.impr; }, 0);
+    var ads = c.ads.map(function (a) { var lines = ncLines(c, a), LI = lines.map(lit), full = {};
+      T.forEach(function (t) { if (termLevel(t, LI) === 2) full[t.term] = 1; });
+      lines.forEach(function (L, i) { var fl = 0, pt = 0; T.forEach(function (t) { var v = lineLevel(t, LI[i]); if (L.f === 'H' && v === 2) fl++; else if (v) pt++; }); L.nFull = fl; L.nPart = pt; });
+      return { a: a, lines: lines, full: full, share: tot ? T.reduce(function (q, t) { return q + (full[t.term] ? t.impr : 0); }, 0) / tot : null,
+        nPend: lines.filter(function (L) { return L.pend.length; }).length, nPub: lines.filter(function (L) { return !L.pend.length && L.pub; }).length }; });
+    var either = tot ? T.reduce(function (q, t) { return q + (ads.some(function (x) { return x.full[t.term]; }) ? t.impr : 0); }, 0) / tot : null;
+    return { ads: ads, either: either }; }
   function viewNewClusters() {
     var L = NCL(), sum = function (f) { return L.reduce(function (q, c) { return q + (c.totals[f] || 0); }, 0); };
     var lead = '<p class="lead">New ad groups built from searches that no current ad group targets. There is nothing running to compare, so there is no A/B test: each ad group gets new ads (15 headlines: 5 problem questions, 5 solutions, 5 calls to action, and 5 descriptions) and one landing page per ad. ' +
@@ -1987,7 +2010,9 @@
     var body = L.map(function (c) {
       return '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); drawerNC(c); }) + '><td><b>' + esc(c.label) + '</b> <span class="chip warn">new</span><div class="sub">' + (c.campaign ? esc(c.campaign) : 'campaign to decide') + '</div></td>' +
         '<td class="num">' + n0(c.totals.terms) + '</td><td class="num">' + n0(c.totals.impr) + '</td><td class="num">' + pct(c.totals.clicks, c.totals.impr) + '</td><td class="num">' + n1(c.totals.conv) + '</td>' +
-        '<td class="num">' + n0(c.ads.length) + '</td><td class="num">' + c.ads.map(function (a) { return pcN(a.fullShare); }).join(' · ') + ' → <b>' + pcN(c.eitherFull) + '</b></td><td class="num">' + n0(c.negatives.length) + '</td></tr>'; }).join('');
+        '<td class="num">' + n0(c.ads.length) + '</td><td class="num">' + (function () { var cv = ncCover(c), pe = cv.ads.reduce(function (q, x) { return q + x.nPend; }, 0), pu = cv.ads.reduce(function (q, x) { return q + x.nPub; }, 0);
+          var what = [pe ? pe + ' pending edit' + (pe > 1 ? 's' : '') + ' previewed' : '', pu ? pu + ' published edit' + (pu > 1 ? 's' : '') + ' (not yet applied)' : ''].filter(Boolean).join(', ');
+          return cv.ads.map(function (x) { return pcN(x.share); }).join(' · ') + ' → <b>' + pcN(cv.either) + '</b>' + (what ? '<div class="sub">with ' + what + '</div>' : ''); })() + '</td><td class="num">' + n0(c.negatives.length) + '</td></tr>'; }).join('');
     return '<h1>New topical clusters</h1>' + lead + '<div class="mgrid wide">' + mt('Ad groups', n0(L.length)) + mt('New ads', n0(L.reduce(function (q, c) { return q + c.ads.length; }, 0))) + mt('Impressions (where they ran)', n0(sum('impr'))) + mt('Conversions (where they ran)', n1(sum('conv'))) + '</div>' + how +
       '<div class="scroll"><table class="tbl"><thead><tr><th>Ad group</th><th class="num">Searches</th><th class="num">Impr.</th><th class="num">CTR</th><th class="num">Conv.</th><th class="num">New ads</th><th class="num" title="Share of impressions from searches with a headline holding all their key words: each ad, then either">Full: each ad → either</th><th class="num">Negatives</th></tr></thead><tbody>' +
       (body || '<tr><td colspan="8" class="empty">No new topical clusters yet.</td></tr>') + '</tbody></table></div>';
@@ -2001,23 +2026,38 @@
   function drawerNC(c, tabName) {
     NC_OPEN = c; [].forEach.call(document.querySelectorAll('#abpg'), function (x) { x.remove(); });   /* a closed A/B drawer's page preview (same id) */
     var SECS = [['problem', 'Problems'], ['solution', 'Solutions'], ['cta', 'Calls to action'], ['description', 'Descriptions']];
-    var cols = c.ads.map(function (a) { return { head: '<div class="abtag">' + esc(a.label) + ' <span class="chip warn">draft</span></div><div class="sub">' + esc(a.angle) + '</div>' +
-        '<div class="abm">' + mt('Covered fully', pcN(a.fullShare)) + mt('Either ad', pcN(c.eitherFull)) + '</div><div class="sub">Share of the ad group’s impressions · 15 headlines, 5 descriptions (an ad takes 4)</div>',
-      sec: SECS.map(function (q) { return '<ol class="abl">' + a.lines.filter(function (l) { return l.role === q[0]; }).map(function (l) {
-        return '<li><span class="abt">' + esc(l.t) + '</span><div class="abstl"><span class="abstz">Full ' + n0(l.full.length) + '</span> <span class="abstz">Partial ' + n0(l.part.length) + '</span> <span class="sub">of ' + n0(c.terms.length) + ' searches</span></div></li>'; }).join('') + '</ol>'; }) }; });
+    var CV = ncCover(c);
+    var cols = CV.ads.map(function (x) { var a = x.a;
+      return { head: '<div class="abtag">' + esc(a.label) + ' <span class="chip warn">draft</span></div><div class="sub">' + esc(a.angle) + '</div>' +
+        '<div class="abm">' + mt('Covered fully', pcN(x.share)) + mt('Either ad', pcN(CV.either)) + '</div><div class="sub">Share of the ad group’s impressions' + (x.nPend ? ' · ' + x.nPend + ' pending edit' + (x.nPend > 1 ? 's' : '') + ' previewed' : '') + (x.nPub ? ' · ' + x.nPub + ' published edit' + (x.nPub > 1 ? 's' : '') + ' (not yet applied)' : '') + ' · 15 headlines, 5 descriptions (an ad takes 4)</div>',
+        sec: SECS.map(function (q) { return '<ol class="abl">' + x.lines.filter(function (L) { return L.role === q[0]; }).map(function (L) {
+          var notes = (L.pub && !L.pend.length ? '<div class="sub editnote"><span class="chip ok">published edit</span> was “' + esc(L.t0) + '” · ' + esc(L.pub.author || '') + ' ' + dayOf(L.pub.published_at || L.pub.timestamp) + ' · applied to the ad file on the next update</div>' : '') +
+            L.pend.map(function (e, k) { var w = cluEditWarn(L.role, e.replacement || '');
+              return '<div class="sub editnote"><span class="chip warn">' + (k ? 'edit pending' : 'pending edit, previewed') + '</span> ' + (k ? '“' + esc(e.replacement || '') + '”' : 'was “' + esc(L.pub ? L.pub.replacement : L.t0) + '”') + ' · ' + esc(e.author || 'Anonymous') + ' ' + dayOf(e.timestamp) + (e.comment ? ': ' + esc(e.comment) : '') +
+                (w.length ? ' <span class="chip red" title="' + esc(w.join('; ')) + '">' + w.length + ' warning' + (w.length > 1 ? 's' : '') + '</span>' : '') +
+                ' <button type="button" class="linkbtn" data-ncpub="' + esc(e._k) + '">Publish</button> <button type="button" class="linkbtn" data-ncrej="' + esc(e._k) + '">Discard</button></div>'; }).join('');
+          var lim = L.role === 'description' ? 90 : 30, wf = cluEditWarn(L.role, L.t);
+          var form = NC_EDIT === L.id ? '<form class="adedit abedit ncform" data-line="' + esc(L.id) + '" data-role="' + esc(L.role) + '">' +
+            '<label>Proposed ' + esc(L.role === 'description' ? 'description' : L.role === 'cta' ? 'call to action' : L.role + ' headline') + ' <span class="sub">(limit ' + lim + ' characters)</span></label>' +
+            '<textarea name="t" rows="' + (L.role === 'description' ? 3 : 1) + '">' + esc(L.t) + '</textarea><div class="sub ecount">' + L.t.length + ' / ' + lim + (wf.length ? ' · <span class="ewarn">' + esc(wf.join('; ')) + '</span>' : '') + '</div>' +
+            '<label>Comment <span class="sub">(optional)</span></label><textarea name="c" rows="2"></textarea>' +
+            '<div><button class="btn" type="submit">Save edit</button> <button type="button" class="linkbtn" data-ncedit-cancel>Cancel</button> <span class="sub estatus">Saving posts a pending edit to the shared review database and previews it here at once; nothing changes in Google Ads.</span></div></form>' : '';
+          return '<li data-ncline="' + esc(L.id) + '"' + (L.pend.length ? ' class="abprev"' : '') + '><span class="abt">' + esc(L.t) + '</span> <button type="button" class="linkbtn" data-ncedit="' + esc(L.id) + '" aria-expanded="' + (NC_EDIT === L.id) + '">Edit</button>' +
+            '<div class="abstl"><span class="abstz">Full ' + n0(L.nFull) + '</span> <span class="abstz">Partial ' + n0(L.nPart) + '</span> <span class="sub">of ' + n0(c.terms.length) + ' searches</span></div>' + notes + form + '</li>'; }).join('') + '</ol>'; }) }; });
     var cmp = '<div class="scroll"><div class="abcmp" style="grid-template-columns:repeat(' + cols.length + ',minmax(230px,1fr))">' +
       cols.map(function (x) { return '<div class="abcell abh">' + x.head + '</div>'; }).join('') +
       SECS.map(function (q, k) { return '<h4 class="absec">' + q[1] + '</h4>' + cols.map(function (x) { return '<div class="abcell">' + x.sec[k] + '</div>'; }).join(''); }).join('') + '</div></div>';
     var terms = c.terms.slice().sort(function (x, y) { return y.impr - x.impr; }).map(function (t) {
       return '<tr><td>' + esc(t.term) + '<div class="sub">' + esc(Object.keys(t.where || {}).join(' · ')) + '</div></td><td class="num">' + n0(t.impr) + '</td><td class="num">' + pct(t.clicks, t.impr) + '</td><td class="num">' + n1(t.conv) + '</td>' +
-        c.ads.map(function (a) { var v = a.levels[t.term]; return '<td>' + (v == null ? '<span class="sub">no key words</span>' : covChip(v)) + '</td>'; }).join('') + '</tr>'; }).join('');
+        CV.ads.map(function (x) { if (!t.concepts || !t.concepts.length) return '<td><span class="sub">no key words</span></td>'; var D = ncDoc(c);
+          return '<td>' + covChip(termLevel(t, x.lines.map(function (L) { var li = lineIn(D, L.t); return { f: L.f, concepts: li.concepts, fam: li.fam }; }))) + '</td>'; }).join('') + '</tr>'; }).join('');
     var tabs = [['Ad group', kv([['Ad group', esc(c.label) + ' <span class="chip warn">new</span>'], ['Campaign', c.campaign ? esc(c.campaign) : '<span class="chip warn">to decide</span> <span class="sub">(operator, 12 Oct: later)</span>'],
         ['Searches', n0(c.totals.terms) + ' · ' + n0(c.totals.impr) + ' impr. · ' + pct(c.totals.clicks, c.totals.impr) + ' CTR · ' + n1(c.totals.conv) + ' conv. · ' + usd(c.totals.cost) + ' (where they ran)'],
-        ['Covered fully', c.ads.map(function (a) { return esc(a.label) + ' ' + pcN(a.fullShare); }).join(' · ') + ' · either ad ' + pcN(c.eitherFull)], ['Negatives', n0(c.negatives.length) + ' searches'], ['About', esc(c.about)]]) +
+        ['Covered fully', CV.ads.map(function (x) { return esc(x.a.label) + ' ' + pcN(x.share); }).join(' · ') + ' · either ad ' + pcN(CV.either)], ['Negatives', n0(c.negatives.length) + ' searches'], ['About', esc(c.about)]]) +
         '<h4>New ads</h4><ul class="notes">' + c.ads.map(function (a) { return '<li><b>' + esc(a.label) + '</b>: ' + esc(a.angle) + ' <span class="sub">page ' + esc(a.page) + '</span></li>'; }).join('') + '</ul>'],
       ['Search terms', '<p class="note">Every search of the ad group, its numbers where it ran, and its coverage by each new ad (full: one headline has all its key words in its own words).</p><div class="scroll"><table class="tbl"><thead><tr><th>Search</th><th class="num">Impr.</th><th class="num">CTR</th><th class="num">Conv.</th>' +
         c.ads.map(function (a) { return '<th>' + esc(a.label) + '</th>'; }).join('') + '</tr></thead><tbody>' + terms + '</tbody></table></div>'],
-      ['Ads', '<p class="note">The new ads side by side. Problem i, solution i, call to action i and description i form block i. Full / Partial: the searches a line covers on its own.</p>' + cmp],
+      ['Ads', '<p class="note">The new ads side by side. Problem i, solution i, call to action i and description i form block i. Full / Partial: the searches a line covers on its own. Edit a line to propose new wording: it is saved as a pending edit and previewed here at once (with its coverage); Publish accepts it, Discard drops it. Published edits are applied to the ad on the next update.</p>' + cmp],
       ['Page', '<div data-ncpanel>' + ncPageHtml(c) + '</div>'],
       ['Negatives', '<p class="note">Searches for a free or pro bono lawyer (and “no win no fee”): Credo’s defense is not free. Add them to the ad group as exact-match negatives.</p><div class="scroll"><table class="tbl"><thead><tr><th>Search</th><th class="num">Impr.</th><th class="num">Clicks</th><th class="num">Conv.</th></tr></thead><tbody>' +
         c.negatives.map(function (t) { return '<tr><td>' + esc(t.term) + '</td><td class="num">' + n0(t.impr) + '</td><td class="num">' + n0(t.clicks) + '</td><td class="num">' + n1(t.conv) + '</td></tr>'; }).join('') + '</tbody></table></div>']];
@@ -2026,6 +2066,29 @@
   }
   document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-ncpage]'); if (!b || !NC_OPEN) return;   /* the Page tab: switch to the other ad's page */
     NC_PAGE = b.getAttribute('data-ncpage'); var box = b.closest('[data-ncpanel]'); box.innerHTML = ncPageHtml(NC_OPEN); abPageLoad(); });
+  /* MH-76: redraw the open new-cluster drawer in place (same tab and scroll), and the list behind it */
+  function ncRedraw(focusSel) { if (!NC_OPEN || !$('app-drawer').classList.contains('open')) return;
+    if (/^#\/ads\/new-clusters/.test(location.hash)) { var m = $('app-main'), y = m.scrollTop; DR = []; m.innerHTML = viewNewClusters(); m.scrollTop = y; }
+    var bd = $('drawer-body'), y2 = bd.scrollTop; drawerNC(NC_OPEN); bd.scrollTop = y2;
+    var el = focusSel && bd.querySelector(focusSel); if (el) { el.focus({ preventScroll: true }); if (el.setSelectionRange) { el.setSelectionRange(el.value.length, el.value.length); var fm = el.closest('form'); if (fm && fm.scrollIntoView) fm.scrollIntoView({ block: 'nearest' }); } } }
+  document.addEventListener('click', function (e) { if (!e.target.closest || !e.target.closest('#drawer-body') || !NC_OPEN) return;
+    var ed = e.target.closest('[data-ncedit]'), ec = e.target.closest('[data-ncedit-cancel]'), pb = e.target.closest('[data-ncpub]'), rj = e.target.closest('[data-ncrej]');
+    if (ed) { var id = ed.getAttribute('data-ncedit'); NC_EDIT = NC_EDIT === id ? null : id; ncRedraw(NC_EDIT ? '.ncform textarea[name=t]' : '[data-ncedit="' + CSS.escape(id) + '"]'); return; }
+    if (ec) { var id2 = NC_EDIT; NC_EDIT = null; ncRedraw('[data-ncedit="' + CSS.escape(id2 || '') + '"]'); return; }
+    if (pb || rj) { var line = (pb || rj).closest('[data-ncline]').getAttribute('data-ncline');
+      setEditStatus((pb || rj).getAttribute(pb ? 'data-ncpub' : 'data-ncrej'), !!pb).then(function (ok) { if (ok) ncRedraw('[data-ncedit="' + CSS.escape(line) + '"]'); }); } });
+  document.addEventListener('input', function (e) { var f = e.target.closest && e.target.closest('#drawer-body .ncform'); if (!f || e.target.name !== 't') return;
+    var role = f.getAttribute('data-role'), t = e.target.value, w = cluEditWarn(role, t), lim = role === 'description' ? 90 : 30;
+    f.querySelector('.ecount').innerHTML = t.length + ' / ' + lim + (w.length ? ' · <span class="ewarn">' + esc(w.join('; ')) + '</span>' : ''); });
+  document.addEventListener('submit', function (e) { var f = e.target.closest && e.target.closest('#drawer-body .ncform'); if (!f || !NC_OPEN) return; e.preventDefault(); e.stopImmediatePropagation();
+    var c = NC_OPEN, id = f.getAttribute('data-line'), ak = id.split(':')[0], a = c.ads.filter(function (x) { return x.key === ak; })[0], L = ncLines(c, a).filter(function (x) { return x.id === id; })[0];
+    var t = f.querySelector('[name=t]').value.trim(), cm = f.querySelector('[name=c]').value.trim(), st = f.querySelector('.estatus');
+    if (!t || t === L.t) { st.textContent = 'Change the text first.'; return; }
+    var who = reviewerName(); if (!who) { st.textContent = 'A name is needed to save.'; return; }
+    var rec = { page: 'credo-marketing-hub', anchor: L.anchor, kind: 'ad-line-edit', intent: 'new:' + c.key, cluster: ak, line: L.line, role: L.role,
+      original: L.t0, replacement: t, comment: cm, warnings: cluEditWarn(L.role, t), author: who, status: 'pending', timestamp: Date.now(), source: 'new-cluster ' + c.key + '|' + ak };
+    st.textContent = 'Saving…';
+    postLineEdit(rec).then(function () { NC_EDIT = null; ncRedraw('[data-ncedit="' + CSS.escape(id) + '"]'); }).catch(function () { st.textContent = 'Could not save the edit. Try again.'; }); }, true);
   function viewABPlan() {
     var P = abPlan(), pctf = function (v) { return v == null ? dash : Math.round(v * 100) + '%'; };
     var lead = '<p class="lead">Google Ads serves ads per ad group, so the A/B test runs per ad group. <b>A</b> is the responsive search ad (or ads) running there today; <b>B</b> is one new ad built from the suggested copy of one of its clusters: the one whose lines cover the most of the ad group’s impressions fully (15 headlines: 5 problem questions, 5 solutions, 5 calls to action, and the 5 descriptions, of which Google uses up to 4). ' +
@@ -2394,5 +2457,5 @@
   $('app-filter').addEventListener('input', renderTree);
   $('app-menu').addEventListener('click', function () { var o = $('app-nav').classList.toggle('open'); $('app-menu').setAttribute('aria-expanded', String(o)); });
   window.addEventListener('hashchange', route);
-  header(); route(); loadComments().then(function () { CLU_VER++; if (CLU_REDRAW) CLU_REDRAW(); });
+  header(); route(); loadComments().then(function () { CLU_VER++; if (CLU_REDRAW) CLU_REDRAW(); ncRedraw(); if (/^#\/ads\/new-clusters/.test(location.hash) && !$('app-drawer').classList.contains('open')) { DR = []; $('app-main').innerHTML = viewNewClusters(); } });   /* MH-76: new-cluster edits too */
 })();
