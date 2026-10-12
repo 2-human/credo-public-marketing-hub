@@ -281,11 +281,12 @@
       { label: 'Decisions', href: '#/work/decisions', count: B.decisions.length }, { label: 'Manual steps', href: '#/work/manual', count: B.manual.length },
       { label: 'Reviews', href: '#/work/reviews', count: RV ? RV.groups.length : 0, children: RV ? RV.groups.map(function (g) { return { label: g.id + ' · ' + g.title, href: '#/work/reviews/' + enc(g.id) }; }) : [] },
       { label: 'Rules', href: '#/work/rules' }, { label: 'Change log', href: '#/work/changelog' }] : [];
-    var more = [['index.html', 'Overview'], ['funnel.html', 'Funnel'], ['tracking.html', 'Tracking'], ['reference.html', 'Reference']]
+    var more = [['index.html', 'KPI overview'], ['funnel.html', 'Funnel'], ['tracking.html', 'Tracking'], ['reference.html', 'Reference']]
       .map(function (x) { return { label: x[1], href: '#/more/' + x[0] }; });
     var lps = lpTypes.map(function (g) { return { label: g.label, href: lpHref(g), count: g.pages.length,
       children: g.pages.map(function (x) { return { label: x.p.label, href: lpHref(g, x), dot: x.p.running ? 'on' : null }; }) }; });
-    return [{ sec: 'Website', label: 'Microsites', href: '#/website', count: sites.length, children: web },
+    return [{ sec: 'Overview', label: 'All sections', href: '#/overview' },   /* MH-68 */
+            { sec: 'Websites', label: 'Microsites', href: '#/website', count: sites.length, children: web },
             { label: 'Landing pages', href: LP_BASE, count: lpCount, children: lps },
             { sec: 'Ads', label: 'All platforms', href: '#/ads', count: plats.length, children: ads },
             { label: 'Ads → pages → phones', href: '#/ads/phones', count: PM ? PM.rows.length : 0 },
@@ -294,7 +295,7 @@
   }
   function adLabel(p, a) { return p.key === 'google' ? (a.headlines[0] || a.name) : p.key === 'meta' ? (a.version + ' · ' + a.name.split('-').slice(0, -1).join('-').replace(/^DD_/, '')) : a.name; }
   function renderTree() {
-    var cur = (location.hash || '#/website').split('?')[0], q =   /* a view's tab (?tab=…) keeps its nav entry current */ ($('app-filter').value || '').trim().toLowerCase();
+    var cur = (location.hash || '#/overview').split('?')[0], q =   /* a view's tab (?tab=…) keeps its nav entry current */ ($('app-filter').value || '').trim().toLowerCase();
     if (lastCur !== cur) { expanded[cur] = true; lastCur = cur; }   /* a newly opened item shows its children */
     var ns = nodes();
     /* open the ancestors of the current item */
@@ -323,6 +324,18 @@
   /* MH-67 (operator 12 Oct): the top pages of Microsites and Landing pages are a grid of links to each debt type's pages
      (metrics stay on the microsite, debt-type and page views) */
   var tail = function (slug, type) { return slug.replace('debt-' + type + '-', '').replace(/-/g, ' '); };   /* debt-lawsuit-respond-on-time → respond on time */
+  /* MH-68 (operator 12 Oct): Overview = every section of the hub in a grid, a card per menu section with its pages (built
+     from the menu itself, so it never drifts); the hub opens here */
+  function viewOverview() {
+    var cards = [], cur = null;
+    nodes().forEach(function (n) {
+      if (n.sec) { cur = n.sec === 'Overview' ? null : { sec: n.sec, items: [] }; if (cur) cards.push(cur); }
+      if (cur && n.href) cur.items.push(n);
+    });
+    return '<h1>Overview</h1><p class="lead">Every section of the Marketing Hub. Each card is a section of the menu; click a page to open it.</p><div class="tiles links">' +
+      cards.map(function (c) { return '<div class="tile"><h3>' + esc(c.sec) + '</h3><ul class="lnks">' + c.items.map(function (n) {
+        return '<li><a href="' + esc(n.href) + '">' + esc(n.label) + '</a>' + (n.count != null && n.count !== 0 ? ' <span class="cnt">' + esc(n.count) + '</span>' : '') + '</li>'; }).join('') + '</ul></div>'; }).join('') + '</div>';
+  }
   function viewWebsite() {
     var h = '<h1>Microsites</h1><p class="lead">The default site (staging’s root domain: the home page and six Defense Services pages) and the seven cluster microsites, mirrored 1:1 from staging.credolegal.com (local only). ' +
       'Each card links to the microsite and to its page for each debt type.</p><div class="tiles links">';
@@ -2230,11 +2243,11 @@
   /* ───────────── router ───────────── */
   function route() {
     DR = []; closeDrawer();
-    var hash = location.hash || '#/website', qs = hash.split('?'); hash = qs[0]; TAB = ((qs[1] || '').match(/(?:^|&)tab=([a-z0-9-]+)/) || [])[1] || null;
+    var hash = location.hash || '#/overview', qs = hash.split('?'); hash = qs[0]; TAB = ((qs[1] || '').match(/(?:^|&)tab=([a-z0-9-]+)/) || [])[1] || null;
     var parts = hash.replace(/^#\//, '').split('/').map(dec), main = $('app-main'), html = '', crumbs = [];
     main.classList.remove('flush'); var after = null;
     if (parts[0] === 'website') {
-      crumbs.push(['Website', '#/website']);
+      crumbs.push(['Websites', '#/website']);
       var s = siteBy[parts[1]];
       if (parts[1] === 'landing-pages') {   /* MH-66 */
         crumbs.push(['Landing pages', LP_BASE]); var lg = lpTypeBy[parts[2]], lx = lg && parts[3] ? lg.pages.filter(function (x) { return x.p.label === parts[3]; })[0] : null;
@@ -2283,7 +2296,8 @@
     } else if (parts[0] === 'more' && /^[a-z]+\.html$/.test(parts[1] || '')) {
       crumbs.push([parts[1].replace('.html', ''), hash]); main.classList.add('flush');
       html = '<iframe class="embed" src="' + parts[1] + '?embed=1" title="' + esc(parts[1]) + '"></iframe>';
-    } else { location.replace('#/website'); return; }
+    } else if (parts[0] === 'overview') { crumbs.push(['Overview', '#/overview']); html = viewOverview();
+    } else { location.replace('#/overview'); return; }
     main.innerHTML = html; main.scrollTop = 0; if (after) after();
     $('app-crumbs').innerHTML = crumbs.map(function (c, i) { return (i ? '<span class="sep">›</span>' : '') + '<a href="' + esc(c[1]) + '">' + esc(c[0]) + '</a>'; }).join('');
     document.title = (crumbs.length ? crumbs[crumbs.length - 1][0] + ' · ' : '') + 'Marketing Hub · Crēdo Legal';

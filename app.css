@@ -389,3 +389,4 @@ ol.abl li.abprev > .abt { outline:1px dashed #d9b44a; outline-offset:2px; border
 .lnks { list-style:none; margin:8px 0 0; padding:0; font-size:13px; line-height:1.5; } .lnks li { padding:3px 0; border-top:1px solid var(--line); } .lnks li:first-child { border-top:0; }
 .lnks .sub-l { font-size:12.5px; }
 @media (max-width:700px) { .lnks li { padding:7px 0; } .lnks a { display:inline-block; min-height:24px; } }   /* MH-67: larger tap rows on phones */
+.lnks .cnt { color:var(--mute); font-size:12px; font-variant-numeric:tabular-nums; }   /* MH-68: counts beside Overview links */
