@@ -259,11 +259,12 @@
     var ads = plats.map(function (p) {
       return { label: p.label, href: adHref(p), count: p.campaigns.length,
         children: p.campaigns.map(function (c) {
+          var ov = p.key === 'meta' && ovSets(c).length ? [{ label: 'A1–A6 creatives', href: adHref(p, c) + '/A1-A6', count: ovSets(c).reduce(function (t, g) { return t + g.ads.length; }, 0) }] : [];   /* MH-64 */
           return { label: c.name, href: adHref(p, c), count: c.groups.length, dot: c.servingNow ? 'on' : '',
-            children: c.groups.map(function (g) {
+            children: ov.concat(c.groups.map(function (g) {
               return { label: g.name, href: adHref(p, c, g), count: g.ads.length,
                 children: g.ads.map(function (a) { return { label: adLabel(p, a), href: adHref(p, c, g, a), dot: a.status === 'ENABLED' ? 'on' : (/hold/i.test(a.status) ? 'hold' : '') }; }) };
-            }) };
+            })) };
         }) };
     });
     var work = B ? [{ label: 'Board', href: '#/work', count: B.pbis.filter(function (p) { return p.visible !== false; }).length,
@@ -458,7 +459,7 @@
       h += tabsBar(adHref(p, c), [['groups', unit, c.groups.length], ['extensions', 'Extensions', (c.extensions || []).length], ['images', 'Images', (c.images || []).length]], TAB);
       if (TAB === 'extensions') return h + extensionsHtml(c);
       if (TAB === 'images') return h + imagesHtml(c);
-    } else h += '<h2>' + unit + '</h2>';
+    } else h += (p.key === 'meta' && ovSets(c).length ? '<p><a class="btn" href="' + adHref(p, c) + '/A1-A6' + '">A1–A6 creatives overview →</a></p>' : '') + '<h2>' + unit + '</h2>';
     h += '<div class="scroll"><table class="tbl"><thead><tr><th>' + unit.slice(0, -1) + '</th><th class="num">Ads</th>' + totalsHead + '</tr></thead><tbody>';
     c.groups.forEach(function (g) {
       h += '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); drawerGroup(p, c, g); }) + '><td><a href="' + adHref(p, c, g) + '">' + esc(g.name) + '</a>' +
@@ -1001,6 +1002,31 @@
         '<small>' + esc(used.length ? used.join(' · ') : 'not uploaded (' + (r === '9x16' ? 'held' : 'not used') + ')') + '</small></div></button>';
     }).join('') + '</div>';
     return h;
+  }
+  /* MH-64 (operator 12 Oct): one overview page with every creative of the A1–A6 ad sets in a grid — a row per ad set, a column
+     per version (Designer set 1 · Light style · Designer set 2 · Video), one ratio at a time (videos have no 1:1: they show 4:5) */
+  function ovSets(c) { return c.groups.filter(function (g) { return /^AS_A\d_/.test(g.key); }); }
+  function viewMetaOverview(p, c) {
+    var OV_RATIOS = [['4x5', '4:5 · feeds'], ['1x1', '1:1'], ['9x16', '9:16 · stories, reels']], sets = ovSets(c), r = OV_RATIOS.map(function (x) { return x[0]; }).indexOf(TAB) >= 0 ? TAB : '4x5', base = adHref(p, c) + '/A1-A6';
+    var vers = []; sets.forEach(function (g) { g.ads.forEach(function (a) { if (vers.indexOf(a.version) < 0) vers.push(a.version); }); });
+    var n = sets.reduce(function (t, g) { return t + g.ads.length; }, 0);
+    var h = '<h1>A1–A6 creatives</h1><p class="lead">' + sets.length + ' ad sets × ' + vers.length + ' versions = ' + n + ' ads in ' + esc(c.name) +
+      '. One ratio at a time; click a creative for its file and placements, or an ad set to open it.</p>' +
+      tabsBar(base, OV_RATIOS.map(function (x) { return [x[0], x[1]]; }), r) +
+      '<div class="ovgrid r' + r + '" style="--ov-cols:' + vers.length + '"><div class="ovhead"></div>' + vers.map(function (v) { return '<div class="ovhead">' + esc(v) + '</div>'; }).join('');
+    sets.forEach(function (g) {
+      h += '<div class="ovset"><a href="' + adHref(p, c, g) + '"><b>' + esc(g.name.split('_')[0]) + '</b> ' + esc(g.name.split('_').slice(1).join(' ').replace(/-/g, ' ')) + '</a>' +
+        '<div class="sub">' + esc(g.info.Concept || '') + '</div><div class="sub">' + esc((g.info['Landing page'] || '').replace(/^https?:\/\//, '')) + '</div></div>';
+      vers.forEach(function (v) {
+        var a = g.ads.filter(function (x) { return x.version === v; })[0], files = (a && a.files) || {}, rr = files[r] ? r : files['4x5'] ? '4x5' : Object.keys(files)[0], u = rr && files[rr];
+        if (!u) { h += '<div class="ovcell empty">–</div>'; return; }
+        var roles = a.placements || {}, used = Object.keys(roles).filter(function (k) { return roles[k] === u; }).map(function (k) { return ROLE[k]; });
+        h += '<button class="thumb ovcell"' + dr(function (el) { el.classList.add('sel'); drawerFile(p, a, rr, u, used); }) + '>' +
+          (/\.mp4($|\?)/.test(u) ? '<video src="' + esc(u) + '#t=1.5" muted loop playsinline preload="metadata"></video>' : media(u, a.name + ' ' + rr)) +   /* a frame 1.5 s in: the first is blank */
+          '<div class="cap">' + esc(v) + (rr !== r ? ' <span class="chip">' + esc(rr.replace('x', ':')) + ' only</span>' : '') + '<small>' + esc(used.length ? used.join(' · ') : 'not uploaded') + '</small></div></button>';
+      });
+    });
+    return h + '</div>';
   }
   function drawerMetaCopy(p, a) {
     var h = '<h3>Primary text</h3><div class="copy">' + esc(a.primary) + '</div>' + kv([['Headline', esc(a.headline)], ['Description', esc(a.description)], ['Call to action', esc(a.cta)],
@@ -2202,6 +2228,10 @@
         /* #/ads/clusters/<intent>/<cluster>; an older #/ads/clusters/<cluster> link means the debt-lawyer intent */
         html = CLUS[parts[2]] ? viewClusters(parts[2], parts[3] || '') : viewClusters('debt_lawyer', parts[2] || ''); after = AFTER; }
       else if (parts[1] === 'new-pages' && STG()) { crumbs.push(['New pages', '#/ads/new-pages']); html = viewNewPages(); }
+      else if (parts[1] === 'meta' && parts[3] === 'A1-A6' && findAd('meta', parts[2]).c) { var fo = findAd('meta', parts[2]);   /* MH-64: A1–A6 creatives overview */
+        crumbs.push([fo.p.label, adHref(fo.p)], [fo.c.name, adHref(fo.p, fo.c)], ['A1–A6 creatives', hash]); html = viewMetaOverview(fo.p, fo.c);
+        after = function () { [].forEach.call(main.querySelectorAll('.ovgrid video'), function (v) {   /* videos play while hovered */
+          v.parentNode.addEventListener('mouseenter', function () { var q = v.play(); if (q && q.catch) q.catch(function () {}); }); v.parentNode.addEventListener('mouseleave', function () { v.pause(); }); }); }; }
       else {
       var f = findAd(parts[1], parts[2], parts[3], parts[4]);
       if (f.p) crumbs.push([f.p.label, adHref(f.p)]); if (f.c) crumbs.push([f.c.name, adHref(f.p, f.c)]); if (f.g) crumbs.push([f.g.name, adHref(f.p, f.c, f.g)]); if (f.a) crumbs.push([adLabel(f.p, f.a), hash]);

@@ -372,3 +372,15 @@ ol.abl li.abprev > .abt { outline:1px dashed #d9b44a; outline-offset:2px; border
 .abpgstat { margin:0; padding:6px 10px; border-top:1px solid var(--line); background:#fafbfc; }
 .mh-key { font-size:11px; padding:1px 6px; border-radius:3px; }
 .mh-key-c { outline:2px solid #e0a800; background:rgba(253,230,138,.45); } .mh-key-n { outline:2px dashed #2e9d4b; background:rgba(205,236,207,.35); }
+/* MH-64: A1–A6 creatives overview — a row per ad set, a column per version; the cell keeps the creative's own ratio */
+.ovgrid { display:grid; grid-template-columns:minmax(150px,190px) repeat(var(--ov-cols,4),minmax(0,1fr)); gap:12px; align-items:start; margin:12px 0 24px; }
+.ovhead { font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--mute); padding:0 2px; }
+.ovset { padding-top:6px; font-size:13px; min-width:0; overflow-wrap:anywhere; } .ovset .sub { margin-top:3px; }
+.ovcell.thumb { padding:6px; min-width:0; } .ovcell.empty { color:var(--mute); text-align:center; padding:40px 0; }
+.ovgrid .thumb img, .ovgrid .thumb video { height:auto; object-fit:cover; aspect-ratio:4/5; }
+.ovgrid.r1x1 .thumb img, .ovgrid.r1x1 .thumb video { aspect-ratio:1/1; } .ovgrid.r9x16 .thumb img, .ovgrid.r9x16 .thumb video { aspect-ratio:9/16; }
+.ovgrid.r1x1 .thumb video { aspect-ratio:4/5; }   /* videos have no 1:1: they show their 4:5 file */
+@media (max-width:700px) {
+  .ovgrid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; } .ovgrid .ovhead { display:none; }
+  .ovset { grid-column:1 / -1; padding-top:14px; border-top:1px solid var(--line); }
+}
