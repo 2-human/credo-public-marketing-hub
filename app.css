@@ -390,3 +390,8 @@ ol.abl li.abprev > .abt { outline:1px dashed #d9b44a; outline-offset:2px; border
 .lnks .sub-l { font-size:12.5px; }
 @media (max-width:700px) { .lnks li { padding:7px 0; } .lnks a { display:inline-block; min-height:24px; } }   /* MH-67: larger tap rows on phones */
 .lnks .cnt { color:var(--mute); font-size:12px; font-variant-numeric:tabular-nums; }   /* MH-68: counts beside Overview links */
+/* MH-78: a page's tabs inside the drawer's Pages tab, and the links between an ad and its page */
+.ptabs { display:flex; gap:2px; border-bottom:1px solid var(--line); margin:2px 0 8px; flex-wrap:wrap; }
+.ptabs button { font:inherit; font-size:13px; background:none; border:0; border-bottom:2px solid transparent; padding:7px 12px 6px; color:var(--mute); cursor:pointer; }
+.ptabs button[aria-selected="true"] { color:var(--ink); border-bottom-color:var(--accent); font-weight:600; cursor:default; }
+.adpglink { margin:4px 0 8px; } .abcell.adflash { outline:2px solid #8fa9d6; outline-offset:-2px; transition:outline-color .4s; }

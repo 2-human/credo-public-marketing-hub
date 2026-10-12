@@ -2020,7 +2020,9 @@
   function ncPageHtml(c) {
     var ad = c.ads.filter(function (a) { return a.key === NC_PAGE; })[0] || c.ads[0]; NC_PAGE = ad.key;
     var g = { key: 'NEW|' + c.key + '|' + ad.key, rows: c.terms.map(function (t) { return { r: { t: t } }; }) }, tab = abPageTab(g);
-    return '<div class="abpgctl ncpgsw"><span class="sub">Page for</span> ' + c.ads.map(function (a) { return '<button type="button" class="abpgbtn" data-ncpage="' + esc(a.key) + '" aria-pressed="' + (a.key === ad.key) + '">' + esc(a.label) + '</button>'; }).join('') + '</div>' +
+    /* MH-78 (operator 12 Oct): one tab per page (one page per ad), each linked to its ad */
+    return '<div class="ptabs" role="tablist" aria-label="Pages">' + c.ads.map(function (a, i) { return '<button type="button" role="tab" aria-controls="abpg" data-ncpage="' + esc(a.key) + '" aria-selected="' + (a.key === ad.key) + '">Page ' + (i + 1) + ' · ' + esc(a.label) + '</button>'; }).join('') + '</div>' +
+      '<p class="sub adpglink">For the ad <button type="button" class="linkbtn" data-goto-tab="Ads" data-goto-ad="ncad-' + esc(ad.key) + '">' + esc(ad.label) + ' →</button></p>' +
       (tab ? tab.replace('The landing page for the new ad (B):', 'The landing page for the ad “' + esc(ad.label) + '”:') : '<p class="empty">No landing page draft for this ad.</p>');
   }
   function drawerNC(c, tabName) {
@@ -2028,7 +2030,8 @@
     var SECS = [['problem', 'Problems'], ['solution', 'Solutions'], ['cta', 'Calls to action'], ['description', 'Descriptions']];
     var CV = ncCover(c);
     var cols = CV.ads.map(function (x) { var a = x.a;
-      return { head: '<div class="abtag">' + esc(a.label) + ' <span class="chip warn">draft</span></div><div class="sub">' + esc(a.angle) + '</div>' +
+      return { head: '<div class="abtag" id="ncad-' + esc(a.key) + '">' + esc(a.label) + ' <span class="chip warn">draft</span></div><div class="sub">' + esc(a.angle) + '</div>' +
+        '<p class="sub adpglink">Its page <button type="button" class="linkbtn" data-goto-tab="Pages" data-goto-page="' + esc(a.key) + '">Page ' + (c.ads.indexOf(a) + 1) + ' · ' + esc(a.page) + ' →</button></p>' +
         '<div class="abm">' + mt('Covered fully', pcN(x.share)) + mt('Either ad', pcN(CV.either)) + '</div><div class="sub">Share of the ad group’s impressions' + (x.nPend ? ' · ' + x.nPend + ' pending edit' + (x.nPend > 1 ? 's' : '') + ' previewed' : '') + (x.nPub ? ' · ' + x.nPub + ' published edit' + (x.nPub > 1 ? 's' : '') + ' (not yet applied)' : '') + ' · 15 headlines, 5 descriptions (an ad takes 4)</div>',
         sec: SECS.map(function (q) { return '<ol class="abl">' + x.lines.filter(function (L) { return L.role === q[0]; }).map(function (L) {
           var notes = (L.pub && !L.pend.length ? '<div class="sub editnote"><span class="chip ok">published edit</span> was “' + esc(L.t0) + '” · ' + esc(L.pub.author || '') + ' ' + dayOf(L.pub.published_at || L.pub.timestamp) + ' · applied to the ad file on the next update</div>' : '') +
@@ -2058,7 +2061,7 @@
       ['Search terms', '<p class="note">Every search of the ad group, its numbers where it ran, and its coverage by each new ad (full: one headline has all its key words in its own words).</p><div class="scroll"><table class="tbl"><thead><tr><th>Search</th><th class="num">Impr.</th><th class="num">CTR</th><th class="num">Conv.</th>' +
         c.ads.map(function (a) { return '<th>' + esc(a.label) + '</th>'; }).join('') + '</tr></thead><tbody>' + terms + '</tbody></table></div>'],
       ['Ads', '<p class="note">The new ads side by side. Problem i, solution i, call to action i and description i form block i. Full / Partial: the searches a line covers on its own. Edit a line to propose new wording: it is saved as a pending edit and previewed here at once (with its coverage); Publish accepts it, Discard drops it. Published edits are applied to the ad on the next update.</p>' + cmp],
-      ['Page', '<div data-ncpanel>' + ncPageHtml(c) + '</div>'],
+      ['Pages', '<div data-ncpanel>' + ncPageHtml(c) + '</div>'],
       ['Negatives', '<p class="note">Searches for a free or pro bono lawyer (and “no win no fee”): Credo’s defense is not free. Add them to the ad group as exact-match negatives.</p><div class="scroll"><table class="tbl"><thead><tr><th>Search</th><th class="num">Impr.</th><th class="num">Clicks</th><th class="num">Conv.</th></tr></thead><tbody>' +
         c.negatives.map(function (t) { return '<tr><td>' + esc(t.term) + '</td><td class="num">' + n0(t.impr) + '</td><td class="num">' + n0(t.clicks) + '</td><td class="num">' + n1(t.conv) + '</td></tr>'; }).join('') + '</tbody></table></div>']];
     if (tabName) lastTab = tabName;
@@ -2066,6 +2069,14 @@
   }
   document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-ncpage]'); if (!b || !NC_OPEN) return;   /* the Page tab: switch to the other ad's page */
     NC_PAGE = b.getAttribute('data-ncpage'); var box = b.closest('[data-ncpanel]'); box.innerHTML = ncPageHtml(NC_OPEN); abPageLoad(); });
+  /* MH-78: a link between an ad and its page switches the drawer's tab (and the page tab, or scrolls to the ad's column) */
+  document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('#drawer-body [data-goto-tab]'); if (!b) return;
+    var want = b.getAttribute('data-goto-tab'), tabs = [].slice.call(document.querySelectorAll('#drawer-body [data-dtab]')), t = tabs.filter(function (x) { return x.textContent === want; })[0]; if (!t) return;
+    pickDrawerTab(+t.getAttribute('data-dtab'));
+    var pg = b.getAttribute('data-goto-page'); if (pg && NC_OPEN && NC_PAGE !== pg) { NC_PAGE = pg; var box = document.querySelector('#drawer-body [data-ncpanel]'); if (box) { box.innerHTML = ncPageHtml(NC_OPEN); abPageLoad(); } }
+    var ad = b.getAttribute('data-goto-ad'), el = ad && document.getElementById(ad);
+    if (el) { var cell = el.closest('.abcell') || el; cell.scrollIntoView({ block: 'start' }); cell.classList.add('adflash'); setTimeout(function () { cell.classList.remove('adflash'); }, 1600); }
+    var bd = $('drawer-body'); if (!el) bd.scrollTop = 0; });
   /* MH-76: redraw the open new-cluster drawer in place (same tab and scroll), and the list behind it */
   function ncRedraw(focusSel) { if (!NC_OPEN || !$('app-drawer').classList.contains('open')) return;
     if (/^#\/ads\/new-clusters/.test(location.hash)) { var m = $('app-main'), y = m.scrollTop; DR = []; m.innerHTML = viewNewClusters(); m.scrollTop = y; }
@@ -2196,8 +2207,10 @@
     var orphanBox = orphans.length ? '<div class="abflash aborphan" role="status"><b>' + orphans.length + ' edit' + (orphans.length > 1 ? 's' : '') + ' not shown in this ad</b>: ' +
       (orphans.length > 1 ? 'their lines are' : 'its line is') + ' no longer in this ad’s suggested copy (rewritten since the edit was made; other clusters may still use the line and show the edit). Use Edit on a current line to apply ' + (orphans.length > 1 ? 'them' : 'it') + ' here.<ul>' +
       orphans.map(function (e) { return '<li>“' + esc(e.original || String(e.anchor).replace(/^adline:[HD]\|/, '')) + '” → “' + esc(e.replacement) + '” <span class="sub">' + esc(e.status) + ' · ' + esc(e.author || '') + ' ' + dayOf(e.published_at || e.timestamp) + '</span></li>'; }).join('') + '</ul></div>' : '';
-    cols.push({ head: '<div class="abtag">B · new ad <span class="chip warn">draft</span></div>' + orphanBox +
+    var pgR = (ADC.pageRecs || {})[g.key];   /* MH-78: B's page, linked from its column */
+    cols.push({ head: '<div class="abtag" id="abad-b">B · new ad <span class="chip warn">draft</span></div>' + orphanBox +
         '<div class="sub">' + (S.problem.length + S.solution.length + S.cta.length) + ' headlines, ' + S.description.length + ' descriptions · from ' + esc(g.topLabel) + '</div>' +
+        (pgTab && pgR ? '<p class="sub adpglink">Its page <button type="button" class="linkbtn" data-goto-tab="Pages">Page 1 · ' + esc(pgR.page.name || 'new page') + ' →</button></p>' : '') +
         '<div class="abm">' + mt('Covered fully, B', pc0(nPend ? fullPrev : g.fullB)) + mt('Covered fully, A', pc0(g.fullNow)) + '</div><div class="sub">Share of the ad group’s impressions' +
         (nPend ? ' · B with ' + nPend + ' pending edit' + (nPend > 1 ? 's' : '') + ' previewed (published copy: ' + pc0(g.fullB) + ')' : '') + '</div>' +
         '<div class="sub">Problem i, solution i, call to action i and description i form block i. Draft copy for attorney review; an ad takes 4 descriptions.</div>',
@@ -2215,7 +2228,8 @@
     openDrawer(g.adgroup, [['Test', kv([['Campaign › ad group', esc(g.campaign + ' › ' + g.adgroup)], ['B from', esc(g.topLabel) + ' (' + Math.round(g.share * 100) + '% of impressions)'], ['Covered fully', (g.fullNow == null ? dash : Math.round(g.fullNow * 100) + '%') + ' now → ' + (g.fullB == null ? dash : Math.round(g.fullB * 100) + '%') + ' with B'], ['Opportunity', n0(g.gain) + ' impressions from terms B covers better'], ['Monthly searches (US)', g.searches == null ? dash : n0(g.searches) + ' for the terms of its ad clusters (Keyword Planner, each pool once)']]) +
         '<h4>A: ads running now</h4><ul class="notes">' + (A || '<li>none</li>') + '</ul>'],
       ['Search terms', '<p class="note">Every active term of the ad group, its coverage now and with B. Terms in Exclude or move clusters get no B coverage.</p><div class="scroll"><table class="tbl"><thead><tr><th>Term</th><th class="num">Impr.</th><th class="num">CTR</th><th>Now</th><th>With B</th></tr></thead><tbody>' + terms + '</tbody></table></div>'],
-      ['A vs B', (function () { var f = AB_FLASH || ''; AB_FLASH = null; return f; })() + '<p class="note">The ads running in this ad group now (A) and the new ad (B) side by side. Numbers are all time in that ad (to 29 Sep); a headline or description shows its own impressions, CTR, conversions and cost per conversion in that ad. Headlines are grouped by role, most impressions first. Full / Partial: how many of the ad group’s search terms (its ad clusters) a line has all / some of the key words of (in the new copy also their 90-day impressions); click to list them. <mark class="kwf">Green</mark>: words that give full coverage of a term; <mark class="kwp">yellow</mark>: words that only give partial coverage, including synonyms (lawyer for an attorney search).</p>' + cmp], pgTab ? ['Page', pgTab] : null], 'x');
+      ['A vs B', (function () { var f = AB_FLASH || ''; AB_FLASH = null; return f; })() + '<p class="note">The ads running in this ad group now (A) and the new ad (B) side by side. Numbers are all time in that ad (to 29 Sep); a headline or description shows its own impressions, CTR, conversions and cost per conversion in that ad. Headlines are grouped by role, most impressions first. Full / Partial: how many of the ad group’s search terms (its ad clusters) a line has all / some of the key words of (in the new copy also their 90-day impressions); click to list them. <mark class="kwf">Green</mark>: words that give full coverage of a term; <mark class="kwp">yellow</mark>: words that only give partial coverage, including synonyms (lawyer for an attorney search).</p>' + cmp], pgTab ? ['Pages', '<div class="ptabs" role="tablist" aria-label="Pages"><button type="button" role="tab" aria-controls="abpg" aria-selected="true">Page 1 · B · new ad</button></div>' +
+        '<p class="sub adpglink">For the ad <button type="button" class="linkbtn" data-goto-tab="A vs B" data-goto-ad="abad-b">B · new ad →</button></p>' + pgTab] : null], 'x');
     if (pgTab) abPageLoad();
   }
   /* MH-32: the search terms behind a line's Full / Partial count, in a drawer from the left (over the A/B drawer) */
@@ -2391,7 +2405,7 @@
       if (parts[1] === 'phones' && PM) { crumbs.push(['Ads → pages → phones', '#/ads/phones']); html = viewPhoneMap(); }
       else if (parts[1] === 'terms' && STG()) { crumbs.push(['Search terms', '#/ads/terms']); if (parts[2] === 'page' && parts[3]) crumbs.push([pageLabel(parts[3]), hash]); AFTER = null; html = viewSearchTerms(parts[2] === 'page' ? parts[3] : ''); after = AFTER; }
       else if (parts[1] === 'new-clusters') { crumbs.push(['New topical clusters', '#/ads/new-clusters']); var nc = NCL().filter(function (c) { return c.key === parts[2]; })[0];   /* MH-74 */
-        html = viewNewClusters(); if (nc) after = function () { if (/^page-/.test(TAB || '')) NC_PAGE = TAB.slice(5); drawerNC(nc, /^page-/.test(TAB || '') ? 'Page' : null); }; }   /* MH-75: …/<key> opens the ad group's drawer (?tab=page-<ad>: on that ad's page) */
+        html = viewNewClusters(); if (nc) after = function () { if (/^page-/.test(TAB || '')) NC_PAGE = TAB.slice(5); drawerNC(nc, /^page-/.test(TAB || '') ? 'Pages' : null); }; }   /* MH-75: …/<key> opens the ad group's drawer (?tab=page-<ad>: on that ad's page) */
       else if (parts[1] === 'ab-tests' && STG() && cluDoc()) { crumbs.push(['A/B test plan', '#/ads/ab-tests']); html = viewABPlan(); }
       else if (parts[1] === 'clusters' && STG() && cluDoc()) { crumbs.push(['Search-term clusters', '#/ads/clusters']); AFTER = null;
         /* #/ads/clusters/<intent>/<cluster>; an older #/ads/clusters/<cluster> link means the debt-lawyer intent */
