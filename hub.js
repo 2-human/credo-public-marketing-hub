@@ -12,16 +12,21 @@ if (!window.HUB && window.parent !== window) {
  * to sections that moved into the app open the app's section. */
 var APPROUTE = { 'index.html': '#/more/index.html', 'funnel.html': '#/more/funnel.html', 'tracking.html': '#/more/tracking.html', 'reference.html': '#/more/reference.html',
   'microsites.html': '#/website', 'ads.html': '#/ads', 'organic.html': '#/organic', 'work.html': '#/work' };
+/* MH-65 (operator 12 Oct): a link that carries an app route (…/#/ads/…, also the mirror's root URL) keeps it through the
+ * redirect, so the password gate opens the linked page, not the home page */
+var HUB_FILE = location.pathname.split('/').pop() || 'index.html';
+var HUB_TO_APP = 'app.html' + (/^#\//.test(location.hash) ? location.hash : /\/$/.test(location.pathname) ? '' : (APPROUTE[HUB_FILE] || ''));   /* the bare root opens the app's home */
+var HUB_LEAVING = false;
 (function () {
-  var file = location.pathname.split('/').pop() || 'index.html';
-  if (window.top === window && APPROUTE[file]) { location.replace('app.html' + APPROUTE[file]); return; }
+  var file = HUB_FILE;
+  if (window.top === window && APPROUTE[file]) { HUB_LEAVING = true; location.replace(HUB_TO_APP); return; }
   document.addEventListener('click', function (e) {
     var a = e.target.closest && e.target.closest('a[href]'); if (!a) return;
     var m = (a.getAttribute('href') || '').match(/^([a-z]+\.html)(#.*)?$/); if (!m || !APPROUTE[m[1]]) return;
     e.preventDefault(); window.top.location.hash = APPROUTE[m[1]];
   });
 })();
-if (!window.HUB) location.replace('app.html');
+if (!window.HUB && !HUB_LEAVING) location.replace(window.top === window ? HUB_TO_APP : 'app.html');
 (function () {
   if (!window.HUB) return;
   var H = window.HUB, M = window.HUB_METRICS || null;
