@@ -69,8 +69,8 @@
     return { angle: s.angle, home: s.home != null ? s.home : s.angle, label: s.label, homeCopy: s.homeCopy, pages: pages, types: s.types };   /* home: staging address of the home (PBI-43: '' for the default site) */
   });
   var siteBy = {}; sites.forEach(function (s) { siteBy[s.angle] = s; });
-  /* MH-66 (operator 12 Oct): Website › Landing pages — every landing page (each microsite's Services pages, the default site's
-     Defense Services pages included) grouped by debt type, beside Website › Microsites */
+  /* MH-66 (operator 12 Oct): Websites › Landing pages — every landing page (each microsite's Services pages, the default site's
+     Defense Services pages included) grouped by debt type, beside Websites › Microsites */
   var LP_BASE = '#/website/landing-pages', lpTypes = [], lpTypeBy = {};
   sites.forEach(function (s) { s.types.forEach(function (t) {
     var g = lpTypeBy[t.type] || (lpTypeBy[t.type] = lpTypes[lpTypes.push({ key: t.type, label: t.label, pages: [] }) - 1]);
@@ -281,11 +281,12 @@
       { label: 'Decisions', href: '#/work/decisions', count: B.decisions.length }, { label: 'Manual steps', href: '#/work/manual', count: B.manual.length },
       { label: 'Reviews', href: '#/work/reviews', count: RV ? RV.groups.length : 0, children: RV ? RV.groups.map(function (g) { return { label: g.id + ' · ' + g.title, href: '#/work/reviews/' + enc(g.id) }; }) : [] },
       { label: 'Rules', href: '#/work/rules' }, { label: 'Change log', href: '#/work/changelog' }] : [];
-    var more = [['index.html', 'Overview'], ['funnel.html', 'Funnel'], ['tracking.html', 'Tracking'], ['reference.html', 'Reference']]
+    var more = [['index.html', 'Legacy overview'], ['funnel.html', 'Funnel'], ['tracking.html', 'Tracking'], ['reference.html', 'Reference']]
       .map(function (x) { return { label: x[1], href: '#/more/' + x[0] }; });
     var lps = lpTypes.map(function (g) { return { label: g.label, href: lpHref(g), count: g.pages.length,
       children: g.pages.map(function (x) { return { label: x.p.label, href: lpHref(g, x), dot: x.p.running ? 'on' : null }; }) }; });
-    return [{ sec: 'Website', label: 'Microsites', href: '#/website', count: sites.length, children: web },
+    return [{ sec: 'Overview', label: 'All sections', href: '#/overview' },   /* MH-68 */
+            { sec: 'Websites', label: 'Microsites', href: '#/website', count: sites.length, children: web },
             { label: 'Landing pages', href: LP_BASE, count: lpCount, children: lps },
             { sec: 'Ads', label: 'All platforms', href: '#/ads', count: plats.length, children: ads },
             { label: 'Ads → pages → phones', href: '#/ads/phones', count: PM ? PM.rows.length : 0 },
@@ -294,7 +295,7 @@
   }
   function adLabel(p, a) { return p.key === 'google' ? (a.headlines[0] || a.name) : p.key === 'meta' ? (a.version + ' · ' + a.name.split('-').slice(0, -1).join('-').replace(/^DD_/, '')) : a.name; }
   function renderTree() {
-    var cur = (location.hash || '#/website').split('?')[0], q =   /* a view's tab (?tab=…) keeps its nav entry current */ ($('app-filter').value || '').trim().toLowerCase();
+    var cur = (location.hash || '#/overview').split('?')[0], q =   /* a view's tab (?tab=…) keeps its nav entry current */ ($('app-filter').value || '').trim().toLowerCase();
     if (lastCur !== cur) { expanded[cur] = true; lastCur = cur; }   /* a newly opened item shows its children */
     var ns = nodes();
     /* open the ancestors of the current item */
@@ -312,6 +313,23 @@
     }
     $('app-tree').innerHTML = '<ul class="tree">' + ns.map(li).join('') + '</ul>';
     var c = $('app-tree').querySelector('.row.cur'); if (c && !q) c.scrollIntoView({ block: 'nearest' });
+  }
+
+  /* ───────────── main views: overview ───────────── */
+  /* MH-68 (operator 12 Oct): the Overview section = every section of the hub as a grid of cards, each listing the section's
+     top-level pages; built from the navigation tree itself so a new section or page appears here on its own */
+  function viewOverview() {
+    var groups = [], g = null;
+    nodes().forEach(function (n) {
+      if (n.sec) { g = n.sec === 'Overview' ? null : { sec: n.sec, items: [] }; if (g) groups.push(g); }
+      if (g && n.href) g.items.push(n);
+    });
+    var h = '<h1>Overview</h1><p class="lead">Every section of the hub in one place. Each card links to a section and to its pages.</p><div class="tiles links overview">';
+    groups.forEach(function (s) {
+      h += '<div class="tile"><h3><a href="' + esc(s.items[0].href) + '">' + esc(s.sec) + '</a></h3><ul class="lnks">' + s.items.map(function (i) {
+        return '<li><a href="' + esc(i.href) + '">' + esc(i.label) + '</a>' + (i.count != null ? ' <span class="cnt">' + esc(String(i.count)) + '</span>' : '') + '</li>'; }).join('') + '</ul></div>';
+    });
+    return h + '</div>';
   }
 
   /* ───────────── main views: website ───────────── */
@@ -875,12 +893,12 @@
   function drawerAd(p, c, g, a) {
     var h = kv([['Ad', esc(a.name)], ['Type', esc(a.type)], ['Status', statusChip(a.status)], ['Landing page', link(a.url)], ['URL parameters', esc(a.params || '')],
       ['Ad strength', esc(a.strength || '')], ['Approval', esc(a.approval || '')], ['Headline', esc(a.headline || '')], ['Description', esc(a.description || '')], ['Creative version', esc(a.version || '')]]);
-    var site = landingSite(a); if (site) h += '<p class="note">This landing page is in the Website section: <a href="' + site + '">open it</a>.</p>';
+    var site = landingSite(a); if (site) h += '<p class="note">This landing page is in the Websites section: <a href="' + site + '">open it</a>.</p>';
     var kwTab = p.key === 'google' && AM && AM.google.kw ? keywordsTable((AM.google.kw[a.id] || []).map(function (k) { return { kw: k[0], match: k[1], impr: k[2], clicks: k[3], cost: k[4], conv: k[5], ads: [] }; }), false) : null;
     var cTab = ['Comments', commentsTab('ad:' + p.key + ':' + a.id)];
     openDrawer(adLabel(p, a), [['Basic info', h + '<div class="toolbar">' + go(adHref(p, c, g, a), 'Show the ad variants') + '</div>'], ['Metrics', p.key === 'google' ? gMetricsHtml([a.id]) : notConnected(p)], kwTab ? ['Keywords', kwTab] : null, cTab], !!kwTab);
   }
-  function landingSite(a) {   /* the microsite page for an ad's landing page, if the Website section has it */
+  function landingSite(a) {   /* the microsite page for an ad's landing page, if the Websites section has it */
     if (!a.slug) return null; var hit = null;
     sites.some(function (s) { return s.pages.some(function (p) { if (p.liveSlug === a.slug || (p.kind === 'service' && p.id === 'services/' + a.slug)) { hit = '#/website/' + s.angle + '/' + enc(p.id); return true; } return false; }); });
     return hit;
@@ -1124,7 +1142,7 @@
         ['Bing number (call-tracking sheet)', esc(r.bingSheet)], ['Notes', esc(r.notes)]]) + '<h3>The landing page’s number by source</h3>' + srcRows;
     var adsTab = '<table class="tbl"><thead><tr><th>Ad</th><th>Type</th><th>Status</th></tr></thead><tbody>' + r.ads.map(function (a) { return '<tr><td>' + ad(a) + '</td><td>' + esc(a.type || '') + '</td><td>' + esc(a.status || '') + '</td></tr>'; }).join('') + '</tbody></table>';
     var page = kv([['Live (where the ads land today)', r.url ? link(r.url) : dash], ['Staging (the site being built)', r.stagingSlug != null ? link('https://staging.credolegal.com' + slugTxt(r.stagingSlug)) : esc(r.staging)],
-      ['In the hub', hp ? '<a href="' + hp + '">Open the page in Website</a>' : '<span class="note">not part of a microsite</span>']]);
+      ['In the hub', hp ? '<a href="' + hp + '">Open the page in Websites</a>' : '<span class="note">not part of a microsite</span>']]);
     openDrawer(r.campaign + ' › ' + r.group, [['Basic info', basic], ['Phone', phone], ['Ads', adsTab], ['Page', page]]);
   }
 
@@ -2230,11 +2248,12 @@
   /* ───────────── router ───────────── */
   function route() {
     DR = []; closeDrawer();
-    var hash = location.hash || '#/website', qs = hash.split('?'); hash = qs[0]; TAB = ((qs[1] || '').match(/(?:^|&)tab=([a-z0-9-]+)/) || [])[1] || null;
+    var hash = location.hash || '#/overview', qs = hash.split('?'); hash = qs[0]; TAB = ((qs[1] || '').match(/(?:^|&)tab=([a-z0-9-]+)/) || [])[1] || null;
     var parts = hash.replace(/^#\//, '').split('/').map(dec), main = $('app-main'), html = '', crumbs = [];
     main.classList.remove('flush'); var after = null;
-    if (parts[0] === 'website') {
-      crumbs.push(['Website', '#/website']);
+    if (parts[0] === 'overview') { crumbs.push(['Overview', '#/overview']); html = viewOverview(); }   /* MH-68 */
+    else if (parts[0] === 'website') {
+      crumbs.push(['Websites', '#/website']);
       var s = siteBy[parts[1]];
       if (parts[1] === 'landing-pages') {   /* MH-66 */
         crumbs.push(['Landing pages', LP_BASE]); var lg = lpTypeBy[parts[2]], lx = lg && parts[3] ? lg.pages.filter(function (x) { return x.p.label === parts[3]; })[0] : null;
@@ -2283,7 +2302,7 @@
     } else if (parts[0] === 'more' && /^[a-z]+\.html$/.test(parts[1] || '')) {
       crumbs.push([parts[1].replace('.html', ''), hash]); main.classList.add('flush');
       html = '<iframe class="embed" src="' + parts[1] + '?embed=1" title="' + esc(parts[1]) + '"></iframe>';
-    } else { location.replace('#/website'); return; }
+    } else { location.replace('#/overview'); return; }
     main.innerHTML = html; main.scrollTop = 0; if (after) after();
     $('app-crumbs').innerHTML = crumbs.map(function (c, i) { return (i ? '<span class="sep">›</span>' : '') + '<a href="' + esc(c[1]) + '">' + esc(c[0]) + '</a>'; }).join('');
     document.title = (crumbs.length ? crumbs[crumbs.length - 1][0] + ' · ' : '') + 'Marketing Hub · Crēdo Legal';
