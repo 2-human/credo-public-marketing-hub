@@ -315,43 +315,33 @@
   }
 
   /* ───────────── main views: website ───────────── */
-  function siteSum(s) {
-    var o = { spend: 0, visits: 0, sa_signed: 0, any: false };
-    s.pages.forEach(function (p) { var m = pageNums(p.liveSlug); if (!m) return; o.any = true; o.spend += m.spend; o.visits += m.visits; o.sa_signed += m.sa_signed; });
-    return o;
-  }
   function pageNums(slug) {   /* one scope for tables and cards: measured sessions and sends, allocated spend and signed */
     var b = pageBreakdown(slug); if (!b) return null;
     if (b.pageLevel) { var r = b.pageLevel; return { spend: r.spend || 0, visits: r.visits || 0, formSubmit: r.submits || 0, sa_signed: r.signed || 0 }; }
     return { spend: b.total.cost, visits: b.total.sessions, formSubmit: b.total.formSubmit, sa_signed: b.total.sa_signed };
   }
+  /* MH-67 (operator 12 Oct): the top pages of Microsites and Landing pages are a grid of links to each debt type's pages
+     (metrics stay on the microsite, debt-type and page views) */
+  var tail = function (slug, type) { return slug.replace('debt-' + type + '-', '').replace(/-/g, ' '); };   /* debt-lawsuit-respond-on-time → respond on time */
   function viewWebsite() {
-    var h = '<h1>Microsites</h1><p class="lead">The default site (staging’s root domain: the home page and six Defense Services pages) and the seven cluster microsites, mirrored 1:1 from staging.credolegal.com (local only). Each has a home page, about and legal pages, ' +
-      'a thank-you page and its cluster’s landing pages under Services. Choose a microsite on the left to see its pages; click a card here for details and metrics.</p><div class="tiles">';
+    var h = '<h1>Microsites</h1><p class="lead">The default site (staging’s root domain: the home page and six Defense Services pages) and the seven cluster microsites, mirrored 1:1 from staging.credolegal.com (local only). ' +
+      'Each card links to the microsite and to its page for each debt type.</p><div class="tiles links">';
     sites.forEach(function (s) {
-      var m = siteSum(s), svc = s.pages.filter(function (p) { return p.kind === 'service'; }).length;
-      h += '<button class="tile"' + dr(function (el) { el.classList.add('sel'); drawerSite(s); }) + '><h3>' + esc(s.label) + '</h3><p>' + svc + ' landing pages · home copy: ' + esc(s.homeCopy) + '</p>' +
-        '<div class="big">' + (m.any ? usd(m.spend) : dash) + '</div><p>spend* · ' + (m.any ? n0(m.visits) + ' sessions · ' + n1(m.sa_signed) + ' signed*' : 'no paid traffic in the period') + '</p></button>';
+      h += '<div class="tile"><h3><a href="#/website/' + s.angle + '">' + esc(s.label) + '</a></h3><ul class="lnks">' + s.types.map(function (t) {
+        var ps = s.pages.filter(function (p) { return p.kind === 'service' && p.debt === t.label; });
+        return '<li>' + (ps.length === 1 ? '<a href="#/website/' + s.angle + '/' + enc(ps[0].id) + '">' + esc(t.label) + '</a>' :
+          esc(t.label) + ps.map(function (p) { return ' <a class="sub-l" href="#/website/' + s.angle + '/' + enc(p.id) + '">' + esc(tail(p.label, t.type)) + '</a>'; }).join(' ·')) + '</li>'; }).join('') + '</ul></div>';
     });
     return h + '</div>';
   }
-  function lpSum(g) { var o = { spend: 0, visits: 0, sa_signed: 0, any: false };
-    g.pages.forEach(function (x) { var m = pageNums(x.p.liveSlug); if (!m) return; o.any = true; o.spend += m.spend; o.visits += m.visits; o.sa_signed += m.sa_signed; }); return o; }
   function viewLandingPages() {
     var h = '<h1>Landing pages</h1><p class="lead">All ' + lpCount + ' landing pages of the website, grouped by debt type: each microsite’s Services pages and the default site’s Defense Services pages, mirrored 1:1 from staging.credolegal.com. ' +
-      'Open a debt type in the navigation to see its pages; click a card here for details and metrics.</p><div class="tiles">';
+      'Each card links to the debt type’s page (its pages with metrics) and to each landing page.</p><div class="tiles links">';
     lpTypes.forEach(function (g) {
-      var m = lpSum(g), run = g.pages.filter(function (x) { return x.p.running; }).length;
-      h += '<button class="tile"' + dr(function (el) { el.classList.add('sel'); drawerLpType(g); }) + '><h3>' + esc(g.label) + '</h3><p>' + g.pages.length + ' landing pages · ' + run + ' with a running ad</p>' +
-        '<div class="big">' + (m.any ? usd(m.spend) : dash) + '</div><p>spend* · ' + (m.any ? n0(m.visits) + ' sessions · ' + n1(m.sa_signed) + ' signed*' : 'no paid traffic in the period') + '</p></button>';
+      h += '<div class="tile"><h3><a href="' + lpHref(g) + '">' + esc(g.label) + '</a> <span class="cnt">' + g.pages.length + '</span></h3><ul class="lnks">' +
+        g.pages.map(function (x) { return '<li><a href="' + lpHref(g, x) + '">' + esc(tail(x.p.label, g.key)) + '</a>' + (x.p.running ? ' <span class="chip ok">running</span>' : '') + '</li>'; }).join('') + '</ul></div>';
     });
-    return h + '</div><p class="note">* Spend and signed clients are allocated to a page by the share of each ad’s sessions that landed there (estimate).</p>';
-  }
-  function drawerLpType(g) {
-    var m = lpSum(g), h = kv([['Debt type', esc(g.label)], ['Landing pages', String(g.pages.length)], ['Running ads', String(g.pages.filter(function (x) { return x.p.running; }).length)],
-      ['Microsites', esc(g.pages.map(function (x) { return x.s.label; }).filter(function (v, i, a) { return a.indexOf(v) === i; }).join(' · '))]]);
-    var mh = '<h3>Metrics · ' + esc(periodLabel()) + ' (landing pages summed)</h3>' + (m.any ? '<div class="mgrid">' + mt('Spend*', usd(m.spend)) + mt('Sessions', n0(m.visits)) + mt('Signed*', n1(m.sa_signed)) + '</div><p class="note">* allocated to the pages by each ad’s share of sessions (estimate).</p>' : '<p class="note">No paid traffic in the period.</p>');
-    openDrawer(g.label, [['Basic info', h + '<div class="toolbar">' + go(lpHref(g), 'Open the landing pages') + '</div>'], ['Metrics', mh]]);
+    return h + '</div>';
   }
   function viewLpType(g) {
     var h = '<h1>' + esc(g.label) + '</h1><p class="lead">Landing pages for ' + esc(g.label.toLowerCase()) + ' · ' + g.pages.length + ' pages. Click a row for details and metrics; click a page name to open it.</p>' +
@@ -428,14 +418,6 @@
       $('vw-desk').setAttribute('aria-pressed', String(!ph)); $('vw-phone').setAttribute('aria-pressed', String(ph)); fitFrame(); };
     $('vw-desk').onclick = function () { set(false); }; $('vw-phone').onclick = function () { set(true); };
     fitFrame();
-  }
-  function drawerSite(s) {
-    var m = siteSum(s), h = kv([['Microsite', '<code>' + esc(s.angle) + '</code>'], ['Home on staging', link(STAGING + s.home)], ['Home copy', esc(s.homeCopy)], ['Pages', String(s.pages.length)]]);
-    h += '<h3>Services menu</h3><table class="tbl"><thead><tr><th>Debt type</th><th>Page in the menu</th></tr></thead><tbody>' + s.types.map(function (t) {
-      return '<tr><td>' + esc(t.label) + '</td><td><a href="#/website/' + s.angle + '/' + enc('services/' + t.pick) + '">' + esc(t.pick) + '</a><div class="sub">' + esc(t.reason) + '</div></td></tr>'; }).join('') + '</tbody></table>';
-    var mh = '<h3>Metrics · ' + esc(periodLabel()) + ' (landing pages summed)</h3>' + (m.any ? '<div class="mgrid">' + mt('Spend*', usd(m.spend)) + mt('Sessions', n0(m.visits)) + mt('Signed*', n1(m.sa_signed)) + '</div><p class="note">* allocated to the pages by each ad’s share of sessions (estimate).</p>' : '<p class="note">No paid traffic in this period.</p>');
-    h += '<div class="toolbar">' + go('#/website/' + s.angle, 'Open the microsite') + '</div>';
-    openDrawer(s.label, [['Basic info', h], ['Metrics', mh]]);
   }
   function drawerPage(s, p) {
     var ph = p.reg ? Object.keys(p.reg.phones || {}).map(function (k) { return k + ' ' + p.reg.phones[k]; }).join(' · ') : '';
