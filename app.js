@@ -290,7 +290,7 @@
             { label: 'Landing pages', href: LP_BASE, count: lpCount, children: lps },
             { sec: 'Ads', label: 'All platforms', href: '#/ads', count: plats.length, children: ads },
             { label: 'Ads → pages → phones', href: '#/ads/phones', count: PM ? PM.rows.length : 0 },
-            { label: 'Search terms', href: '#/ads/terms', count: STG() ? allTerms().length : 0 }, { label: 'Search-term clusters', href: '#/ads/clusters', count: Object.keys(CLUS).length || 0 }, { label: 'A/B test plan', href: '#/ads/ab-tests' }, { label: 'New pages', href: '#/ads/new-pages', count: STG() ? newPageRows().length : 0 },
+            { label: 'Search terms', href: '#/ads/terms', count: STG() ? allTerms().length : 0 }, { label: 'Search-term clusters', href: '#/ads/clusters', count: Object.keys(CLUS).length || 0 }, { label: 'A/B test plan', href: '#/ads/ab-tests' }, { label: 'New topical clusters', href: '#/ads/new-clusters', count: NCL().length, children: NCL().map(function (c) { return { label: c.label, href: '#/ads/new-clusters/' + enc(c.key), count: c.ads.length }; }) }, { label: 'New pages', href: '#/ads/new-pages', count: STG() ? newPageRows().length : 0 },
             { sec: 'Organic' }].concat(organicNav(), [{ sec: 'Work' }], work, [{ sec: 'Reference' }, { label: 'Statutes', href: '#/reference/statutes', count: ST ? ST.statutes.length : 0 }], [{ sec: 'More' }], more);
   }
   function adLabel(p, a) { return p.key === 'google' ? (a.headlines[0] || a.name) : p.key === 'meta' ? (a.version + ' · ' + a.name.split('-').slice(0, -1).join('-').replace(/^DD_/, '')) : a.name; }
@@ -1965,6 +1965,41 @@
       return g; }).filter(function (g) { return g.top; }).sort(function (a, b) { return b.gain - a.gain || b.impr - a.impr; });
   }
   function cluDoc0(ik) { var keep = STC.intent; STC.intent = ik; var d = cluDoc(); STC.intent = keep; return d; }   /* published edits included */
+  /* MH-74 (operator 12 Oct): New topical clusters — a new ad group built from searches no current ad group targets: new ads
+     (no A/B test, so no A column), each with its own landing page (page-recs, the A/B page preview), the searches and how
+     much of them each ad covers fully (the A/B plan's rule), and the negatives. Data: new-clusters/<key>.out.json. */
+  function NCL() { return ADC.newClusters || []; }
+  var pcN = function (v) { return v == null ? dash : Math.round(v * 100) + '%'; };
+  function viewNewClusters() {
+    var L = NCL();
+    return '<h1>New topical clusters</h1><p class="lead">New ad groups built from searches no current ad group targets. Each has new ads (no A/B test: there is nothing running to compare) and a landing page per ad. Draft copy for attorney review; nothing is changed in Google Ads.</p>' +
+      (L.length ? '<div class="scroll"><table class="tbl"><thead><tr><th>Ad group</th><th>Campaign</th><th class="num">Ads</th><th class="num">Searches</th><th class="num">Impr.</th><th class="num">Conv.</th><th class="num">Covered fully</th></tr></thead><tbody>' +
+        L.map(function (c) { return '<tr><td><a href="#/ads/new-clusters/' + enc(c.key) + '">' + esc(c.label) + '</a></td><td>' + (c.campaign ? esc(c.campaign) : '<span class="chip warn">to decide</span>') + '</td><td class="num">' + c.ads.length + '</td><td class="num">' + n0(c.totals.terms) +
+          '</td><td class="num">' + n0(c.totals.impr) + '</td><td class="num">' + n1(c.totals.conv) + '</td><td class="num">' + pcN(c.eitherFull) + '</td></tr>'; }).join('') + '</tbody></table></div>' : '<p class="empty">None yet.</p>');
+  }
+  function viewNewCluster(c) {
+    var base = '#/ads/new-clusters/' + enc(c.key), cur = TAB || 'ads';
+    var h = '<h1>' + esc(c.label) + '</h1><p class="lead">A new ad group (not an A/B test): ' + c.ads.length + ' new ads, each with its own landing page, for ' + n0(c.totals.terms) + ' searches. Draft copy for attorney review; nothing is changed in Google Ads.</p>' +
+      kv([['Campaign', c.campaign ? esc(c.campaign) : '<span class="chip warn">to decide</span> <span class="sub">(operator, 12 Oct: later)</span>'], ['Searches', n0(c.totals.terms) + ' · ' + n0(c.totals.impr) + ' impr. · ' + n0(c.totals.clicks) + ' clicks · ' + n1(c.totals.conv) + ' conv. · ' + usd(c.totals.cost) + ' (as they ran in other ad groups)'],
+        ['Covered fully', c.ads.map(function (a) { return esc(a.label) + ' ' + pcN(a.fullShare); }).join(' · ') + ' · either ad ' + pcN(c.eitherFull)], ['Negatives', n0(c.negatives.length) + ' searches (free, pro bono)'], ['About', esc(c.about)]]) +
+      tabsBar(base, [['ads', 'Ads', c.ads.length], ['terms', 'Search terms', c.terms.length]].concat(c.ads.map(function (a) { return ['page-' + a.key, 'Page · ' + a.label]; }), [['negatives', 'Negatives', c.negatives.length]]), cur);
+    if (cur === 'terms') return h + '<p class="note">Each search, its numbers where it ran, and its coverage by each ad: full = one headline has all of its key words in its own words.</p><div class="scroll"><table class="tbl"><thead><tr><th>Search</th><th class="num">Impr.</th><th class="num">Clicks</th><th class="num">Conv.</th>' +
+      c.ads.map(function (a) { return '<th>' + esc(a.label) + '</th>'; }).join('') + '</tr></thead><tbody>' + c.terms.slice().sort(function (x, y) { return y.impr - x.impr; }).map(function (t) {
+        return '<tr><td>' + esc(t.term) + '<div class="sub">' + esc(Object.keys(t.where || {}).join(' · ')) + '</div></td><td class="num">' + n0(t.impr) + '</td><td class="num">' + n0(t.clicks) + '</td><td class="num">' + n1(t.conv) + '</td>' +
+          c.ads.map(function (a) { var v = a.levels[t.term]; return '<td>' + (v == null ? '<span class="sub">no key words</span>' : covChip(v)) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>';
+    if (cur === 'negatives') return h + '<p class="note">Searches for a free or pro bono lawyer (and “no win no fee”): Credo’s defense is not free. Add as exact-match negatives where the ad group runs.</p><div class="scroll"><table class="tbl"><thead><tr><th>Search</th><th class="num">Impr.</th><th class="num">Clicks</th><th class="num">Conv.</th></tr></thead><tbody>' +
+      c.negatives.map(function (t) { return '<tr><td>' + esc(t.term) + '</td><td class="num">' + n0(t.impr) + '</td><td class="num">' + n0(t.clicks) + '</td><td class="num">' + n1(t.conv) + '</td></tr>'; }).join('') + '</tbody></table></div>';
+    var pa = c.ads.filter(function (a) { return 'page-' + a.key === cur; })[0];
+    if (pa) { var g = { key: 'NEW|' + c.key + '|' + pa.key, rows: c.terms.map(function (t) { return { r: { t: t } }; }) }, tab = abPageTab(g);
+      return h + (tab ? tab.replace('The landing page for the new ad (B):', 'The landing page for the ad “' + esc(pa.label) + '”:') : '<p class="empty">No landing page draft for this ad.</p>'); }
+    var SECS = [['problem', 'Problems'], ['solution', 'Solutions'], ['cta', 'Calls to action'], ['description', 'Descriptions']];
+    var cols = c.ads.map(function (a) { return { head: '<div class="abtag">' + esc(a.label) + ' <span class="chip warn">draft</span></div><div class="sub">' + esc(a.angle) + '</div><div class="abm">' + mt('Covered fully', pcN(a.fullShare)) + '</div><div class="sub">Share of the cluster’s impressions · page: <a href="' + base + '?tab=page-' + esc(a.key) + '">' + esc(a.page) + '</a></div>',
+      sec: SECS.map(function (q) { return '<ol class="abl">' + a.lines.filter(function (l) { return l.role === q[0]; }).map(function (l) {
+        return '<li><span class="abt">' + esc(l.t) + '</span><div class="abstl"><span class="abstz">Full ' + n0(l.full.length) + '</span> <span class="abstz">Partial ' + n0(l.part.length) + '</span> <span class="sub">of ' + n0(c.terms.length) + ' searches</span></div></li>'; }).join('') + '</ol>'; }) }; });
+    return h + '<p class="note">The new ads side by side. Problem i, solution i, call to action i and description i form block i; an ad takes 4 descriptions. Full / Partial: the searches each line covers on its own.</p><div class="scroll"><div class="abcmp" style="grid-template-columns:repeat(' + cols.length + ',minmax(260px,1fr))">' +
+      cols.map(function (x) { return '<div class="abcell abh">' + x.head + '</div>'; }).join('') +
+      SECS.map(function (q, k) { return '<h4 class="absec">' + q[1] + '</h4>' + cols.map(function (x) { return '<div class="abcell">' + x.sec[k] + '</div>'; }).join(''); }).join('') + '</div></div>';
+  }
   function viewABPlan() {
     var P = abPlan(), pctf = function (v) { return v == null ? dash : Math.round(v * 100) + '%'; };
     var lead = '<p class="lead">Google Ads serves ads per ad group, so the A/B test runs per ad group. <b>A</b> is the responsive search ad (or ads) running there today; <b>B</b> is one new ad built from the suggested copy of one of its clusters: the one whose lines cover the most of the ad group’s impressions fully (15 headlines: 5 problem questions, 5 solutions, 5 calls to action, and the 5 descriptions, of which Google uses up to 4). ' +
@@ -2266,6 +2301,8 @@
       crumbs.push(['Ads', '#/ads']);
       if (parts[1] === 'phones' && PM) { crumbs.push(['Ads → pages → phones', '#/ads/phones']); html = viewPhoneMap(); }
       else if (parts[1] === 'terms' && STG()) { crumbs.push(['Search terms', '#/ads/terms']); if (parts[2] === 'page' && parts[3]) crumbs.push([pageLabel(parts[3]), hash]); AFTER = null; html = viewSearchTerms(parts[2] === 'page' ? parts[3] : ''); after = AFTER; }
+      else if (parts[1] === 'new-clusters') { crumbs.push(['New topical clusters', '#/ads/new-clusters']); var nc = NCL().filter(function (c) { return c.key === parts[2]; })[0];   /* MH-74 */
+        if (nc) { crumbs.push([nc.label, '#/ads/new-clusters/' + enc(nc.key)]); html = viewNewCluster(nc); if (/^page-/.test(TAB || '')) after = function () { [].forEach.call(document.querySelectorAll('#abpg'), function (x) { if (!$('app-main').contains(x)) x.remove(); }); abPageLoad(); }; }   /* a closed A/B drawer may still hold its page preview (same id) */ else html = viewNewClusters(); }
       else if (parts[1] === 'ab-tests' && STG() && cluDoc()) { crumbs.push(['A/B test plan', '#/ads/ab-tests']); html = viewABPlan(); }
       else if (parts[1] === 'clusters' && STG() && cluDoc()) { crumbs.push(['Search-term clusters', '#/ads/clusters']); AFTER = null;
         /* #/ads/clusters/<intent>/<cluster>; an older #/ads/clusters/<cluster> link means the debt-lawyer intent */
