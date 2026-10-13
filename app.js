@@ -284,16 +284,18 @@
       return { label: s.label, href: '#/website/' + s.angle, count: s.pages.length,
         children: s.pages.map(function (p) { return { label: p.kind === 'service' ? p.label : p.label, href: '#/website/' + s.angle + '/' + enc(p.id), dot: p.kind === 'service' ? (p.inMenu ? 'on' : '') : null }; }) };
     });
+    var campNode = function (p, c) {
+      var ov = p.key === 'meta' && ovSets(c).length ? [{ label: 'A1–A6 creatives', href: adHref(p, c) + '/A1-A6', count: ovSets(c).reduce(function (t, g) { return t + g.ads.length; }, 0) }] : [];   /* MH-64 */
+      return { label: c.name, href: adHref(p, c), count: c.groups.length, dot: c.servingNow ? 'on' : '',
+        children: ov.concat(c.groups.map(function (g) {
+          return { label: g.name, href: adHref(p, c, g), count: g.ads.length,
+            children: g.ads.map(function (a) { return { label: adLabel(p, a), href: adHref(p, c, g, a), dot: a.status === 'ENABLED' ? 'on' : (/hold/i.test(a.status) ? 'hold' : '') }; }) };
+        })) };
+    };
+    /* MH-80: Google's children are Google Ads' own sections (its campaigns under Campaigns); Meta and Nextdoor list their campaigns */
     var ads = plats.map(function (p) {
-      return { label: p.label, href: adHref(p), count: p.campaigns.length,
-        children: p.campaigns.map(function (c) {
-          var ov = p.key === 'meta' && ovSets(c).length ? [{ label: 'A1–A6 creatives', href: adHref(p, c) + '/A1-A6', count: ovSets(c).reduce(function (t, g) { return t + g.ads.length; }, 0) }] : [];   /* MH-64 */
-          return { label: c.name, href: adHref(p, c), count: c.groups.length, dot: c.servingNow ? 'on' : '',
-            children: ov.concat(c.groups.map(function (g) {
-              return { label: g.name, href: adHref(p, c, g), count: g.ads.length,
-                children: g.ads.map(function (a) { return { label: adLabel(p, a), href: adHref(p, c, g, a), dot: a.status === 'ENABLED' ? 'on' : (/hold/i.test(a.status) ? 'hold' : '') }; }) };
-            })) };
-        }) };
+      return { label: p.label, href: adHref(p), count: p.key === 'google' ? null : p.campaigns.length,
+        children: p.key === 'google' ? gNav(p, campNode) : p.campaigns.map(function (c) { return campNode(p, c); }) };
     });
     var work = B ? [{ label: 'Board', href: '#/work', count: B.pbis.filter(function (p) { return p.visible !== false; }).length,
         children: B.pbis.filter(function (p) { return p.visible !== false; }).map(function (p) { return { label: p.id + ' · ' + p.title, href: '#/work/' + enc(p.id), dot: pbiState(p) === 'done' ? 'on' : pbiState(p) === 'doing' ? 'hold' : '' }; }) },
@@ -307,14 +309,14 @@
     return [{ sec: 'Overview', label: 'All sections', href: '#/overview' },   /* MH-68 */
             { sec: 'Websites', label: 'Microsites', href: '#/website', count: sites.length, children: web },
             { label: 'Landing pages', href: LP_BASE, count: lpCount, children: lps },
-            { sec: 'Ads', label: 'All platforms', href: '#/ads', count: plats.length, children: ads },
-            { label: 'Ads → pages → phones', href: '#/ads/phones', count: PM ? PM.rows.length : 0 },
-            { label: 'Search terms', href: '#/ads/terms', count: STG() ? allTerms().length : 0 }, { label: 'Search-term clusters', href: '#/ads/clusters', count: Object.keys(CLUS).length || 0 }, { label: 'A/B test plan', href: '#/ads/ab-tests' }, { label: 'New topical clusters', href: '#/ads/new-clusters', count: NCL().length }, { label: 'New pages', href: '#/ads/new-pages', count: STG() ? newPageRows().length : 0 },
+            { sec: 'Ads', label: 'Platforms', href: '#/ads', count: plats.length, children: ads, ovKids: true },   /* MH-80: phones, search terms, clusters, A/B tests, new clusters and new pages moved under Google */
             { sec: 'Organic' }].concat(organicNav(), [{ sec: 'Work' }], work, [{ sec: 'Reference' }, { label: 'Statutes', href: '#/reference/statutes', count: ST ? ST.statutes.length : 0 }], [{ sec: 'More' }], more);
   }
   function adLabel(p, a) { return p.key === 'google' ? (a.headlines[0] || a.name) : p.key === 'meta' ? (a.version + ' · ' + a.name.split('-').slice(0, -1).join('-').replace(/^DD_/, '')) : a.name; }
   function renderTree() {
-    var cur = (location.hash || '#/overview').split('?')[0], q =   /* a view's tab (?tab=…) keeps its nav entry current */ ($('app-filter').value || '').trim().toLowerCase();
+    var cur = (location.hash || '#/overview').split('?')[0];
+    if (GA && /^#\/ads\/google\/[^/]+/.test(cur) && !GSECV[cur.split('/')[3]]) cur = gsHref('campaigns');   /* a campaign, ad group or ad page: its menu entry is Campaigns */
+    var q =   /* a view's tab (?tab=…) keeps its nav entry current */ ($('app-filter').value || '').trim().toLowerCase();
     if (lastCur !== cur) { expanded[cur] = true; lastCur = cur; }   /* a newly opened item shows its children */
     var ns = nodes();
     /* open the ancestors of the current item */
@@ -349,7 +351,7 @@
     var cards = [], cur = null;
     nodes().forEach(function (n) {
       if (n.sec) { cur = n.sec === 'Overview' ? null : { sec: n.sec, items: [] }; if (cur) cards.push(cur); }
-      if (cur && n.href) cur.items.push(n);
+      if (cur && n.href) { cur.items.push(n); if (n.ovKids) (n.children || []).forEach(function (k) { cur.items.push(k); }); }   /* MH-80: Ads › Platforms lists Google, Meta, Nextdoor */
     });
     return '<h1>Overview</h1><p class="lead">Every section of the Marketing Hub. Each card is a section of the menu; click a page to open it.</p><div class="tiles links">' +
       cards.map(function (c) { return '<div class="tile"><h3>' + esc(c.sec) + '</h3><ul class="lnks">' + c.items.map(function (n) {
@@ -472,8 +474,8 @@
   var totalsHead = '<th class="num">Spend (period)</th><th class="num">Form leads</th><th class="num">Signed</th><th class="num">Spend (all time)</th>';
   var ids = function (node) { return allAds(node).map(function (a) { return a.id; }); };
   function viewAds() {
-    var h = '<h1>Ads</h1><p class="lead">Every campaign on the three platforms: Google (live account, read-only), Meta (the one consolidated campaign, paused in the handoff) and Nextdoor ' +
-      '(handoff, not launched). Choose a platform, campaign, ad group or ad on the left. Click a card here for details.</p><div class="tiles">';
+    var h = '<h1>Platforms</h1><p class="lead">The three ad platforms: Google (live account, read-only; organised like Google Ads), Meta (the one consolidated campaign, paused in the handoff) and Nextdoor ' +
+      '(handoff, not launched). Choose a platform on the left. Click a card here for details.</p><div class="tiles">';
     plats.forEach(function (p) {
       var m = p.key === 'google' ? gPeriod(ids(p)) : null, n = allAds(p).length, g = p.campaigns.reduce(function (t, c) { return t + c.groups.length; }, 0);
       h += '<button class="tile"' + dr(function (el) { el.classList.add('sel'); drawerPlatform(p); }) + '><h3>' + esc(p.label) + '</h3><p>' + p.campaigns.length + ' campaigns · ' + g + ' ad ' + (p.key === 'meta' ? 'sets' : 'groups') + ' · ' + n + ' ads</p>' +
@@ -554,6 +556,446 @@
     });
     return h + '</tbody></table></div>';
   }
+  /* ───────────── MH-80: Google, organised like Google Ads ─────────────
+     Operator 12 Oct: "under Google, build out all the features that are present in Google Ads, using our three column layout",
+     with the subsections Campaigns, Keywords, Search terms and the rest of Google Ads' own menu. Each section is a list in
+     the middle and the details of a row in the drawer. Account data: data/google-account.js (read-only GAQL snapshots,
+     tools/marketing-hub/build-google-account.mjs); ads, copy and per-ad metrics stay in ads-tree.js / metrics.js. */
+  var GA = window.HUB_GACCOUNT || null;
+  var GSEC = [['campaigns', 'Campaigns'], ['ad-groups', 'Ad groups'], ['ads', 'Ads'], ['assets', 'Assets'], ['keywords', 'Keywords'], ['search-terms', 'Search terms', '#/ads/terms'],
+    ['audiences', 'Audiences'], ['locations', 'Locations, schedule and devices'], ['bidding', 'Bidding and budgets'], ['conversions', 'Conversions'], ['experiments', 'Experiments'],
+    ['recommendations', 'Recommendations'], ['change-history', 'Change history'], ['landing-pages', 'Landing pages']];
+  var gsHref = function (k) { var s = GSEC.filter(function (x) { return x[0] === k; })[0]; return s && s[2] ? s[2] : '#/ads/google/' + k; };
+  var gsLabel = function (k) { var s = GSEC.filter(function (x) { return x[0] === k; })[0]; return s ? s[1] : k; };
+  /* the parent section of the older Ads routes, for the breadcrumb (they keep their addresses: permalinks keep working) */
+  var GPARENT = { terms: 'search-terms', clusters: 'search-terms', 'ab-tests': 'experiments', 'new-clusters': 'experiments', phones: 'landing-pages', 'new-pages': 'landing-pages', 'copy-quadrants': 'search-terms' };
+  function gNav(p, campNode) {   /* operator 12 Oct: Campaigns is a leaf (no campaign list in the menu); the Campaigns table links to each campaign */
+    if (!GA) return p.campaigns.map(function (c) { return campNode(p, c); });
+    var c = function (k, n, kids) { return { label: gsLabel(k), href: gsHref(k), count: n, children: kids }; };
+    var on = GA.camps.filter(function (x) { return x.status === 'ENABLED'; });
+    return [c('campaigns', p.campaigns.length), c('ad-groups', GA.groups.length), c('ads', allAds(p).length),
+      c('assets', gAssets(p).ext.length + gAssets(p).img.length), c('keywords', GA.keywords.length),
+      c('search-terms', STG() ? allTerms().length : 0, [{ label: 'Search-term clusters', href: '#/ads/clusters', count: Object.keys(CLUS).length || 0 }, { label: 'Headline and description quadrants', href: '#/ads/copy-quadrants' }]),   /* MH-81 */
+      c('audiences', GA.lists.length), c('locations'), c('bidding', on.length), c('conversions', GA.convActions.filter(function (a) { return a.status === 'ENABLED'; }).length),
+      c('experiments', null, [{ label: 'A/B test plan', href: '#/ads/ab-tests' }, { label: 'New topical clusters', href: '#/ads/new-clusters', count: NCL().length }]),
+      c('recommendations', GA.recs.filter(function (r) { return !r.dismissed; }).length), c('change-history', GA.changes.length),
+      c('landing-pages', GA.landing.length, [{ label: 'Ads → pages → phones', href: '#/ads/phones', count: PM ? PM.rows.length : 0 }, { label: 'New pages', href: '#/ads/new-pages', count: STG() ? newPageRows().length : 0 }])];
+  }
+  var lcs = function (s) { return String(s || '').toLowerCase().replace(/_/g, ' '); };
+  var chipS = function (s) { var t = lcs(s); return '<span class="chip ' + (/^(enabled|eligible)$/.test(t) ? 'ok' : /limited|paused|hidden/.test(t) ? 'warn' : /removed|not eligible/.test(t) ? 'red' : '') + '">' + esc(t) + '</span>'; };
+  var pctv = function (v) { return v == null ? dash : (v < 0.1 && v > 0.0998 ? '< 10%' : Math.round(v * 100) + '%'); };   /* Google reports "< 10%" as 0.0999 */
+  var gCampTree = function (name) { return (platBy.google.campaigns || []).filter(function (c) { return c.name === name; })[0] || null; };
+  var gCampLink = function (name) { var c = gCampTree(name); return c ? '<a href="' + adHref(platBy.google, c) + '">' + esc(name) + '</a>' : esc(name); };
+  var gGroupLink = function (cn, gn) { var f = findGroup(cn, gn); return f.g ? '<a href="' + adHref(platBy.google, f.c, f.g) + '">' + esc(gn) + '</a>' : esc(gn); };
+  var tot = function (rows) { return rows.reduce(function (o, r) { o.impr += r.impr || 0; o.clicks += r.clicks || 0; o.cost += r.cost || 0; o.conv += r.conv || 0; return o; }, { impr: 0, clicks: 0, cost: 0, conv: 0 }); };
+  var mcols = function () { return [['impr', 'Impr.', 1, function (r) { return n0(r.impr); }], ['clicks', 'Clicks', 1, function (r) { return n0(r.clicks); }],
+    ['ctr', 'CTR', 1, function (r) { return pct(r.clicks, r.impr); }, function (r) { return r.impr ? r.clicks / r.impr : -1; }], ['cpc', 'Avg. CPC', 1, function (r) { return per(r.cost, r.clicks); }, function (r) { return r.clicks ? r.cost / r.clicks : -1; }],
+    ['cost', 'Cost', 1, function (r) { return usd(r.cost); }], ['conv', 'Conv.', 1, function (r) { return n1(r.conv); }], ['cpa', 'Cost / conv.', 1, function (r) { return per(r.cost, r.conv); }, function (r) { return r.conv >= 0.5 ? r.cost / r.conv : 1e9; }]]; };
+  var mgrid30 = function (r) { return '<div class="mgrid">' + mt('Impressions', n0(r.impr)) + mt('Clicks', n0(r.clicks)) + mt('CTR', pct(r.clicks, r.impr)) + mt('Avg. CPC', per(r.cost, r.clicks)) +
+    mt('Cost', usd(r.cost)) + mt('Conversions', n1(r.conv)) + mt('Cost / conv.', per(r.cost, r.conv)) + mt('Conv. rate', pct(r.conv, r.clicks)) + '</div>'; };
+  var srcNote = function (what) { return '<p class="note">' + esc(what) + ' · ' + esc(GA.account) + ', read-only snapshot pulled ' + esc(GA.pulled) + '. Metrics: ' + esc(GA.period) + ', not the period chosen in the header (that one drives the per-ad numbers in Ads).</p>'; };
+
+  /* a sortable, filterable table: cols = [[key, label, numeric, cell(r), sortValue(r)]]; opt = { find(r) → text, filters: [[key, label, [[value, label]], test(r, value)]],
+     click(r, el), sort: [key, dir], total: true (a totals row of the metric columns) }. State (sort, filters) survives a redraw. */
+  var GT = {};
+  function gtable(id, cols, rows, opt) {
+    opt = opt || {}; var s = GT[id] || (GT[id] = { k: (opt.sort || [])[0] || null, dir: (opt.sort || [])[1] || -1, q: '', f: {} }); s.cols = cols; s.rows = rows; s.opt = opt;
+    var sel = function (f) { return '<select data-gtf="' + id + '|' + f[0] + '" aria-label="' + esc(f[1]) + '">' + f[2].map(function (o) { return '<option value="' + esc(o[0]) + '"' + (String(s.f[f[0]] || '') === String(o[0]) ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select>'; };
+    var ctl = opt.find || opt.filters ? '<div class="stctl">' + (opt.find ? '<input type="search" placeholder="' + esc(opt.findLabel || 'Find') + '" data-gtq="' + id + '" value="' + esc(s.q) + '" aria-label="' + esc(opt.findLabel || 'Find') + '">' : '') + (opt.filters || []).map(sel).join('') + '</div>' : '';
+    return ctl + '<div data-gtbox="' + id + '">' + gtBody(id) + '</div>';
+  }
+  function gtBody(id) {
+    var s = GT[id], o = s.opt, q = s.q.toLowerCase();
+    var rows = s.rows.filter(function (r) { return (!q || o.find(r).toLowerCase().indexOf(q) >= 0) && (o.filters || []).every(function (f) { var v = s.f[f[0]]; return v == null || v === '' || f[3](r, v); }); });
+    var col = s.cols.filter(function (c) { return c[0] === s.k; })[0];
+    if (col) { var sv = col[4] || function (r) { return r[col[0]]; }; rows = rows.slice().sort(function (a, b) { var x = sv(a), y = sv(b); return (typeof x === 'string' ? String(x).localeCompare(y) : (x || 0) - (y || 0)) * s.dir; }); }
+    if (!rows.length) return '<p class="empty">Nothing matches.</p>';
+    var t = o.total ? tot(rows) : null;
+    return '<p class="note">' + rows.length + (rows.length === s.rows.length ? '' : ' of ' + s.rows.length) + ' rows.</p><div class="scroll"><table class="tbl sttbl"><thead><tr>' + s.cols.map(function (c) {
+        return '<th' + (c[2] ? ' class="num"' : '') + (c[0] === s.k ? ' aria-sort="' + (s.dir > 0 ? 'ascending' : 'descending') + '"' : '') + '><button class="sortbtn" data-gtsort="' + id + '|' + c[0] + '">' + esc(c[1]) + (c[0] === s.k ? (s.dir > 0 ? ' ▲' : ' ▼') : '') + '</button></th>'; }).join('') + '</tr></thead><tbody>' +
+      rows.map(function (r) { return '<tr' + (o.click ? ' class="clk"' + dr(function (el) { el.classList.add('sel'); o.click(r, el); }) : '') + '>' + s.cols.map(function (c) { return '<td' + (c[2] ? ' class="num"' : '') + '>' + c[3](r) + '</td>'; }).join('') + '</tr>'; }).join('') +
+      (t ? '<tr class="total">' + s.cols.map(function (c, i) { var m = { impr: 1, clicks: 1, ctr: 1, cpc: 1, cost: 1, conv: 1, cpa: 1 }; return '<td' + (c[2] ? ' class="num"' : '') + '>' + (i === 0 ? '<b>Total</b>' : m[c[0]] ? '<b>' + c[3](t) + '</b>' : '') + '</td>'; }).join('') + '</tr>' : '') + '</tbody></table></div>';
+  }
+  var gtRedraw = function (id) { var b = document.querySelector('[data-gtbox="' + id + '"]'); if (b) b.innerHTML = gtBody(id); };
+  document.addEventListener('input', function (e) { var q = e.target.getAttribute && e.target.getAttribute('data-gtq'); if (q) { GT[q].q = e.target.value; gtRedraw(q); } });
+  document.addEventListener('change', function (e) { var f = e.target.getAttribute && e.target.getAttribute('data-gtf'); if (f) { f = f.split('|'); GT[f[0]].f[f[1]] = e.target.value; gtRedraw(f[0]); } });
+  document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-gtsort]'); if (!b) return; var k = b.getAttribute('data-gtsort').split('|'), s = GT[k[0]];
+    if (s.k === k[1]) s.dir = -s.dir; else { s.k = k[1]; var c = s.cols.filter(function (x) { return x[0] === k[1]; })[0]; s.dir = c && c[2] ? -1 : 1; } gtRedraw(k[0]); });
+  var campOpts = function (rows) { var seen = {}; rows.forEach(function (r) { seen[r.campaign] = 1; }); return [['', 'All campaigns']].concat(Object.keys(seen).sort().map(function (c) { return [c, c]; })); };
+
+  /* daily spend (bars) and conversions (line), with the month under its first day */
+  function dailyChart(days) {
+    if (!days.length) return '';
+    var W = 760, Hh = 150, n = days.length, bw = W / n, mc = Math.max.apply(null, days.map(function (d) { return d[3]; })) || 1, mv = Math.max.apply(null, days.map(function (d) { return d[4]; })) || 1;
+    var s = days.map(function (d, i) { var h = Math.max(1, (Hh - 26) * d[3] / mc), x = i * bw;
+      return '<rect x="' + (x + 1).toFixed(1) + '" y="' + (Hh - 20 - h).toFixed(1) + '" width="' + Math.max(1, bw - 2).toFixed(1) + '" height="' + h.toFixed(1) + '" fill="#8fa9d6"><title>' +
+        esc(d[0] + ': ' + '$' + Math.round(d[3]).toLocaleString('en-US') + ' · ' + d[2] + ' clicks · ' + (Math.round(d[4] * 10) / 10) + ' conv.') + '</title></rect>' +
+        (i === 0 || d[0].slice(5, 7) !== days[i - 1][0].slice(5, 7) ? '<text x="' + (x + 1).toFixed(1) + '" y="' + (Hh - 5) + '" font-size="10" fill="#667080">' + esc(new Date(d[0] + 'T12:00:00').toLocaleString('en-US', { month: 'short', day: 'numeric' })) + '</text>' : ''); }).join('');
+    var line = days.map(function (d, i) { return (i ? 'L' : 'M') + (i * bw + bw / 2).toFixed(1) + ' ' + (Hh - 20 - (Hh - 26) * d[4] / mv).toFixed(1); }).join(' ');
+    return '<svg class="bars gday" viewBox="0 0 ' + W + ' ' + Hh + '" role="img" aria-label="Daily cost and conversions">' + s + '<path d="' + line + '" fill="none" stroke="#c0392b" stroke-width="1.5"/></svg>' +
+      '<p class="note"><span class="key kb"></span> cost per day · <span class="key kr"></span> conversions per day. Only days with spend are shown (the ads run Monday to Friday).</p>';
+  }
+
+  /* ── Overview ── */
+  function viewGoogle(p) {
+    var h = '<div class="pagehead"><h1>Google Ads</h1></div><p class="lead">Credo Legal’s live account, read-only (nothing here changes Google Ads). The sections on the left follow Google Ads’ own menu. Click a row anywhere for its details.</p>' +
+      (STG() ? tabsBar(adHref(p), [['overview', 'Overview'], ['findings', 'Account findings', STG().findings.length]], TAB) : '');
+    if (TAB === 'findings' && STG()) return h + findingsHtml();
+    if (!GA) return h + '<p class="empty">The account snapshot (data/google-account.js) is not loaded.</p>';
+    var on = GA.camps.filter(function (c) { return c.status === 'ENABLED'; }), t = tot(GA.camps), d30 = GA.daily.slice(-30), last = GA.daily.slice(-5), lt = tot(last.map(function (d) { return { impr: d[1], clicks: d[2], cost: d[3], conv: d[4] }; }));
+    var kp = [['Cost', usd(t.cost), 'last 30 days'], ['Conversions', n1(t.conv), 'cost / conv. ' + per(t.cost, t.conv)], ['Clicks', n0(t.clicks), 'CTR ' + pct(t.clicks, t.impr)], ['Impressions', n0(t.impr), 'avg. CPC ' + per(t.cost, t.clicks)],
+      ['Enabled campaigns', String(on.length), on.reduce(function (q, c) { return q + c.budget; }, 0) ? usd(on.reduce(function (q, c) { return q + c.budget; }, 0)) + ' a day in budgets' : ''],
+      ['Last 5 serving days', usd(lt.cost), n1(lt.conv) + ' conv. · ' + last[0][0].slice(5) + ' to ' + last[last.length - 1][0].slice(5)]];
+    var card = function (k, big, sub) { return '<a class="tile" href="' + esc(gsHref(k)) + '"><h3>' + esc(gsLabel(k)) + '</h3>' + (big ? '<div class="big">' + big + '</div>' : '') + '<p>' + sub + '</p></a>'; };
+    var lowQs = GA.keywords.filter(function (k) { return k.qs != null && k.qs <= 3; }), budLim = on.filter(function (c) { return (c.isBudget || 0) > 0.1; });
+    var cards = [card('campaigns', on.length + ' enabled', GA.camps.length + ' in the account · ' + budLim.length + ' limited by budget'), card('ad-groups', GA.groups.filter(function (g) { return g.status === 'ENABLED'; }).length + ' enabled', GA.groups.length + ' in the enabled campaigns'),
+      card('ads', allAds(p).filter(function (a) { return a.serving && a.serving.running; }).length + ' running', allAds(p).length + ' responsive search ads in the account'), card('assets', String(gAssets(p).ext.length), 'extensions and ' + gAssets(p).img.length + ' images in the hand-off'),
+      card('keywords', String(GA.keywords.length), lowQs.length + ' with Quality Score 1–3 · ' + n0(GA.negatives.shared.length + GA.negatives.campaign.length + GA.negatives.adgroup.length) + ' negatives'),
+      card('search-terms', STG() ? String(allTerms().length) : '', 'reviewed searches, clusters and actions'), card('audiences', String(GA.lists.length), 'lists · ' + GA.audAttach.length + ' campaign links'),
+      card('locations', 'US', GA.targeting[on[0] && on[0].name] ? GA.targeting[on[0].name].excluded.length + ' states excluded · Mon–Fri 9–21' : ''), card('bidding', 'Max. conv.', 'target CPA on ' + on.filter(function (c) { return c.tcpa; }).length + ' of ' + on.length + ' campaigns'),
+      card('conversions', String(GA.convActions.filter(function (a) { return a.inConv && a.status === 'ENABLED'; }).length), 'actions counted in Conversions'), card('experiments', '', 'A/B test plan and new topical clusters'),
+      card('recommendations', String(GA.recs.filter(function (r) { return !r.dismissed; }).length), 'from Google, not applied'), card('change-history', String(GA.changes.length), 'changes in 30 days'), card('landing-pages', String(GA.landing.length), 'pages that served ads')];
+    return h + srcNote('Account totals') + '<div class="tiles kpis">' + kp.map(function (k) { return '<div class="tile static"><p>' + esc(k[0]) + '</p><div class="big">' + k[1] + '</div><p>' + k[2] + '</p></div>'; }).join('') + '</div>' +
+      '<h2>Cost and conversions per day</h2>' + dailyChart(GA.daily) + '<h2>Sections</h2><div class="tiles links">' + cards.join('') + '</div>';
+  }
+
+  /* ── Campaigns ── */
+  var BIDL = { MAXIMIZE_CONVERSIONS: 'Maximize conversions', TARGET_IMPRESSION_SHARE: 'Target impression share', MANUAL_CPC: 'Manual CPC', MANUAL_CPA: 'Manual CPA (Local Services)', TARGET_CPA: 'Target CPA' };
+  var TYPEL = { SEARCH: 'Search', DISPLAY: 'Display', PERFORMANCE_MAX: 'Performance Max', SMART: 'Smart', LOCAL_SERVICES: 'Local Services' };
+  function drawerGCampaign(c) {
+    var tr = GA.targeting[c.name], gs = GA.groups.filter(function (g) { return g.campaign === c.name; }), tc = gCampTree(c.name);
+    var info = kv([['Status', chipS(c.status) + (c.primary && c.primary !== c.status ? ' ' + chipS(c.primary) : '')], ['Type', esc(TYPEL[c.type] || lcs(c.type))], ['Networks', esc([c.search ? 'Google Search' : '', c.display ? 'Display Network' : ''].filter(Boolean).join(' · ') || 'Google Search only')],
+      ['Bidding', esc(BIDL[c.bidding] || lcs(c.bidding)) + (c.tcpa ? ' · target CPA ' + usd(c.tcpa) : '')], ['Budget', usd(c.budget) + ' a day' + (c.sharedBudget ? ' <span class="chip warn">shared with ' + esc(c.sharedBudget.length + ' campaign' + (c.sharedBudget.length > 1 ? 's' : '')) + '</span>' : '')],
+      ['Started', esc(c.start)], ['Locations', tr ? esc(tr.locations.join(', ')) + (tr.excluded.length ? '<div class="sub">excluded: ' + esc(tr.excluded.join(', ')) + '</div>' : '') : ''], ['Languages', tr ? esc(tr.languages.join(', ')) : ''],
+      ['Ad schedule', tr && tr.schedule.length ? esc(tr.schedule.map(function (x) { return x[0]; }).join(' ') + ' · ' + tr.schedule[0][1] + ':00–' + tr.schedule[0][2] + ':00 (account time)') : tr ? 'all day' : ''],
+      ['Campaign ID', esc(c.id)]]) + (tc ? '<div class="toolbar">' + go(adHref(platBy.google, tc), 'Open the campaign') + '</div>' : '');
+    var is = c.is != null ? '<h3>Search impression share</h3><div class="mgrid">' + mt('Impression share', pctv(c.is)) + mt('Lost to budget', pctv(c.isBudget)) + mt('Lost to rank', pctv(c.isRank)) + mt('Top of page', pctv(c.isTop)) + mt('Absolute top', pctv(c.isAbsTop)) + '</div>' : '';
+    var conv = GA.convBy.filter(function (x) { return x.campaign === c.name; });
+    openDrawer(c.name, [['Settings', info], ['Metrics', '<h3>' + esc(GA.period) + '</h3>' + mgrid30(c) + is],
+      gs.length ? ['Ad groups', '<div class="scroll"><table class="tbl"><thead><tr><th>Ad group</th><th>Status</th><th class="num">Target CPA</th><th class="num">Cost</th><th class="num">Conv.</th><th class="num">Cost / conv.</th></tr></thead><tbody>' +
+        gs.map(function (g) { return '<tr><td>' + gGroupLink(c.name, g.name) + '</td><td>' + chipS(g.status) + '</td><td class="num">' + (g.tcpa ? usd(g.tcpa) : dash) + '</td><td class="num">' + usd(g.cost) + '</td><td class="num">' + n1(g.conv) + '</td><td class="num">' + per(g.cost, g.conv) + '</td></tr>'; }).join('') + '</tbody></table></div>'] : null,
+      conv.length ? ['Conversions', convTable(conv, false)] : null, tc && tc.info ? ['Hand-off', infoKv(tc.info)] : null]);
+  }
+  function viewGCampaigns() {
+    var cols = [['name', 'Campaign', 0, function (r) { return gCampLink(r.name) + '<div class="sub">' + esc(TYPEL[r.type] || lcs(r.type)) + '</div>'; }],
+      ['status', 'Status', 0, function (r) { return chipS(r.status) + (r.primary === 'LIMITED' ? ' ' + chipS('limited') : ''); }], ['bidding', 'Bid strategy', 0, function (r) { return esc(BIDL[r.bidding] || lcs(r.bidding)) + (r.tcpa ? '<div class="sub">target CPA ' + usd(r.tcpa) + '</div>' : ''); }],
+      ['budget', 'Budget / day', 1, function (r) { return usd(r.budget) + (r.sharedBudget ? '<div class="sub">shared</div>' : ''); }]].concat(mcols(), [['is', 'Impr. share', 1, function (r) { return pctv(r.is); }], ['isBudget', 'Lost (budget)', 1, function (r) { return pctv(r.isBudget); }], ['isRank', 'Lost (rank)', 1, function (r) { return pctv(r.isRank); }]]);
+    return '<h1>Campaigns</h1>' + srcNote('Every campaign that is not removed') + gtable('gcamp', cols, GA.camps, { find: function (r) { return r.name; }, findLabel: 'Find a campaign', sort: ['cost', -1], total: true, click: drawerGCampaign,
+      filters: [['status', 'Status', [['', 'All but removed'], ['ENABLED', 'Enabled'], ['PAUSED', 'Paused']], function (r, v) { return r.status === v; }], ['type', 'Type', [['', 'All types']].concat(Object.keys(TYPEL).map(function (k) { return [k, TYPEL[k]]; })), function (r, v) { return r.type === v; }]] }) +
+      '<p class="note">Impression share is Google’s “Search impression share”; “&lt; 10%” is how Google reports a share under ten percent. The campaign names link to the campaign’s ad groups and ads.</p>';
+  }
+  /* ── Ad groups ── */
+  function drawerGGroup(g) {
+    var kws = GA.keywords.filter(function (k) { return k.campaign === g.campaign && k.group === g.name; }), f = findGroup(g.campaign, g.name);
+    openDrawer(g.name, [['Settings', kv([['Campaign', gCampLink(g.campaign)], ['Status', chipS(g.status)], ['Target CPA', g.tcpa ? usd(g.tcpa) + ' (overrides the campaign’s)' : 'the campaign’s'], ['Ad group ID', esc(g.id)]]) +
+        (f.g ? '<div class="toolbar">' + go(adHref(platBy.google, f.c, f.g), 'Open the ad group') + go(adHref(platBy.google, f.c, f.g) + '?tab=terms', 'Its search terms') + '</div>' : '')],
+      ['Metrics', '<h3>' + esc(GA.period) + '</h3>' + mgrid30(g)], kws.length ? ['Keywords', kwMini(kws)] : null]);
+  }
+  function viewGGroups() {
+    var cols = [['name', 'Ad group', 0, function (r) { return gGroupLink(r.campaign, r.name) + '<div class="sub">' + esc(r.campaign) + '</div>'; }], ['status', 'Status', 0, function (r) { return chipS(r.status); }],
+      ['tcpa', 'Target CPA', 1, function (r) { return r.tcpa ? usd(r.tcpa) : dash; }]].concat(mcols());
+    return '<h1>Ad groups</h1>' + srcNote('Ad groups of the enabled campaigns') + gtable('ggrp', cols, GA.groups, { find: function (r) { return r.name + ' ' + r.campaign; }, findLabel: 'Find an ad group', sort: ['cost', -1], total: true, click: drawerGGroup,
+      filters: [['status', 'Status', [['', 'All statuses'], ['ENABLED', 'Enabled'], ['PAUSED', 'Paused']], function (r, v) { return r.status === v; }], ['campaign', 'Campaign', campOpts(GA.groups), function (r, v) { return r.campaign === v; }]] });
+  }
+  /* ── Ads (from the ad tree: copy, serving, strength; metrics of the period chosen in the header) ── */
+  function viewGAds(p) {
+    var rows = []; p.campaigns.forEach(function (c) { c.groups.forEach(function (g) { g.ads.forEach(function (a) { var m = gPeriod([a.id]) || {}; rows.push({ c: c, g: g, a: a, campaign: c.name, name: adLabel(p, a), serving: !!(a.serving && a.serving.running), impr: m.impr || 0, clicks: m.clicks || 0, cost: m.cost || 0, conv: m.form || 0, signed: m.sa_signed || 0 }); }); }); });
+    var cols = [['name', 'Ad', 0, function (r) { return '<a href="' + adHref(p, r.c, r.g, r.a) + '">' + esc(r.name) + '</a><div class="sub">' + esc(r.c.name + ' › ' + r.g.name) + '</div>'; }], ['serving', 'Serving', 0, function (r) { return runChip(r.a); }, function (r) { return r.serving ? 1 : 0; }],
+      ['strength', 'Ad strength', 0, function (r) { return esc(lcs(r.a.strength)); }, function (r) { return String(r.a.strength || ''); }], ['slug', 'Landing page', 0, function (r) { return '<span class="sub">' + esc(r.a.slug != null ? '/' + r.a.slug : r.a.host || '') + '</span>'; }, function (r) { return String(r.a.slug || ''); }],
+      ['impr', 'Impr.', 1, function (r) { return n0(r.impr); }], ['clicks', 'Clicks', 1, function (r) { return n0(r.clicks); }], ['cost', 'Cost', 1, function (r) { return usd(r.cost); }], ['conv', 'Form leads', 1, function (r) { return n1(r.conv); }], ['signed', 'Signed', 1, function (r) { return n1(r.signed); }]];
+    return '<h1>Ads</h1><p class="note">Every responsive search ad in the account snapshot (copy as of 29 Sep, serving as of 7 Oct). Metrics: ' + esc(periodLabel()) + ' (the period in the header). The ad links open its variants and preview.</p>' +
+      gtable('gads', cols, rows, { find: function (r) { return r.name + ' ' + r.campaign + ' ' + r.g.name + ' ' + (r.a.headlines || []).join(' '); }, findLabel: 'Find an ad (any headline)', sort: ['cost', -1], click: function (r) { drawerAd(p, r.c, r.g, r.a); },
+        filters: [['serving', 'Serving', [['', 'All ads'], ['1', 'Running now']], function (r, v) { return r.serving === (v === '1'); }], ['campaign', 'Campaign', campOpts(rows), function (r, v) { return r.campaign === v; }]] });
+  }
+  /* ── Assets (the hand-off's extensions and images, every campaign) ── */
+  function gAssets(p) {
+    var by = {}, img = [];
+    p.campaigns.forEach(function (c) { (c.extensions || []).forEach(function (x) { var k = x[0] + '|' + x[1]; (by[k] = by[k] || { type: x[0], text: x[1], camps: [] }).camps.push(c.name); }); (c.images || []).forEach(function (x) { img.push({ c: c, role: x[0], src: x[1] }); }); });
+    return { ext: Object.keys(by).map(function (k) { return by[k]; }), img: img };
+  }
+  function viewGAssets(p) {
+    var as = gAssets(p), cur = TAB === 'images' ? 'images' : 'ext';
+    var h = '<h1>Assets</h1><p class="note">Sitelinks, callouts, structured snippets and the other extensions, and the image assets, from the Google hand-off (July build). An ad’s live assets with their performance labels are on the ad’s Preview tab.</p>' +
+      tabsBar(gsHref('assets'), [['ext', 'Extensions', as.ext.length], ['images', 'Images', as.img.length]], cur);
+    if (cur === 'images') { var seen = {}; return h + '<div class="thumbs">' + as.img.filter(function (x) { if (seen[x.src]) return false; seen[x.src] = 1; return true; }).map(function (x) {
+      return '<button class="thumb"' + dr(function (el) { el.classList.add('sel'); openDrawer('Image · ' + x.role, [['Basic info', media(x.src) + kv([['Role', esc(x.role)], ['Campaigns', esc(as.img.filter(function (y) { return y.src === x.src; }).map(function (y) { return y.c.name; }).join(', '))], ['File', link(x.src, x.src.split('/').pop())]])]]); }) + '>' + media(x.src, x.role) + '<div class="cap">' + esc(x.role) + '</div></button>'; }).join('') + '</div>'; }
+    var types = {}; as.ext.forEach(function (x) { types[x.type] = 1; });
+    return h + gtable('gext', [['text', 'Asset', 0, function (r) { return esc(r.text); }], ['type', 'Type', 0, function (r) { return esc(r.type); }], ['camps', 'Campaigns', 1, function (r) { return String(r.camps.length); }, function (r) { return r.camps.length; }]], as.ext,
+      { find: function (r) { return r.text + ' ' + r.type; }, findLabel: 'Find an asset', sort: ['type', 1], filters: [['type', 'Type', [['', 'All types']].concat(Object.keys(types).sort().map(function (t) { return [t, t]; })), function (r, v) { return r.type === v; }]],
+        click: function (r) { openDrawer(r.type, [['Basic info', kv([['Text', esc(r.text)], ['Type', esc(r.type)], ['Campaigns', r.camps.map(gCampLink).join('<br>')]])]]); } });
+  }
+  /* ── Keywords, negative keywords, negative keyword lists ── */
+  var QSL = { ABOVE_AVERAGE: ['above average', 'ok'], AVERAGE: ['average', ''], BELOW_AVERAGE: ['below average', 'red'] };
+  var qsc = function (v) { var L = QSL[v] || [lcs(v), '']; return v ? '<span class="chip ' + L[1] + '">' + esc(L[0]) + '</span>' : dash; };
+  var qsCell = function (q) { return q == null ? dash : '<b class="' + (q <= 3 ? 'qs-lo' : q >= 7 ? 'qs-hi' : '') + '">' + q + '</b>/10'; };
+  function kwMini(kws) {
+    return '<div class="scroll"><table class="tbl"><thead><tr><th>Keyword</th><th class="num">QS</th><th class="num">Cost</th><th class="num">Conv.</th><th class="num">Cost / conv.</th></tr></thead><tbody>' +
+      kws.slice(0, 40).map(function (k) { return '<tr><td>' + esc(mtext(k)) + '</td><td class="num">' + qsCell(k.qs) + '</td><td class="num">' + usd(k.cost) + '</td><td class="num">' + n1(k.conv) + '</td><td class="num">' + per(k.cost, k.conv) + '</td></tr>'; }).join('') + '</tbody></table></div>' +
+      (kws.length > 40 ? '<p class="note">Top 40 of ' + kws.length + ' by cost. All of them: <a href="' + gsHref('keywords') + '">Keywords</a>.</p>' : '');
+  }
+  var mtext = function (k) { return k.match === 'EXACT' ? '[' + k.text + ']' : k.match === 'PHRASE' ? '"' + k.text + '"' : k.text; };   /* Google's notation */
+  function drawerKw(k) {
+    openDrawer(mtext(k), [['Basic info', kv([['Keyword', esc(k.text)], ['Match type', esc(lcs(k.match))], ['Ad group', gGroupLink(k.campaign, k.group) + '<div class="sub">' + esc(k.campaign) + '</div>'], ['Status', chipS(k.status)]]) +
+        '<h3>Quality Score</h3>' + (k.qs == null ? '<p class="note">Google shows no Quality Score yet (too few searches on this exact keyword).</p>' : '<div class="mgrid">' + mt('Quality Score', qsCell(k.qs)) + mt('Expected CTR', qsc(k.ectr)) + mt('Ad relevance', qsc(k.adRel)) + mt('Landing page experience', qsc(k.lpx)) + '</div>' +
+        '<p class="note">Google’s 1–10 score from its three parts: how likely a click is (expected CTR), how closely the ad matches the search (ad relevance) and how useful the page is after the click (landing page experience).</p>')],
+      ['Metrics', '<h3>' + esc(GA.period) + '</h3>' + mgrid30(k)]]);
+  }
+  function viewGKeywords() {
+    var cur = ['negatives', 'lists'].indexOf(TAB) >= 0 ? TAB : 'keywords', N = GA.negatives;
+    var h = '<h1>Keywords</h1>' + tabsBar(gsHref('keywords'), [['keywords', 'Search keywords', GA.keywords.length], ['negatives', 'Negative keywords', N.campaign.length + N.adgroup.length], ['lists', 'Negative keyword lists', Object.keys(N.lists).length]], cur);
+    if (cur === 'negatives') {
+      var rows = N.campaign.map(function (x) { return { level: 'Campaign', campaign: x[0], group: '', text: x[1], match: x[2] }; }).concat(N.adgroup.map(function (x) { return { level: 'Ad group', campaign: x[0], group: x[1], text: x[2], match: x[3] }; }));
+      return h + '<p class="note">The campaigns’ and ad groups’ own negative keywords (pulled ' + esc(N.pulled) + ', read-only). The shared lists are on the next tab. A negative stops the ad showing on searches that contain it: exact = the same words, phrase = the words in order, broad = all the words in any order.</p>' +
+        gtable('gneg', [['text', 'Negative keyword', 0, function (r) { return esc(mtext(r)); }], ['level', 'Level', 0, function (r) { return esc(r.level); }], ['campaign', 'Campaign', 0, function (r) { return esc(r.campaign); }], ['group', 'Ad group', 0, function (r) { return esc(r.group); }]], rows,
+          { find: function (r) { return r.text; }, findLabel: 'Find a negative', sort: ['text', 1], filters: [['campaign', 'Campaign', campOpts(rows), function (r, v) { return r.campaign === v; }], ['level', 'Level', [['', 'Both levels'], ['Campaign', 'Campaign'], ['Ad group', 'Ad group']], function (r, v) { return r.level === v; }]] });
+    }
+    if (cur === 'lists') {
+      var lists = Object.keys(N.lists).map(function (n) { return { name: n, members: N.lists[n].members, camps: Object.keys(N.listCampaigns).filter(function (c) { return N.listCampaigns[c].indexOf(n) >= 0; }) }; });
+      return h + '<p class="note">Shared negative keyword lists and the campaigns they are attached to (pulled ' + esc(N.pulled) + '). Click a list for its keywords.</p>' +
+        gtable('gnl', [['name', 'List', 0, function (r) { return esc(r.name); }], ['members', 'Keywords', 1, function (r) { return n0(r.members); }], ['camps', 'Campaigns', 0, function (r) { return '<span class="sub">' + esc(r.camps.join(', ')) + '</span>'; }, function (r) { return r.camps.length; }]], lists,
+          { sort: ['members', -1], click: function (r) { var mem = N.shared.filter(function (x) { return x[0] === r.name; }).map(function (x) { return { text: x[1], match: x[2] }; });
+            openDrawer(r.name, [['Keywords', '<p class="note">' + n0(mem.length) + ' negatives.</p>' + gtable('gnlm-' + r.name.replace(/\W+/g, '-'), [['text', 'Negative keyword', 0, function (m) { return esc(mtext(m)); }], ['match', 'Match', 0, function (m) { return esc(lcs(m.match)); }]], mem, { find: function (m) { return m.text; }, findLabel: 'Find in the list', sort: ['text', 1] })],
+              ['Campaigns', '<ul class="notes">' + r.camps.map(function (c) { return '<li>' + gCampLink(c) + '</li>'; }).join('') + '</ul>']]); } });
+    }
+    var cols = [['text', 'Keyword', 0, function (r) { return esc(mtext(r)) + '<div class="sub">' + esc(r.group + ' · ' + r.campaign) + '</div>'; }], ['match', 'Match', 0, function (r) { return esc(lcs(r.match)); }],
+      ['qs', 'Quality Score', 1, function (r) { return qsCell(r.qs); }, function (r) { return r.qs == null ? -1 : r.qs; }], ['ectr', 'Exp. CTR', 0, function (r) { return qsc(r.ectr); }], ['adRel', 'Ad relevance', 0, function (r) { return qsc(r.adRel); }], ['lpx', 'Landing page exp.', 0, function (r) { return qsc(r.lpx); }]].concat(mcols());
+    return h + srcNote('Keywords with impressions in the enabled ad groups') + gtable('gkw', cols, GA.keywords, { find: function (r) { return r.text; }, findLabel: 'Find a keyword', sort: ['cost', -1], total: true, click: drawerKw,
+      filters: [['campaign', 'Campaign', campOpts(GA.keywords), function (r, v) { return r.campaign === v; }], ['match', 'Match type', [['', 'All match types'], ['EXACT', 'Exact'], ['PHRASE', 'Phrase'], ['BROAD', 'Broad']], function (r, v) { return r.match === v; }],
+        ['qs', 'Quality Score', [['', 'Any Quality Score'], ['lo', '1–3 (low)'], ['mid', '4–6'], ['hi', '7–10'], ['none', 'No score yet']], function (r, v) { return v === 'none' ? r.qs == null : r.qs != null && (v === 'lo' ? r.qs <= 3 : v === 'mid' ? r.qs >= 4 && r.qs <= 6 : r.qs >= 7); }],
+        ['lpx', 'Landing page experience', [['', 'Any landing page experience'], ['BELOW_AVERAGE', 'Below average'], ['AVERAGE', 'Average'], ['ABOVE_AVERAGE', 'Above average']], function (r, v) { return r.lpx === v; }]] });
+  }
+  /* ── Audiences ── */
+  function viewGAudiences() {
+    var UT = { REMARKETING: 'Website visitors (tag)', RULE_BASED: 'Website visitors (rule)', LOGICAL: 'Combined list', CRM_BASED: 'Customer list (uploaded)' };
+    var rows = GA.lists.map(function (l) { return Object.assign({ used: GA.audAttach.filter(function (a) { return a.list === l.name; }) }, l); });
+    return '<h1>Audiences</h1>' + srcNote('Audience lists (user lists) and the campaigns they are attached to') +
+      gtable('gaud', [['name', 'Audience', 0, function (r) { return esc(r.name); }], ['type', 'Type', 0, function (r) { return esc(UT[r.type] || lcs(r.type)); }], ['search', 'Size (Search)', 1, function (r) { return n0(r.search); }], ['display', 'Size (Display)', 1, function (r) { return n0(r.display); }],
+        ['days', 'Membership', 1, function (r) { return r.days ? r.days + ' days' : dash; }], ['used', 'Campaigns', 0, function (r) { return r.used.map(function (a) { return '<span class="chip' + (a.excluded ? ' red' : ' ok') + '">' + esc((a.excluded ? 'excluded · ' : '') + a.campaign) + '</span>'; }).join(' ') || '<span class="sub">not used</span>'; }, function (r) { return r.used.length; }]], rows,
+        { sort: ['used', -1], click: function (r) { openDrawer(r.name, [['Basic info', kv([['Type', esc(UT[r.type] || lcs(r.type))], ['Status', chipS(r.status)], ['Size', n0(r.search) + ' on Search · ' + n0(r.display) + ' on Display'], ['Membership', r.days ? r.days + ' days' : ''], ['List ID', esc(r.id)]]) +
+          '<h3>Campaigns</h3>' + (r.used.length ? '<ul class="notes">' + r.used.map(function (a) { return '<li>' + gCampLink(a.campaign) + ' · ' + (a.excluded ? 'excluded (the ads do not show to this list)' : 'added (observation or targeting)') + '</li>'; }).join('') + '</ul>' : '<p class="note">Not attached to an enabled campaign.</p>')]]); } }) +
+      '<p class="note">Google needs at least 1,000 active members before a list serves on Search. “Added” lists can be observation (report only) or targeting; the snapshot does not record which.</p>';
+  }
+  /* ── Locations, schedule and devices ── */
+  function hbar(v, max) { return '<span class="hbar"><i style="width:' + Math.round(100 * v / (max || 1)) + '%"></i></span>'; }
+  function viewGLocations() {
+    var cur = ['schedule', 'devices'].indexOf(TAB) >= 0 ? TAB : 'locations', on = GA.camps.filter(function (c) { return c.status === 'ENABLED' && GA.targeting[c.name]; });
+    if (!on.length) return '<h1>Locations, schedule and devices</h1><p class="empty">No targeting in the snapshot.</p>';
+    var h = '<h1>Locations, schedule and devices</h1>' + tabsBar(gsHref('locations'), [['locations', 'Locations', GA.geo.length], ['schedule', 'Ad schedule'], ['devices', 'Devices']], cur);
+    if (cur === 'schedule') {
+      var days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'], tr = GA.targeting[on[0].name], same = on.every(function (c) { return JSON.stringify((GA.targeting[c.name] || {}).schedule) === JSON.stringify(tr.schedule); });
+      var grid = '<div class="scroll"><table class="tbl sched"><thead><tr><th></th>' + Array.from({ length: 24 }, function (_, i) { return '<th>' + (i % 3 ? '' : i) + '</th>'; }).join('') + '</tr></thead><tbody>' + days.map(function (d) {
+        var s = tr.schedule.filter(function (x) { return x[0] === d; })[0]; return '<tr><th>' + d.charAt(0) + d.slice(1).toLowerCase() + '</th>' + Array.from({ length: 24 }, function (_, i) { return '<td class="' + (s && i >= s[1] && i < s[2] ? 'on' : '') + '"></td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>';
+      var mh = Math.max.apply(null, GA.hours.map(function (x) { return x.cost; })), dd = {}; GA.deviceDay.forEach(function (x) { var o = dd[x.day] || (dd[x.day] = { day: x.day, impr: 0, clicks: 0, cost: 0, conv: 0 }); o.impr += x.impr; o.clicks += x.clicks; o.cost += x.cost; o.conv += x.conv; });
+      var md2 = Math.max.apply(null, Object.keys(dd).map(function (k) { return dd[k].cost; }));
+      var rowT = function (lbl, r, max) { return '<tr><td>' + lbl + '</td><td>' + hbar(r.cost, max) + '</td><td class="num">' + n0(r.clicks) + '</td><td class="num">' + usd(r.cost) + '</td><td class="num">' + n1(r.conv) + '</td><td class="num">' + per(r.cost, r.conv) + '</td><td class="num">' + pct(r.conv, r.clicks) + '</td></tr>'; };
+      var head = '<thead><tr><th></th><th></th><th class="num">Clicks</th><th class="num">Cost</th><th class="num">Conv.</th><th class="num">Cost / conv.</th><th class="num">Conv. rate</th></tr></thead>';
+      var sdays = tr.schedule.map(function (x) { return x[0].charAt(0) + x[0].slice(1).toLowerCase(); });
+      return h + '<p class="lead">' + (same ? 'Every enabled campaign runs the same schedule' : 'The schedule of ' + esc(on[0].name)) + ': ' + (tr.schedule.length ? '<b>' + esc(sdays.join(', ')) + ', ' + tr.schedule[0][1] + ':00 to ' + tr.schedule[0][2] + ':00</b> (the account’s time zone)' + (tr.schedule.some(function (x) { return x[3] != null && x[3] !== 1; }) ? '' : ', no bid adjustments') : '<b>all day, every day</b>') + '.</p>' + grid +
+        '<h2>By hour of day</h2>' + srcNote('All campaigns') + '<div class="scroll"><table class="tbl">' + head + '<tbody>' + GA.hours.map(function (x) { return rowT(x.hour + ':00–' + (x.hour + 1) + ':00', x, mh); }).join('') + '</tbody></table></div>' +
+        '<h2>By day of week</h2><div class="scroll"><table class="tbl">' + head + '<tbody>' + days.filter(function (d) { return dd[d]; }).map(function (d) { return rowT(d.charAt(0) + d.slice(1).toLowerCase(), dd[d], md2); }).join('') + '</tbody></table></div>';
+    }
+    if (cur === 'devices') {
+      var dv = {}; GA.deviceDay.forEach(function (x) { var o = dv[x.device] || (dv[x.device] = { device: x.device, impr: 0, clicks: 0, cost: 0, conv: 0 }); o.impr += x.impr; o.clicks += x.clicks; o.cost += x.cost; o.conv += x.conv; });
+      var t = tot(Object.keys(dv).map(function (k) { return dv[k]; }));
+      return h + srcNote('All campaigns') + '<p class="lead">Every enabled campaign targets computers, mobile phones and tablets with no bid adjustment.</p>' + gtable('gdev', [['device', 'Device', 0, function (r) { return esc(r.device === 'desktop' ? 'Computers' : r.device === 'mobile' ? 'Mobile phones' : 'Tablets'); }],
+        ['share', 'Share of cost', 1, function (r) { return pct(r.cost, t.cost); }, function (r) { return r.cost; }]].concat(mcols()), Object.keys(dv).map(function (k) { return dv[k]; }), { sort: ['cost', -1], total: true });
+    }
+    var tr0 = GA.targeting[on[0].name];
+    return h + '<p class="lead">Targeted: <b>' + esc(tr0.locations.join(', ')) + '</b> (all enabled campaigns). Excluded, ' + tr0.excluded.length + ' states and DC: ' + esc(tr0.excluded.join(', ')) + '.</p>' + srcNote('People located in each state (Google’s “location of presence”), all campaigns') +
+      gtable('ggeo', [['state', 'State', 0, function (r) { return esc(r.state); }]].concat(mcols()), GA.geo, { find: function (r) { return r.state; }, findLabel: 'Find a state', sort: ['cost', -1], total: true });
+  }
+  /* ── Bidding and budgets ── */
+  function viewGBidding() {
+    var from = new Date(Date.parse(GA.pulled + 'T12:00:00Z') - 30 * 864e5).toISOString().slice(0, 10), wd = GA.daily.filter(function (d) { return d[0] >= from && d[0] < GA.pulled; }).length;   /* serving days in Google's LAST_30_DAYS */
+    var on = GA.camps.filter(function (c) { return c.status === 'ENABLED'; });
+    var budRec = GA.recs.filter(function (r) { return r.type === 'CAMPAIGN_BUDGET' && !r.dismissed; }).map(function (r) { return r.campaign; });
+    var rows = on.map(function (c) { return Object.assign({ perDay: c.cost / Math.max(1, wd), groups: GA.groups.filter(function (g) { return g.campaign === c.name && g.tcpa; }), rec: budRec.indexOf(c.name) >= 0 }, c); });
+    var cols = [['name', 'Campaign', 0, function (r) { return gCampLink(r.name); }], ['bidding', 'Bid strategy', 0, function (r) { return esc(BIDL[r.bidding] || lcs(r.bidding)); }],
+      ['tcpa', 'Target CPA', 1, function (r) { return r.tcpa ? usd(r.tcpa) : dash; }], ['grp', 'Ad-group targets', 0, function (r) { return r.groups.map(function (g) { return '<div class="sub">' + esc(g.name) + ' ' + usd(g.tcpa) + '</div>'; }).join('') || dash; }, function (r) { return r.groups.length; }],
+      ['cpa', 'Actual cost / conv.', 1, function (r) { var a = r.conv >= 0.5 ? r.cost / r.conv : null; return a == null ? dash : usd(a) + (r.tcpa ? '<div class="sub ' + (a > r.tcpa * 1.1 ? 'qs-lo' : '') + '">' + Math.round(100 * a / r.tcpa) + '% of target</div>' : ''); }, function (r) { return r.conv >= 0.5 ? r.cost / r.conv : 1e9; }],
+      ['budget', 'Budget / day', 1, function (r) { return usd(r.budget); }], ['perDay', 'Spend / serving day', 1, function (r) { return usd(r.perDay) + '<div class="sub">' + pct(r.perDay, r.budget) + ' of budget</div>'; }],
+      ['isBudget', 'Lost IS (budget)', 1, function (r) { return pctv(r.isBudget); }], ['isRank', 'Lost IS (rank)', 1, function (r) { return pctv(r.isRank); }], ['rec', 'Google suggests', 0, function (r) { return r.rec ? '<span class="chip warn">raise the budget</span>' : ''; }, function (r) { return r.rec ? 1 : 0; }]];
+    return '<h1>Bidding and budgets</h1>' + srcNote('Enabled campaigns') +
+      '<p class="lead">All non-brand campaigns use <b>Maximize conversions with a target CPA</b>; the brand campaign uses Target impression share. Several ad groups set their own target CPA. Spend per serving day is the 30-day cost over the ' + wd + ' days the ads ran. Google may spend up to twice the daily budget on a single day.</p>' +
+      gtable('gbid', cols, rows, { sort: ['cost', -1], click: drawerGCampaign });
+  }
+  /* ── Conversions ── */
+  var CATL = { SUBMIT_LEAD_FORM: 'Lead form', PHONE_CALL_LEAD: 'Phone call', CONVERTED_LEAD: 'Converted lead', QUALIFIED_LEAD: 'Qualified lead', PURCHASE: 'Purchase', CONTACT: 'Contact', PAGE_VIEW: 'Page view', BOOK_APPOINTMENT: 'Appointment', ENGAGEMENT: 'Engagement', GET_DIRECTIONS: 'Directions' };
+  function convTable(rows, byCampaign) {
+    var acts = {}, camps = {}; rows.forEach(function (r) { acts[r.action] = 1; camps[r.campaign] = 1; });
+    var cs = Object.keys(camps).sort(), as = Object.keys(acts).sort(function (a, b) { var A = GA.convActions.filter(function (x) { return x.name === a; })[0] || {}, B = GA.convActions.filter(function (x) { return x.name === b; })[0] || {}; return (B.inConv ? 1 : 0) - (A.inConv ? 1 : 0) || a.localeCompare(b); });
+    var cell = function (a, c) { var r = rows.filter(function (x) { return x.action === a && x.campaign === c; })[0]; return r ? (r.conv ? n1(r.conv) : '<span class="dim">' + n1(r.all) + '</span>') : dash; };
+    return '<div class="scroll"><table class="tbl"><thead><tr><th>Conversion action</th>' + cs.map(function (c) { return '<th class="num">' + esc(c) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      as.map(function (a) { var A = GA.convActions.filter(function (x) { return x.name === a; })[0] || {}; return '<tr><td>' + esc(a) + (A.inConv ? '' : ' <span class="chip">not in Conversions</span>') + '</td>' + cs.map(function (c) { return '<td class="num">' + cell(a, c) + '</td>'; }).join('') + '</tr>'; }).join('') +
+      '</tbody></table></div><p class="note">Counted conversions; a grey number is “all conversions” for an action that is not counted in Conversions (bidding ignores it).</p>';
+  }
+  function viewGConversions() {
+    var cur = TAB === 'campaigns' ? 'campaigns' : 'actions';
+    var h = '<h1>Conversions</h1>' + tabsBar(gsHref('conversions'), [['actions', 'Conversion actions', GA.convActions.length], ['campaigns', 'By campaign', null]], cur);
+    if (cur === 'campaigns') return h + srcNote('Conversions per action and campaign') + convTable(GA.convBy, true);
+    var by = {}; GA.convBy.forEach(function (x) { var o = by[x.action] || (by[x.action] = { conv: 0, all: 0, value: 0 }); o.conv += x.conv; o.all += x.all; o.value += x.value; });
+    var rows = GA.convActions.map(function (a) { var m = by[a.name] || {}; return Object.assign({ conv: m.conv || 0, all: m.all || 0, val: m.value || 0 }, a); });
+    return h + srcNote('Every conversion action that is not removed') +
+      '<p class="lead">Bidding optimises to the actions counted in <b>Conversions</b>: the website lead form, calls from ads, and the CRM stages uploaded offline (SA sent, SA signed, enrolled, first payment cleared, valued $300 / $90 / $75 / $450). The GA4 form-submit event is recorded as a secondary action only.</p>' +
+      gtable('gconv', [['name', 'Conversion action', 0, function (r) { return esc(r.name) + '<div class="sub">' + esc(lcs(r.type)) + '</div>'; }], ['category', 'Goal', 0, function (r) { return esc(CATL[r.category] || lcs(r.category)); }],
+        ['inConv', 'In “Conversions”', 0, function (r) { return r.inConv ? '<span class="chip ok">counted</span>' : '<span class="chip">secondary</span>'; }, function (r) { return r.inConv ? 1 : 0; }], ['status', 'Status', 0, function (r) { return chipS(r.status); }],
+        ['counting', 'Count', 0, function (r) { return esc(r.counting === 'ONE_PER_CLICK' ? 'one per click' : 'every'); }], ['value', 'Default value', 1, function (r) { return r.value != null ? '$' + r.value : dash; }], ['lookback', 'Click window', 1, function (r) { return r.lookback ? r.lookback + ' days' : dash; }],
+        ['conv', 'Conv. (30 days)', 1, function (r) { return n1(r.conv); }], ['all', 'All conv.', 1, function (r) { return n1(r.all); }]], rows,
+        { find: function (r) { return r.name; }, findLabel: 'Find an action', sort: ['all', -1], filters: [['inConv', 'Counted', [['', 'All actions'], ['1', 'Counted in Conversions'], ['0', 'Secondary']], function (r, v) { return r.inConv === (v === '1'); }], ['status', 'Status', [['', 'All statuses'], ['ENABLED', 'Enabled'], ['HIDDEN', 'Hidden']], function (r, v) { return r.status === v; }]],
+          click: function (r) { openDrawer(r.name, [['Basic info', kv([['Goal', esc(CATL[r.category] || lcs(r.category))], ['Source', esc(lcs(r.origin) + ' · ' + lcs(r.type))], ['Counted in Conversions', r.inConv ? 'yes (bidding uses it)' : 'no (secondary, reported only)'], ['Primary for its goal', r.primary ? 'yes' : 'no'], ['Count', esc(r.counting === 'ONE_PER_CLICK' ? 'one per click' : 'every conversion')], ['Default value', r.value != null ? '$' + r.value : ''], ['Click-through window', r.lookback ? r.lookback + ' days' : ''], ['Status', chipS(r.status)], ['Action ID', esc(r.id)]])],
+            ['By campaign', convTable(GA.convBy.filter(function (x) { return x.action === r.name; }), true)]]); } });
+  }
+  /* ── Experiments ── */
+  function viewGExperiments() {
+    return '<h1>Experiments</h1><p class="lead">Google Ads’ own experiments (campaign drafts with a traffic split) are not used in this account: the snapshot of ' + esc(GA ? GA.pulled : '') + ' has none. Credo’s tests are planned here, as ad variants and new ad groups:</p>' +
+      '<div class="tiles links"><a class="tile" href="#/ads/ab-tests"><h3>A/B test plan</h3><p>A second ad (B) for each running ad group, its page, and the search terms it should cover.</p></a>' +
+      '<a class="tile" href="#/ads/new-clusters"><h3>New topical clusters</h3><div class="big">' + NCL().length + '</div><p>New ad groups for searches no current ad group targets, with their ads and pages.</p></a></div>';
+  }
+  /* ── Recommendations ── */
+  var RECL = { CAMPAIGN_BUDGET: ['Raise the budget', 'The campaign is limited by its budget; Google estimates more conversions with a higher one.', 'Worth weighing where the cost per conversion is at or under target.'],
+    SITELINK_ASSET: ['Add sitelinks', 'Add more sitelink assets to the campaign.', 'Low risk: sitelinks can point to the topical pages.'],
+    DISPLAY_EXPANSION_OPT_IN: ['Expand to the Display Network', 'Show the search ads on Display placements too.', 'Usually poor for legal lead generation: low intent and harder to control.'],
+    SEARCH_PARTNERS_OPT_IN: ['Add search partners', 'Show the ads on Google’s search partner sites.', 'Test with care: partner traffic often converts worse.'],
+    PERFORMANCE_MAX_OPT_IN: ['Try Performance Max', 'Create a Performance Max campaign.', 'Planned as PMax_Core_HighLTV (paused).'],
+    RESPONSIVE_SEARCH_AD: ['Add a responsive search ad', 'The ad group has too few ads.', 'Brand_Core runs one ad; a second variant is cheap to add.'],
+    LEAD_FORM_ASSET: ['Add a lead form', 'A Google-hosted lead form on the ad.', 'Dismissed in the account.'] };
+  function viewGRecs() {
+    var by = {}; GA.recs.forEach(function (r) { (by[r.type] = by[r.type] || []).push(r); });
+    var rows = Object.keys(by).map(function (k) { var L = RECL[k] || [lcs(k), '', '']; return { type: k, label: L[0], what: L[1], take: L[2], list: by[k], open: by[k].filter(function (r) { return !r.dismissed; }).length }; });
+    return '<h1>Recommendations</h1>' + srcNote('Google’s recommendations for the account') + '<p class="lead">What Google suggests. Nothing is applied from the hub. “Hub note” is a first read, for discussion.</p>' +
+      gtable('grec', [['label', 'Recommendation', 0, function (r) { return '<b>' + esc(r.label) + '</b><div class="sub">' + esc(r.what) + '</div>'; }], ['open', 'Open', 1, function (r) { return String(r.open); }], ['camps', 'Campaigns', 0, function (r) { return '<span class="sub">' + esc(r.list.map(function (x) { return (x.campaign || 'account') + (x.group ? ' › ' + x.group : '') + (x.dismissed ? ' (dismissed)' : ''); }).join(', ')) + '</span>'; }, function (r) { return r.list.length; }],
+        ['take', 'Hub note', 0, function (r) { return esc(r.take); }]], rows, { sort: ['open', -1], click: function (r) { openDrawer(r.label, [['Basic info', '<p>' + esc(r.what) + '</p>' + kv([['Google type', esc(r.type)], ['Hub note', esc(r.take)]]) + '<h3>Where</h3><ul class="notes">' + r.list.map(function (x) { return '<li>' + (x.campaign ? gCampLink(x.campaign) : 'Account') + (x.group ? ' › ' + esc(x.group) : '') + (x.dismissed ? ' <span class="chip">dismissed</span>' : '') + '</li>'; }).join('') + '</ul>']]); } });
+  }
+  /* ── Change history ── */
+  var CHT = { ASSET: 'Asset', AD_GROUP: 'Ad group', CAMPAIGN: 'Campaign', CAMPAIGN_BUDGET: 'Budget', CAMPAIGN_CRITERION: 'Campaign targeting', AD_GROUP_CRITERION: 'Keyword or targeting', AD_GROUP_AD: 'Ad', AD: 'Ad' };
+  function viewGChanges() {
+    var types = {}; GA.changes.forEach(function (c) { types[c.type] = 1; });
+    var what = function (r) { var f = r.fields.replace(/,?resourceName|,?id\b/g, '').replace(/^,/, ''); return (r.op === 'CREATE' ? 'Added' : r.op === 'REMOVE' ? 'Removed' : 'Changed') + ' ' + (CHT[r.type] || lcs(r.type)).toLowerCase() + (r.op === 'UPDATE' && f ? ': ' + f.replace(/Micros/g, '').replace(/([A-Z])/g, ' $1').toLowerCase() : ''); };
+    return '<h1>Change history</h1>' + srcNote('Changes in the last 30 days (Google keeps 30 days)') +
+      gtable('gchg', [['t', 'When', 0, function (r) { return esc(r.t); }], ['what', 'Change', 0, function (r) { return esc(what(r)); }, what], ['where', 'Campaign › ad group', 0, function (r) { return esc([r.campaign, r.group].filter(Boolean).join(' › ') || 'account'); }, function (r) { return (r.campaign || '') + (r.group || ''); }],
+        ['user', 'By', 0, function (r) { return '<span class="sub">' + esc(r.user) + '<br>' + esc(lcs(r.client)) + '</span>'; }]], GA.changes,
+        { find: function (r) { return what(r) + ' ' + (r.campaign || '') + ' ' + (r.group || ''); }, findLabel: 'Find a change', sort: ['t', -1], filters: [['type', 'Type', [['', 'All changes']].concat(Object.keys(types).sort().map(function (t) { return [t, CHT[t] || lcs(t)]; })), function (r, v) { return r.type === v; }]] }) +
+      '<p class="note">“Internal tool” changes are made by Google’s own tools on the user’s behalf (for example assets created while editing an ad). The snapshot shows what changed, not the old and new values.</p>';
+  }
+  /* ── Landing pages ── */
+  function viewGLanding() {
+    return '<h1>Landing pages</h1>' + srcNote('Pages that ads sent people to (the address before tracking parameters; every variant of one address summed)') +
+      '<p><a href="#/ads/phones">Ads → pages → phones</a> · <a href="#/ads/new-pages">Proposed new pages</a> · <a href="' + LP_BASE + '">The landing pages on staging</a></p>' +
+      gtable('glp', [['url', 'Landing page', 0, function (r) { return link(r.url, r.url.replace(/^https?:\/\//, '')) + (r.variants > 1 ? '<div class="sub">' + r.variants + ' final-URL variants</div>' : ''); }]].concat(mcols(), [['cvr', 'Conv. rate', 1, function (r) { return pct(r.conv, r.clicks); }, function (r) { return r.clicks ? r.conv / r.clicks : -1; }]]), GA.landing,
+        { find: function (r) { return r.url; }, findLabel: 'Find a page', sort: ['cost', -1], total: true, filters: [['host', 'Site', [['', 'All sites'], ['start', 'start.credolegal.com'], ['main', 'credolegal.com']], function (r, v) { return v === 'start' ? /start\./.test(r.url) : !/start\./.test(r.url); }]] }) +
+      '<p class="note">Ads run on start.credolegal.com today; staging.credolegal.com is the site being built.</p>';
+  }
+  var GSECV = { campaigns: viewGCampaigns, 'ad-groups': viewGGroups, ads: function () { return viewGAds(platBy.google); }, assets: function () { return viewGAssets(platBy.google); }, keywords: viewGKeywords, audiences: viewGAudiences,
+    locations: viewGLocations, bidding: viewGBidding, conversions: viewGConversions, experiments: viewGExperiments, recommendations: viewGRecs, 'change-history': viewGChanges, 'landing-pages': viewGLanding };
+
+  /* ───────────── MH-81: headline and description quadrants ─────────────
+     Operator 13 Oct: "an analysis of headline and description performance by placing them into four quadrants (top left is
+     best, bottom right is worst) … filters to choose the ads for which to show headlines and descriptions … Use the whole page
+     for this, and place it under search term clusters." Each line's 90-day numbers (ad_group_ad_asset_view) give a point:
+     up = higher CTR (it earns the click), left = lower cost per conversion (it earns the lead cheaply). The cross-hairs are the
+     shown lines' own averages, so a quadrant reads "better or worse than the rest of this selection". */
+  var QF = { camp: '!brand', grp: '', run: '', min: 300, by: 'text', sel: null };   /* sel: the chosen ad ids (null = every ad in scope) */
+  var QD = [['tl', 'Winners', 'High CTR, low cost per conversion: keep, reuse in new ads.', '#1f8a4c'], ['tr', 'Clicks, costly leads', 'People click, leads cost more: check the line against the page it lands on.', '#b07a00'],
+    ['bl', 'Quiet converters', 'Few clicks, cheap leads: keep; they may deserve more exposure.', '#2f63ad'], ['br', 'Underperformers', 'Low CTR, costly or no leads: replace first.', '#c0392b']];
+  var qdOf = function (k) { return QD.filter(function (q) { return q[0] === k; })[0]; };
+  var qAds = null;
+  function qAdIndex() {   /* every ad in the snapshot: campaign, ad group, label, running, link (ads-tree for the ads it knows) */
+    if (qAds) return qAds; qAds = {}; var tree = {}, gp = platBy.google;
+    gp.campaigns.forEach(function (c) { c.groups.forEach(function (g) { g.ads.forEach(function (a) { tree[a.id] = { c: c, g: g, a: a }; }); }); });
+    var gById = {}; (GA.groups || []).forEach(function (g) { gById[g.id] = g; });
+    GA.assets.rows.forEach(function (r) { if (qAds[r[0]]) return; var t = tree[r[0]], g = gById[r[1]];
+      qAds[r[0]] = { id: r[0], campaign: t ? t.c.name : g ? g.campaign : '', group: r[2], label: t ? adLabel(gp, t.a) : 'Ad ' + r[0], running: t ? !!(t.a.serving && t.a.serving.running) : null, href: t ? adHref(gp, t.c, t.g, t.a) : null, t: t }; });
+    return qAds;
+  }
+  function qScope() { var I = qAdIndex(); return Object.keys(I).map(function (k) { return I[k]; }).filter(function (a) {
+    return (!QF.camp || (QF.camp === '!brand' ? a.campaign !== 'S_Brand' : a.campaign === QF.camp)) && (!QF.grp || a.group === QF.grp) && (!QF.run || (QF.run === 'on' ? a.running === true : a.running === false)); }); }   /* an ad missing from the ad snapshot (running unknown) counts in neither */
+  function qPoints(f) {   /* the shown lines of one type (H or D): one point per text (or per ad and text), with their quadrant */
+    var on = {}; qScope().forEach(function (a) { if (!QF.sel || QF.sel[a.id]) on[a.id] = 1; });
+    var by = {};
+    GA.assets.rows.forEach(function (r) { if (r[3] !== f || !on[r[0]]) return; var k = QF.by === 'ad' ? r[0] + '|' + r[4] : r[4];
+      var o = by[k] || (by[k] = { text: r[4], f: f, impr: 0, clicks: 0, cost: 0, conv: 0, ads: [] }); o.impr += r[5]; o.clicks += r[6]; o.cost += r[7]; o.conv += r[8]; o.ads.push(r); });
+    var pts = Object.keys(by).map(function (k) { return by[k]; }).filter(function (p) { return p.impr >= QF.min; });
+    var t = tot(pts), avgCtr = t.impr ? t.clicks / t.impr : 0, avgCpa = t.conv ? t.cost / t.conv : null;
+    pts.forEach(function (p) { p.ctr = p.impr ? p.clicks / p.impr : 0; p.cpa = p.conv > 0 ? p.cost / p.conv : null;
+      var hi = p.ctr >= avgCtr, cheap = p.cpa != null && avgCpa != null && p.cpa <= avgCpa; p.q = hi ? (cheap ? 'tl' : 'tr') : (cheap ? 'bl' : 'br'); });
+    return { pts: pts, avgCtr: avgCtr, avgCpa: avgCpa, t: t };
+  }
+  function drawerQPoint(p, P) {
+    var q = qdOf(p.q), I = qAdIndex(), rows = p.ads.map(function (r) { var a = I[r[0]]; return { a: a, impr: r[5], clicks: r[6], cost: r[7], conv: r[8] }; }).sort(function (x, y) { return y.impr - x.impr; });
+    var vs = function (v, avg, lowGood) { if (v == null || !avg) return ''; var d = Math.round(100 * (v / avg - 1)); return ' <span class="sub ' + ((lowGood ? d <= 0 : d >= 0) ? 'qs-hi' : 'qs-lo') + '">' + (d >= 0 ? '+' : '') + d + '% vs average</span>'; };
+    openDrawer(p.text, [['Basic info', '<p><span class="chip" style="color:' + q[3] + ';border-color:' + q[3] + '">' + esc(q[1]) + '</span> ' + esc(q[2]) + '</p>' +
+        kv([['Line', esc(p.text)], ['Type', p.f === 'H' ? 'headline' : 'description'], ['Impressions', n0(p.impr)], ['Clicks', n0(p.clicks)], ['CTR', pct(p.clicks, p.impr) + vs(p.ctr, P.avgCtr)],
+          ['Cost', usd(p.cost)], ['Conversions', n1(p.conv)], ['Cost / conv.', (p.cpa == null ? 'no conversions' : usd(p.cpa)) + vs(p.cpa, P.avgCpa, true)], ['Ads', String(rows.length)]]) +
+        '<p class="note">Averages of the lines shown: CTR ' + (100 * P.avgCtr).toFixed(1) + '%, cost per conversion ' + usd(P.avgCpa) + '. ' + esc(GA.assets.period) + '.</p>'],
+      ['Ads', '<div class="scroll"><table class="tbl"><thead><tr><th>Ad</th><th class="num">Impr.</th><th class="num">CTR</th><th class="num">Cost</th><th class="num">Conv.</th><th class="num">Cost / conv.</th></tr></thead><tbody>' +
+        rows.map(function (x) { return '<tr><td>' + (x.a.href ? '<a href="' + x.a.href + '">' + esc(x.a.label) + '</a>' : esc(x.a.label)) + '<div class="sub">' + esc((x.a.campaign ? x.a.campaign + ' › ' : '') + x.a.group) + '</div></td><td class="num">' + n0(x.impr) + '</td><td class="num">' + pct(x.clicks, x.impr) +
+          '</td><td class="num">' + usd(x.cost) + '</td><td class="num">' + n1(x.conv) + '</td><td class="num">' + per(x.cost, x.conv) + '</td></tr>'; }).join('') + '</tbody></table></div>']]);
+  }
+  function qChart(P, f) {
+    var W = 720, Hh = 470, L = 56, R = 16, T = 26, B = 46, pw = W - L - R, ph = Hh - T - B;
+    if (!P.pts.length) return '<p class="empty">No ' + (f === 'H' ? 'headlines' : 'descriptions') + ' with ' + n0(QF.min) + '+ impressions in this selection.</p>';
+    var fin = P.pts.filter(function (p) { return p.cpa != null; }).map(function (p) { return p.cpa; }), avg = P.avgCpa || 1;
+    var xmax = Math.max(avg * 2, Math.min(Math.max.apply(null, fin.concat([avg])), avg * 4)) * 1.08, ymax = Math.min(Math.max.apply(null, P.pts.map(function (p) { return p.ctr; }).concat([P.avgCtr * 2])), P.avgCtr * 2.6) * 1.08;   /* a few very high CTRs (brand) would flatten the rest: they sit on the top edge */
+    var X = function (v) { return L + pw * Math.min(v, xmax) / xmax; }, Y = function (v) { return T + ph - ph * v / ymax; }, mi = Math.max.apply(null, P.pts.map(function (p) { return p.impr; }));
+    var ax = X(avg), ay = Y(P.avgCtr), bg = function (x, y, w, h, c) { return '<rect x="' + x + '" y="' + y + '" width="' + Math.max(0, w) + '" height="' + Math.max(0, h) + '" fill="' + c + '" opacity=".07"/>'; };
+    var s = bg(L, T, ax - L, ay - T, QD[0][3]) + bg(ax, T, L + pw - ax, ay - T, QD[1][3]) + bg(L, ay, ax - L, T + ph - ay, QD[2][3]) + bg(ax, ay, L + pw - ax, T + ph - ay, QD[3][3]) +
+      '<rect x="' + L + '" y="' + T + '" width="' + pw + '" height="' + ph + '" fill="none" stroke="#d5d9df"/>' +
+      '<line x1="' + ax + '" y1="' + T + '" x2="' + ax + '" y2="' + (T + ph) + '" stroke="#8a929c" stroke-dasharray="4 3"/><line x1="' + L + '" y1="' + ay + '" x2="' + (L + pw) + '" y2="' + ay + '" stroke="#8a929c" stroke-dasharray="4 3"/>' +
+      [[L + 6, T + 14, 0, 'start'], [L + pw - 6, T + 14, 1, 'end'], [L + 6, T + ph - 8, 2, 'start'], [L + pw - 6, T + ph - 8, 3, 'end']].map(function (c) { return '<text x="' + c[0] + '" y="' + c[1] + '" font-size="13" font-weight="600" fill="' + QD[c[2]][3] + '" text-anchor="' + c[3] + '">' + esc(QD[c[2]][1]) + '</text>'; }).join('') +
+      '<text x="' + ax + '" y="' + (T - 8) + '" font-size="11.5" fill="#667080" text-anchor="middle">average ' + esc(usd(avg).replace(/<[^>]+>/g, '')) + ' / conv.</text>' +
+      '<text x="' + (L - 6) + '" y="' + (ay + 3) + '" font-size="11.5" fill="#667080" text-anchor="end">' + (100 * P.avgCtr).toFixed(1) + '%</text>' +
+      [0.5, 1.5, 2, 3].filter(function (k) { return k * avg < xmax; }).map(function (k) { return '<text x="' + X(k * avg) + '" y="' + (T + ph + 14) + '" font-size="11" fill="#8a929c" text-anchor="middle">$' + Math.round(k * avg) + '</text>'; }).join('') +
+      '<text x="' + (L + pw / 2) + '" y="' + (Hh - 8) + '" font-size="12" fill="#3a414b" text-anchor="middle">Cost per conversion → (left is cheaper; no conversions = right edge)</text>' +
+      '<text transform="translate(14 ' + (T + ph / 2) + ') rotate(-90)" font-size="12" fill="#3a414b" text-anchor="middle">CTR ↑ (higher CTRs sit on the top edge)</text>' + [0.5, 1.5, 2].map(function (k) { return '<text x="' + (L - 6) + '" y="' + (Y(k * P.avgCtr) + 3) + '" font-size="11" fill="#8a929c" text-anchor="end">' + (100 * k * P.avgCtr).toFixed(1) + '%</text>'; }).join('');
+    s += P.pts.slice().sort(function (a, b) { return b.impr - a.impr; }).map(function (p) {
+      var x = p.cpa == null ? L + pw - 4 : X(p.cpa), y = Math.max(T + 4, Y(p.ctr)), r = 3 + 11 * Math.sqrt(p.impr / mi), c = qdOf(p.q)[3];
+      return '<g class="qpt"' + dr(function (el) { el.classList.add('sel'); drawerQPoint(p, P); }) + '><desc class="cap">' + esc(p.text) + '</desc><title>' + esc(p.text + ' · ' + n0(p.impr).replace(/<[^>]+>/g, '') + ' impr. · CTR ' + (100 * p.ctr).toFixed(1) + '% · ' + (p.cpa == null ? 'no conversions' : '$' + Math.round(p.cpa) + ' / conv.')) + '</title>' +
+        '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + r.toFixed(1) + '" fill="' + c + '" fill-opacity="' + (p.cpa == null ? '0' : '.55') + '" stroke="' + c + '" stroke-width="1.5"/></g>'; }).join('');
+    return '<svg class="qchart" viewBox="0 0 ' + W + ' ' + Hh + '" role="img" aria-label="' + (f === 'H' ? 'Headlines' : 'Descriptions') + ' by CTR and cost per conversion">' + s + '</svg>';
+  }
+  function qLists(P) {
+    return '<div class="qlists">' + QD.map(function (q) { var l = P.pts.filter(function (p) { return p.q === q[0]; }).sort(function (a, b) { return b.impr - a.impr; });
+      return '<div class="qbox" style="border-top-color:' + q[3] + '"><h4 style="color:' + q[3] + '">' + esc(q[1]) + ' <span class="cnt">' + l.length + '</span></h4><p class="sub">' + esc(q[2]) + '</p>' +
+        (l.length ? '<table class="tbl qtbl"><thead><tr><th>Line</th><th class="num">Impr.</th><th class="num">CTR</th><th class="num">$ / conv.</th></tr></thead><tbody>' + l.map(function (p) {
+          return '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); drawerQPoint(p, P); }) + '><td>' + esc(p.text) + (QF.by === 'ad' ? '<div class="sub">' + esc(qAdIndex()[p.ads[0][0]].label) + '</div>' : p.ads.length > 1 ? '<div class="sub">' + p.ads.length + ' ads</div>' : '') + '</td><td class="num">' + n0(p.impr) + '</td><td class="num">' + pct(p.clicks, p.impr) + '</td><td class="num">' + (p.cpa == null ? '<span class="sub">none</span>' : usd(p.cpa)) + '</td></tr>'; }).join('') + '</tbody></table>' : '<p class="note">None.</p>') + '</div>'; }).join('') + '</div>';
+  }
+  function qBody() {
+    var I = qAdIndex(), scope = qScope(), chosen = scope.filter(function (a) { return !QF.sel || QF.sel[a.id]; });
+    var H = qPoints('H'), D = qPoints('D');
+    var byGrp = {}; scope.forEach(function (a) { var k = (a.campaign ? a.campaign + ' › ' : '') + a.group; (byGrp[k] = byGrp[k] || []).push(a); });
+    var picker = '<details class="state qpick"' + (QF.open ? ' open' : '') + '><summary>Ads: <b>' + chosen.length + '</b> of ' + scope.length + ' chosen</summary><div class="toolbar"><button type="button" class="btn" data-qall="1">All</button><button type="button" class="btn" data-qall="0">None</button><button type="button" class="btn" data-qall="run">Only running</button></div>' +
+      Object.keys(byGrp).sort().map(function (k) { return '<div class="qgrp"><b>' + esc(k) + '</b>' + byGrp[k].map(function (a) {
+        return '<label class="chk"><input type="checkbox" data-qad="' + esc(a.id) + '"' + (!QF.sel || QF.sel[a.id] ? ' checked' : '') + '> ' + esc(a.label) + ' <span class="sub">' + esc(a.id) + '</span>' + (a.running ? ' <span class="chip ok">running</span>' : a.running === false ? ' <span class="chip">not running</span>' : '') + '</label>'; }).join('') + '</div>'; }).join('') + '</details>';
+    var kp = function (P, f) { return '<p class="note">' + P.pts.length + ' ' + (f === 'H' ? 'headlines' : 'descriptions') + ' · average CTR ' + (100 * P.avgCtr).toFixed(1) + '% · average cost / conv. ' + usd(P.avgCpa) + ' · ' + QD.map(function (q) { return q[1] + ' ' + P.pts.filter(function (p) { return p.q === q[0]; }).length; }).join(' · ') + '</p>'; };
+    return picker + '<div class="qcols"><section><h2>Headlines</h2>' + kp(H, 'H') + qChart(H, 'H') + '</section><section><h2>Descriptions</h2>' + kp(D, 'D') + qChart(D, 'D') + '</section></div>' +
+      '<h2>Headlines by quadrant</h2>' + qLists(H) + '<h2>Descriptions by quadrant</h2>' + qLists(D);
+  }
+  function viewCopyQuadrants() {
+    if (!GA || !GA.assets) return '<h1>Headline and description quadrants</h1><p class="empty">The headline and description snapshot (data/google-account.js › assets) is not loaded.</p>';
+    var I = qAdIndex(), all = Object.keys(I).map(function (k) { return I[k]; }), opt = function (v, l, cur) { return '<option value="' + esc(v) + '"' + (String(v) === String(cur) ? ' selected' : '') + '>' + esc(l) + '</option>'; };
+    var camps = {}, grps = {}; all.forEach(function (a) { if (a.campaign) camps[a.campaign] = 1; if (!QF.camp || (QF.camp === '!brand' ? a.campaign !== 'S_Brand' : a.campaign === QF.camp)) grps[a.group] = 1; });
+    AFTER = wireCopyQuadrants;
+    return '<h1>Headline and description quadrants</h1><p class="lead">Every headline and description that served in the last 90 days (' + esc(GA.assets.period) + ', pulled ' + esc(GA.assets.pulled) + ', read-only), placed by two questions: <b>does it earn the click</b> (CTR, up is better) and <b>does it earn the lead cheaply</b> (cost per conversion, left is better). The dashed lines are the averages of the lines shown, so the quadrants compare each line with the rest of your selection. Top left is best, bottom right is worst. Dot size = impressions; a hollow dot has no conversions. Click a dot or a row for its numbers per ad.</p>' +
+      '<div class="stctl" id="qf-ctl"><select data-qf="camp" aria-label="Campaign">' + opt('!brand', 'All campaigns except S_Brand', QF.camp) + opt('', 'All campaigns', QF.camp) + Object.keys(camps).sort().map(function (c) { return opt(c, c, QF.camp); }).join('') + '</select>' +
+      '<select data-qf="grp" aria-label="Ad group">' + opt('', 'All ad groups', QF.grp) + Object.keys(grps).sort().map(function (g) { return opt(g, g, QF.grp); }).join('') + '</select>' +
+      '<select data-qf="run" aria-label="Running">' + opt('', 'Running and paused ads', QF.run) + opt('on', 'Running ads only', QF.run) + opt('off', 'Paused ads only', QF.run) + '</select>' +
+      '<select data-qf="by" aria-label="Combine">' + opt('text', 'One dot per line (ads combined)', QF.by) + opt('ad', 'One dot per line and ad', QF.by) + '</select>' +
+      '<select data-qf="min" aria-label="Minimum impressions">' + [50, 100, 300, 1000, 3000].map(function (v) { return opt(v, 'At least ' + v.toLocaleString('en-US') + ' impressions', QF.min); }).join('') + '</select></div>' +
+      '<div id="qf-body">' + qBody() + '</div>' +
+      '<details class="state"><summary>Method</summary><ul class="notes"><li>Source: Google Ads ad_group_ad_asset_view, ' + esc(GA.assets.period) + ', every ad group with impressions (read-only, Ryze). Each line’s numbers are those of the impressions it appeared in; a responsive search ad shows several lines at once, so the numbers of lines in the same ad overlap and do not add up to the ad’s.</li>' +
+      '<li>“Ads combined” sums a line used in several ads (e.g. “Flexible Payment Plans”); “per line and ad” shows each use on its own.</li><li>Lines below the impression minimum are left out, and the averages are taken over the lines shown, so changing the filters moves the cross-hairs.</li><li>Conversions are Google Ads conversions as configured (fractional = data-driven attribution).</li></ul></details>';
+  }
+  function wireCopyQuadrants() {
+    var body = $('qf-body'), redraw = function () { body.innerHTML = qBody(); };
+    $('qf-ctl').addEventListener('change', function (e) { var k = e.target.getAttribute('data-qf'); if (!k) return; QF[k] = k === 'min' ? +e.target.value : e.target.value; if (k === 'camp') QF.grp = ''; if (k === 'camp' || k === 'grp' || k === 'run') QF.sel = null;
+      if (k === 'camp') { route(); return; } redraw(); });   /* the ad-group list depends on the campaign */
+    body.addEventListener('change', function (e) { var id = e.target.getAttribute('data-qad'); if (!id) return; var I = qAdIndex();
+      if (!QF.sel) { QF.sel = {}; qScope().forEach(function (a) { QF.sel[a.id] = 1; }); } if (e.target.checked) QF.sel[id] = 1; else delete QF.sel[id]; QF.open = true; redraw(); });
+    body.addEventListener('click', function (e) { var b = e.target.closest('[data-qall]'); if (!b) return; var v = b.getAttribute('data-qall'); QF.open = true;
+      QF.sel = v === '1' ? null : {}; if (v === 'run') qScope().forEach(function (a) { if (a.running) QF.sel[a.id] = 1; }); redraw(); });
+    body.addEventListener('toggle', function (e) { if (e.target.classList && e.target.classList.contains('qpick')) QF.open = e.target.open; }, true);
+  }
+
   /* ── search terms and keywords (MH-11 D2: the search-term review, per ad group) ── */
   function STG() { return AM && AM.google.st ? AM.google.st : null; }
   var ACTION = { keep: ['keep', 'ok'], keep_test: ['keep · A/B test', 'ok'], covered: ['covered', ''], none: ['no action', ''], skip: ['skip', ''], consider: ['consider', 'warn'],
@@ -2421,7 +2863,11 @@
       }
     } else if (parts[0] === 'ads') {
       crumbs.push(['Ads', '#/ads']);
-      if (parts[1] === 'phones' && PM) { crumbs.push(['Ads → pages → phones', '#/ads/phones']); html = viewPhoneMap(); }
+      if (GPARENT[parts[1]]) { crumbs.push(['Google', '#/ads/google']); if (parts[1] !== 'terms') crumbs.push([gsLabel(GPARENT[parts[1]]), gsHref(GPARENT[parts[1]])]); }   /* MH-80 */
+      if (parts[1] === 'google' && GSECV[parts[2]]) { crumbs.push(['Google', '#/ads/google'], [gsLabel(parts[2]), hash]); AFTER = null; html = GA ? GSECV[parts[2]]() : '<h1>' + esc(gsLabel(parts[2])) + '</h1><p class="empty">The account snapshot (data/google-account.js) is not loaded.</p>'; after = AFTER; }
+      else if (parts[1] === 'google' && !parts[2]) { crumbs.push(['Google', '#/ads/google']); html = viewGoogle(platBy.google); }
+      else if (parts[1] === 'copy-quadrants') { crumbs.push(['Headline and description quadrants', hash]); AFTER = null; html = viewCopyQuadrants(); after = AFTER; }   /* MH-81 */
+      else if (parts[1] === 'phones' && PM) { crumbs.push(['Ads → pages → phones', '#/ads/phones']); html = viewPhoneMap(); }
       else if (parts[1] === 'terms' && STG()) { crumbs.push(['Search terms', '#/ads/terms']); if (parts[2] === 'page' && parts[3]) crumbs.push([pageLabel(parts[3]), hash]); AFTER = null; html = viewSearchTerms(parts[2] === 'page' ? parts[3] : ''); after = AFTER; }
       else if (parts[1] === 'new-clusters') { crumbs.push(['New topical clusters', '#/ads/new-clusters']); var nc = NCL().filter(function (c) { return c.key === parts[2]; })[0];   /* MH-74 */
         html = viewNewClusters(); if (nc) after = function () { if (/^page-/.test(TAB || '')) NC_PAGE = TAB.slice(5); drawerNC(nc, /^page-/.test(TAB || '') ? 'Pages' : null); }; }   /* MH-75: …/<key> opens the ad group's drawer (?tab=page-<ad>: on that ad's page) */
@@ -2436,7 +2882,7 @@
           v.parentNode.addEventListener('mouseenter', function () { var q = v.play(); if (q && q.catch) q.catch(function () {}); }); v.parentNode.addEventListener('mouseleave', function () { v.pause(); }); }); }; }
       else {
       var f = findAd(parts[1], parts[2], parts[3], parts[4]);
-      if (f.p) crumbs.push([f.p.label, adHref(f.p)]); if (f.c) crumbs.push([f.c.name, adHref(f.p, f.c)]); if (f.g) crumbs.push([f.g.name, adHref(f.p, f.c, f.g)]); if (f.a) crumbs.push([adLabel(f.p, f.a), hash]);
+      if (f.p) crumbs.push([f.p.label, adHref(f.p)]); if (f.c && f.p.key === 'google' && GA) crumbs.push(['Campaigns', gsHref('campaigns')]); if (f.c) crumbs.push([f.c.name, adHref(f.p, f.c)]); if (f.g) crumbs.push([f.g.name, adHref(f.p, f.c, f.g)]); if (f.a) crumbs.push([adLabel(f.p, f.a), hash]);
       AFTER = null; html = f.a ? viewAd(f.p, f.c, f.g, f.a) : f.g ? viewGroup(f.p, f.c, f.g) : f.c ? viewCampaign(f.p, f.c) : f.p ? viewPlatform(f.p) : viewAds(); after = AFTER;
       }
     } else if (parts[0] === 'organic' && O) {
