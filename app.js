@@ -310,7 +310,7 @@
             { sec: 'Websites', label: 'Microsites', href: '#/website', count: sites.length, children: web },
             { label: 'Landing pages', href: LP_BASE, count: lpCount, children: lps },
             { sec: 'Ads', label: 'Platforms', href: '#/ads', count: plats.length, children: ads, ovKids: true },   /* MH-80: phones, search terms, clusters, A/B tests, new clusters and new pages moved under Google */
-            { sec: 'Organic' }].concat(organicNav(), [{ sec: 'Work' }], work, [{ sec: 'Reference' }, { label: 'Statutes', href: '#/reference/statutes', count: ST ? ST.statutes.length : 0 }], [{ sec: 'More' }], more);
+            { sec: 'Organic' }].concat(organicNav(), [{ sec: 'Work' }, streamNav()], work, [{ sec: 'Reference' }, { label: 'Statutes', href: '#/reference/statutes', count: ST ? ST.statutes.length : 0 }], [{ sec: 'More' }], more);
   }
   function adLabel(p, a) { return p.key === 'google' ? (a.headlines[0] || a.name) : p.key === 'meta' ? (a.version + ' · ' + a.name.split('-').slice(0, -1).join('-').replace(/^DD_/, '')) : a.name; }
   function renderTree() {
@@ -568,16 +568,16 @@
   var gsHref = function (k) { var s = GSEC.filter(function (x) { return x[0] === k; })[0]; return s && s[2] ? s[2] : '#/ads/google/' + k; };
   var gsLabel = function (k) { var s = GSEC.filter(function (x) { return x[0] === k; })[0]; return s ? s[1] : k; };
   /* the parent section of the older Ads routes, for the breadcrumb (they keep their addresses: permalinks keep working) */
-  var GPARENT = { terms: 'search-terms', clusters: 'search-terms', 'ab-tests': 'experiments', 'new-clusters': 'experiments', phones: 'landing-pages', 'new-pages': 'landing-pages', 'copy-quadrants': 'search-terms' };
+  var GPARENT = { terms: 'search-terms', 'new-clusters': 'experiments', phones: 'landing-pages', 'new-pages': 'landing-pages' };   /* clusters, quadrants and the Ad test builder: Work › Streams (MH-84) */
   function gNav(p, campNode) {   /* operator 12 Oct: Campaigns is a leaf (no campaign list in the menu); the Campaigns table links to each campaign */
     if (!GA) return p.campaigns.map(function (c) { return campNode(p, c); });
     var c = function (k, n, kids) { return { label: gsLabel(k), href: gsHref(k), count: n, children: kids }; };
     var on = GA.camps.filter(function (x) { return x.status === 'ENABLED'; });
     return [c('campaigns', p.campaigns.length), c('ad-groups', GA.groups.length), c('ads', allAds(p).length),
       c('assets', gAssets(p).ext.length + gAssets(p).img.length), c('keywords', GA.keywords.length),
-      c('search-terms', STG() ? allTerms().length : 0, [{ label: 'Search-term clusters', href: '#/ads/clusters', count: Object.keys(CLUS).length || 0 }, { label: 'Headline and description quadrants', href: '#/ads/copy-quadrants' }]),   /* MH-81 */
+      c('search-terms', STG() ? allTerms().length : 0),   /* MH-84: clusters and quadrants are in Work › Streams */
       c('audiences', GA.lists.length), c('locations'), c('bidding', on.length), c('conversions', GA.convActions.filter(function (a) { return a.status === 'ENABLED'; }).length),
-      c('experiments', null, [{ label: 'A/B test plan', href: '#/ads/ab-tests' }, { label: 'New topical clusters', href: '#/ads/new-clusters', count: NCL().length }]),
+      c('experiments', null, [{ label: 'New topical clusters', href: '#/ads/new-clusters', count: NCL().length }]),   /* MH-84: the Ad test builder is in Work › Streams */
       c('recommendations', GA.recs.filter(function (r) { return !r.dismissed; }).length), c('change-history', GA.changes.length),
       c('landing-pages', GA.landing.length, [{ label: 'Ads → pages → phones', href: '#/ads/phones', count: PM ? PM.rows.length : 0 }, { label: 'New pages', href: '#/ads/new-pages', count: STG() ? newPageRows().length : 0 }])];
   }
@@ -653,7 +653,7 @@
       card('keywords', String(GA.keywords.length), lowQs.length + ' with Quality Score 1–3 · ' + n0(GA.negatives.shared.length + GA.negatives.campaign.length + GA.negatives.adgroup.length) + ' negatives'),
       card('search-terms', STG() ? String(allTerms().length) : '', 'reviewed searches, clusters and actions'), card('audiences', String(GA.lists.length), 'lists · ' + GA.audAttach.length + ' campaign links'),
       card('locations', 'US', GA.targeting[on[0] && on[0].name] ? GA.targeting[on[0].name].excluded.length + ' states excluded · Mon–Fri 9–21' : ''), card('bidding', 'Max. conv.', 'target CPA on ' + on.filter(function (c) { return c.tcpa; }).length + ' of ' + on.length + ' campaigns'),
-      card('conversions', String(GA.convActions.filter(function (a) { return a.inConv && a.status === 'ENABLED'; }).length), 'actions counted in Conversions'), card('experiments', '', 'A/B test plan and new topical clusters'),
+      card('conversions', String(GA.convActions.filter(function (a) { return a.inConv && a.status === 'ENABLED'; }).length), 'actions counted in Conversions'), card('experiments', '', 'New topical clusters; the Ad test builder is in Work › Streams'),
       card('recommendations', String(GA.recs.filter(function (r) { return !r.dismissed; }).length), 'from Google, not applied'), card('change-history', String(GA.changes.length), 'changes in 30 days'), card('landing-pages', String(GA.landing.length), 'pages that served ads')];
     return h + srcNote('Account totals') + '<div class="tiles kpis">' + kp.map(function (k) { return '<div class="tile static"><p>' + esc(k[0]) + '</p><div class="big">' + k[1] + '</div><p>' + k[2] + '</p></div>'; }).join('') + '</div>' +
       '<h2>Cost and conversions per day</h2>' + dailyChart(GA.daily) + '<h2>Sections</h2><div class="tiles links">' + cards.join('') + '</div>';
@@ -847,8 +847,8 @@
   }
   /* ── Experiments ── */
   function viewGExperiments() {
-    return '<h1>Experiments</h1><p class="lead">Google Ads’ own experiments (campaign drafts with a traffic split) are not used in this account: the snapshot of ' + esc(GA ? GA.pulled : '') + ' has none. Credo’s tests are planned here, as ad variants and new ad groups:</p>' +
-      '<div class="tiles links"><a class="tile" href="#/ads/ab-tests"><h3>A/B test plan</h3><p>A second ad (B) for each running ad group, its page, and the search terms it should cover.</p></a>' +
+    return '<h1>Experiments</h1><p class="lead">Google Ads’ own experiments (campaign drafts with a traffic split) are not used in this account: the snapshot of ' + esc(GA ? GA.pulled : '') + ' has none. New ad groups are planned here; the second ad (B) for each ad group is built in <a href="' + streamHref(STREAMS[0]) + '">Work › Streams › ' + esc(streamTitle(STREAMS[0])) + '</a>:</p>' +
+      '<div class="tiles links"><a class="tile" href="#/ads/ab-tests"><h3>Ad test builder</h3><p>In Work › Streams › Stream 1: a second ad (B) for each running ad group, its page, and the search terms it should cover.</p></a>' +
       '<a class="tile" href="#/ads/new-clusters"><h3>New topical clusters</h3><div class="big">' + NCL().length + '</div><p>New ad groups for searches no current ad group targets, with their ads and pages.</p></a></div>';
   }
   /* ── Recommendations ── */
@@ -1035,6 +1035,39 @@
     body.addEventListener('click', function (e) { var b = e.target.closest('[data-qall]'); if (!b) return; var v = b.getAttribute('data-qall'); QF.open = true;
       QF.sel = v === '1' ? null : {}; if (v === 'run') qScope().forEach(function (a) { if (a.running) QF.sel[a.id] = 1; }); redraw(); });
     body.addEventListener('toggle', function (e) { if (e.target.classList && e.target.classList.contains('qpick')) QF.open = e.target.open; }, true);
+  }
+
+  /* ───────────── MH-84: Work › Streams ─────────────
+     Operator 13 Oct: "separate the work I am doing from the standard screens available in the platforms. Everything that I have
+     constructed for the purpose of producing deliverables should be within the Work section, called streams … Our first stream
+     should be named Stream 1: Google Ads Experiments … the search-term clusters, headline and description quadrant clusters, the
+     A/B test plan (renamed to Ad test builder)." A stream's tools keep their addresses (permalinks keep working); the menu and
+     the breadcrumb put them in the stream. */
+  var STREAMS = [{ key: 'google-ads-experiments', n: 1, name: 'Google Ads Experiments', short: 'New ads and their pages, built from the account’s own searches and copy.',
+    about: 'New ads and their pages, built from the account’s own searches and copy: what the searches ask, which lines work, and the second ad (B) to test in each ad group.',
+    items: [{ seg: 'clusters', label: 'Search-term clusters', href: '#/ads/clusters', what: 'Searches grouped by intent and cluster, with the key words each cluster needs and the ad lines written to cover them.', count: function () { return Object.keys(CLUS).length || 0; } },
+      { seg: 'copy-quadrants', label: 'Headline and description quadrants', href: '#/ads/copy-quadrants', what: 'Every headline and description placed by CTR and by cost per conversion or per enrolled client: what to keep and what to replace.' },
+      { seg: 'ab-tests', label: 'Ad test builder', href: '#/ads/ab-tests', what: 'A second ad (B) for each running ad group: its lines, the searches it should cover in full, and its landing page.' }] }];
+  var streamTitle = function (s) { return 'Stream ' + s.n + ': ' + s.name; };
+  var streamHref = function (s) { return '#/work/streams/' + s.key; };
+  var STREAM_OF = {}; STREAMS.forEach(function (s) { s.items.forEach(function (i) { STREAM_OF[i.seg] = s; }); });
+  function streamNav() {
+    return { label: 'Streams', href: '#/work/streams', count: STREAMS.length, children: STREAMS.map(function (s) {
+      return { label: streamTitle(s), href: streamHref(s), count: s.items.length, children: s.items.map(function (i) { return { label: i.label, href: i.href, count: i.count ? i.count() : null }; }) }; }) };
+  }
+  function drawerStream(s) {
+    openDrawer(streamTitle(s), [['Basic info', '<p>' + esc(s.about) + '</p><h3>Tools</h3><ul class="notes">' + s.items.map(function (i) { return '<li><a href="' + i.href + '">' + esc(i.label) + '</a> · ' + esc(i.what) + '</li>'; }).join('') + '</ul>' +
+      '<div class="toolbar">' + go(streamHref(s), 'Open the stream') + '</div>']]);
+  }
+  function viewStreams() {
+    return '<h1>Streams</h1><p class="lead">The work that produces deliverables, kept apart from the platforms’ standard screens. A stream groups the tools for one line of work. Click a row for its details; click a name to open it.</p>' +
+      '<div class="scroll"><table class="tbl"><thead><tr><th>Stream</th><th>What it is for</th><th class="num">Tools</th></tr></thead><tbody>' +
+      STREAMS.map(function (s) { return '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); drawerStream(s); }) + '><td><a href="' + streamHref(s) + '">' + esc(streamTitle(s)) + '</a></td><td>' + esc(s.short || s.about) +
+        '<div class="sub">' + s.items.map(function (i) { return esc(i.label); }).join(' · ') + '</div></td><td class="num">' + s.items.length + '</td></tr>'; }).join('') + '</tbody></table></div>';
+  }
+  function viewStream(s) {
+    return '<h1>' + esc(streamTitle(s)) + '</h1><p class="lead">' + esc(s.about) + '</p><div class="tiles links">' + s.items.map(function (i) { var n = i.count ? i.count() : null;
+      return '<a class="tile" href="' + i.href + '"><h3>' + esc(i.label) + '</h3>' + (n ? '<div class="big">' + n + '</div>' : '') + '<p>' + esc(i.what) + '</p></a>'; }).join('') + '</div>';
   }
 
   /* ── search terms and keywords (MH-11 D2: the search-term review, per ad group) ── */
@@ -2623,7 +2656,7 @@
         '<td>' + esc(g.topLabel) + '<div class="sub">' + Math.round(g.share * 100) + '% of impressions' + (g.pinned ? ' (pinned in its cluster file)' : g.biggest ? '' : ' (not the biggest cluster: its copy covers more)') + (g.clusters.length > 1 ? ' · ' + (g.clusters.length - 1) + ' other cluster' + (g.clusters.length > 2 ? 's' : '') : '') + '</div>' + (g.worse ? '<span class="chip red">B covers less than A: split the ad group first</span>' : '') + '</td>' +
         '<td class="num">' + n0(g.ads.length) + '<div class="sub">' + g.ads.filter(function (a) { return (a.serving || {}).running; }).length + ' running</div></td>' +
         '<td class="num">' + pctf(g.fullNow) + ' → <b>' + pctf(g.fullB) + '</b></td><td class="num">' + n0(g.gain) + '</td><td class="num">' + (g.searches == null ? dash : n0(g.searches)) + '</td></tr>'; }).join('');
-    return '<h1>A/B test plan</h1>' + lead + '<div class="mgrid wide">' + mt('Ad groups', n0(P.length)) + mt('Running (7 Oct)', n0(nRun) + ' of ' + n0(P.length)) + mt('Impressions (90 days)', n0(P.reduce(function (q, g) { return q + g.impr; }, 0))) + mt('Impressions B would cover better', n0(tot)) + '</div>' + how +
+    return '<h1>Ad test builder</h1>' + lead + '<div class="mgrid wide">' + mt('Ad groups', n0(P.length)) + mt('Running (7 Oct)', n0(nRun) + ' of ' + n0(P.length)) + mt('Impressions (90 days)', n0(P.reduce(function (q, g) { return q + g.impr; }, 0))) + mt('Impressions B would cover better', n0(tot)) + '</div>' + how +
       '<div class="scroll"><table class="tbl"><thead><tr><th>Ad group</th><th class="num">Terms</th><th class="num">Impr.</th><th class="num">CTR</th><th class="num">Conv.</th><th>B from cluster</th><th class="num">A: ads</th><th class="num" title="Share of impressions from terms with a headline holding all their key words">Full: now → B</th><th class="num" title="Impressions of terms whose coverage B would raise">Opportunity</th><th class="num" title="US monthly searches of its ad-cluster terms (Keyword Planner, each pool once)">Searches / mo</th></tr></thead><tbody>' +
       (body || '<tr><td colspan="10" class="empty">No ad groups with clustered search terms.</td></tr>') + '</tbody></table></div>';
   }
@@ -2903,7 +2936,8 @@
         if (pg) { crumbs.push([pg.label, hash]); html = viewPage(s, pg); after = TAB ? null : wirePage; } else html = viewSite(s);
       }
     } else if (parts[0] === 'ads') {
-      crumbs.push(['Ads', '#/ads']);
+      if (STREAM_OF[parts[1]]) { var sx = STREAM_OF[parts[1]]; crumbs.push(['Work', '#/work'], ['Streams', '#/work/streams'], [streamTitle(sx), streamHref(sx)]); }   /* MH-84 */
+      else crumbs.push(['Ads', '#/ads']);
       if (GPARENT[parts[1]]) { crumbs.push(['Google', '#/ads/google']); if (parts[1] !== 'terms') crumbs.push([gsLabel(GPARENT[parts[1]]), gsHref(GPARENT[parts[1]])]); }   /* MH-80 */
       if (parts[1] === 'google' && GSECV[parts[2]]) { crumbs.push(['Google', '#/ads/google'], [gsLabel(parts[2]), hash]); AFTER = null; html = GA ? GSECV[parts[2]]() : '<h1>' + esc(gsLabel(parts[2])) + '</h1><p class="empty">The account snapshot (data/google-account.js) is not loaded.</p>'; after = AFTER; }
       else if (parts[1] === 'google' && !parts[2]) { crumbs.push(['Google', '#/ads/google']); html = viewGoogle(platBy.google); }
@@ -2912,7 +2946,7 @@
       else if (parts[1] === 'terms' && STG()) { crumbs.push(['Search terms', '#/ads/terms']); if (parts[2] === 'page' && parts[3]) crumbs.push([pageLabel(parts[3]), hash]); AFTER = null; html = viewSearchTerms(parts[2] === 'page' ? parts[3] : ''); after = AFTER; }
       else if (parts[1] === 'new-clusters') { crumbs.push(['New topical clusters', '#/ads/new-clusters']); var nc = NCL().filter(function (c) { return c.key === parts[2]; })[0];   /* MH-74 */
         html = viewNewClusters(); if (nc) after = function () { if (/^page-/.test(TAB || '')) NC_PAGE = TAB.slice(5); drawerNC(nc, /^page-/.test(TAB || '') ? 'Pages' : null); }; }   /* MH-75: …/<key> opens the ad group's drawer (?tab=page-<ad>: on that ad's page) */
-      else if (parts[1] === 'ab-tests' && STG() && cluDoc()) { crumbs.push(['A/B test plan', '#/ads/ab-tests']); html = viewABPlan(); }
+      else if (parts[1] === 'ab-tests' && STG() && cluDoc()) { crumbs.push(['Ad test builder', '#/ads/ab-tests']); html = viewABPlan(); }
       else if (parts[1] === 'clusters' && STG() && cluDoc()) { crumbs.push(['Search-term clusters', '#/ads/clusters']); AFTER = null;
         /* #/ads/clusters/<intent>/<cluster>; an older #/ads/clusters/<cluster> link means the debt-lawyer intent */
         html = CLUS[parts[2]] ? viewClusters(parts[2], parts[3] || '') : viewClusters('debt_lawyer', parts[2] || ''); after = AFTER; }
@@ -2930,6 +2964,9 @@
       html = organicHtml(); crumbs = crumbs.concat(ORG.crumbs);
     } else if (parts[0] === 'reference') {
       crumbs.push(['Reference', '#/reference/statutes'], ['Statutes', '#/reference/statutes']); html = viewStatutes();
+    } else if (parts[0] === 'work' && parts[1] === 'streams') {   /* MH-84 */
+      crumbs.push(['Work', '#/work'], ['Streams', '#/work/streams']); var st = STREAMS.filter(function (x) { return x.key === parts[2]; })[0];
+      if (st) { crumbs.push([streamTitle(st), hash]); html = viewStream(st); } else html = viewStreams();
     } else if (parts[0] === 'work' && B) {
       crumbs.push(['Work', '#/work']);
       var pb = parts[1] && B.pbis.filter(function (x) { return x.id === parts[1]; })[0];
