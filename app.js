@@ -319,20 +319,24 @@
     var q =   /* a view's tab (?tab=…) keeps its nav entry current */ ($('app-filter').value || '').trim().toLowerCase();
     if (lastCur !== cur) { expanded[cur] = true; lastCur = cur; }   /* a newly opened item shows its children */
     var ns = nodes();
-    /* open the ancestors of the current item */
-    (function mark(list) { return list.some(function (n) { var hit = n.href === cur || (n.children && mark(n.children)); if (hit && n.children && n.href !== cur) expanded[n.href] = true; return hit; }); })(ns);
+    /* MH-86 (operator 13 Oct): only a section's first-level entries expand (Microsites shows its microsites, which do not
+       expand); a deeper page marks its nearest shown ancestor as current */
+    var path = []; (function find(list, trail) { return list.some(function (n) { var t = trail.concat([n]);
+      if (n.href === cur) { path = t; return true; } return !!(n.children && find(n.children, t)); }); })(ns, []);
+    if (path.length > 1 && path[0].href !== cur) expanded[path[0].href] = true;   /* open the current item's first-level entry */
+    var shown = path.length ? path[Math.min(path.length, 2) - 1].href : cur;
     function match(n) { return !q || (n.label || '').toLowerCase().indexOf(q) >= 0 || (n.children || []).some(match); }
-    function li(n) {
-      if (n.sec) return '<li class="sec">' + esc(n.sec) + '</li>' + (n.href ? li(Object.assign({}, n, { sec: null })) : '');
+    function li(n, depth) {
+      if (n.sec) return '<li class="sec">' + esc(n.sec) + '</li>' + (n.href ? li(Object.assign({}, n, { sec: null }), 0) : '');
       if (!match(n)) return '';
-      var kids = n.children && n.children.length, open = kids && (expanded[n.href] || !!q);
-      return '<li><div class="row' + (n.href === cur ? ' cur' : '') + '">' +
+      var kids = !depth && n.children && n.children.length, open = kids && (expanded[n.href] || !!q), here = n.href === shown;
+      return '<li><div class="row' + (here ? ' cur' : '') + '">' +
         '<button class="tog' + (kids ? '' : ' leaf') + '" data-tog="' + esc(n.href) + '" aria-expanded="' + (open ? 'true' : 'false') + '" aria-label="' + (open ? 'Collapse ' : 'Expand ') + esc(n.label) + '">▶</button>' +
-        '<a href="' + esc(n.href) + '"' + (n.href === cur ? ' aria-current="page"' : '') + ' title="' + esc(n.label) + '">' + (n.dot != null ? '<span class="dot ' + n.dot + '"></span>' : '') + esc(n.label) + '</a>' +
+        '<a href="' + esc(n.href) + '"' + (here ? ' aria-current="' + (n.href === cur ? 'page' : 'location') + '"' : '') + ' title="' + esc(n.label) + '">' + (n.dot != null ? '<span class="dot ' + n.dot + '"></span>' : '') + esc(n.label) + '</a>' +
         (n.count != null ? '<span class="cnt">' + n.count + '</span>' : '') + '</div>' +
-        (open ? '<ul>' + n.children.map(li).join('') + '</ul>' : '') + '</li>';
+        (open ? '<ul>' + n.children.map(function (k) { return li(k, 1); }).join('') + '</ul>' : '') + '</li>';
     }
-    $('app-tree').innerHTML = '<ul class="tree">' + ns.map(li).join('') + '</ul>';
+    $('app-tree').innerHTML = '<ul class="tree">' + ns.map(function (n) { return li(n, 0); }).join('') + '</ul>';
     var c = $('app-tree').querySelector('.row.cur'); if (c && !q) c.scrollIntoView({ block: 'nearest' });
   }
 
