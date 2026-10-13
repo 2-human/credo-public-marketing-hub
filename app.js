@@ -900,7 +900,13 @@
   /* one metric only: the lines ranked on it and cut into four equal quarters, best top left, worst bottom right */
   var QDM = { ctr: [['tl', 'Top 25% CTR', 'The quarter that earns the click best: keep, reuse in new ads.'], ['tr', 'Second 25% CTR', 'Above the middle on CTR.'], ['bl', 'Third 25% CTR', 'Below the middle on CTR.'], ['br', 'Bottom 25% CTR', 'The quarter that earns the click least: replace first.']],
     cpa: [['tl', 'Cheapest 25%', 'The quarter with the lowest cost per conversion: keep, reuse in new ads.'], ['tr', 'Second 25%', 'Below the middle on cost per conversion.'], ['bl', 'Third 25%', 'Above the middle on cost per conversion.'], ['br', 'Costliest 25%', 'The quarter with the highest cost per conversion, or none: replace first.']] };
-  var QDX = function () { return QF.mode === 'both' ? QD : QDM[QF.mode].map(function (q, i) { return q.concat([QD[i][3]]); }); };
+  /* MH-83 (operator 13 Oct): cost per enrolled client (the CRM "Enrolled" uploads per line) as a metric */
+  var QDE = [['tl', 'Winners', 'High CTR, low cost per enrolled client: keep, reuse in new ads.', '#1f8a4c'], ['tr', 'Clicks, costly clients', 'People click, clients cost more: check the line against the page and the intake.', '#b07a00'],
+    ['bl', 'Quiet earners', 'Few clicks, cheap clients: keep; they may deserve more exposure.', '#2f63ad'], ['br', 'Underperformers', 'Low CTR, costly or no enrolled clients: replace first.', '#c0392b']];
+  QDM.cpe = [['tl', 'Cheapest 25% per client', 'The quarter with the lowest cost per enrolled client: keep, reuse in new ads.'], ['tr', 'Second 25%', 'Below the middle on cost per enrolled client.'], ['bl', 'Third 25%', 'Above the middle on cost per enrolled client.'], ['br', 'Costliest 25% per client', 'The quarter with the highest cost per enrolled client, or none: replace first.']];
+  var QK = function () { return QF.mode === 'ctrE' || QF.mode === 'cpe' ? 'cpe' : 'cpa'; };   /* the cost metric in use: per conversion or per enrolled client */
+  var QKL = function () { return QK() === 'cpe' ? 'cost per enrolled client' : 'cost per conversion'; };
+  var QDX = function () { return QF.mode === 'both' ? QD : QF.mode === 'ctrE' ? QDE : QDM[QF.mode].map(function (q, i) { return q.concat([QD[i][3]]); }); };
   var qdOf = function (k) { return QDX().filter(function (q) { return q[0] === k; })[0]; };
   var qAds = null;
   function qAdIndex() {   /* every ad in the snapshot: campaign, ad group, label, running, link (ads-tree for the ads it knows) */
@@ -917,55 +923,55 @@
     var on = {}; qScope().forEach(function (a) { if (!QF.sel || QF.sel[a.id]) on[a.id] = 1; });
     var by = {};
     GA.assets.rows.forEach(function (r) { if (r[3] !== f || !on[r[0]]) return; var k = QF.by === 'ad' ? r[0] + '|' + r[4] : r[4];
-      var o = by[k] || (by[k] = { text: r[4], f: f, impr: 0, clicks: 0, cost: 0, conv: 0, ads: [] }); o.impr += r[5]; o.clicks += r[6]; o.cost += r[7]; o.conv += r[8]; o.ads.push(r); });
+      var o = by[k] || (by[k] = { text: r[4], f: f, impr: 0, clicks: 0, cost: 0, conv: 0, enr: 0, ads: [] }); o.impr += r[5]; o.clicks += r[6]; o.cost += r[7]; o.conv += r[8]; o.enr += r[9] || 0; o.ads.push(r); });
     var pts = Object.keys(by).map(function (k) { return by[k]; }).filter(function (p) { return p.impr >= QF.min; });
-    var t = tot(pts), avgCtr = t.impr ? t.clicks / t.impr : 0, avgCpa = t.conv ? t.cost / t.conv : null;
-    pts.forEach(function (p) { p.ctr = p.impr ? p.clicks / p.impr : 0; p.cpa = p.conv > 0 ? p.cost / p.conv : null;
-      var hi = p.ctr >= avgCtr, cheap = p.cpa != null && avgCpa != null && p.cpa <= avgCpa; p.q = hi ? (cheap ? 'tl' : 'tr') : (cheap ? 'bl' : 'br'); });
-    if (QF.mode !== 'both') {   /* ranked on one metric: best first (CTR high; cost per conversion low, lines without conversions last, the costlier of them lower) */
-      var rk = pts.slice().sort(QF.mode === 'ctr' ? function (a, b) { return b.ctr - a.ctr; } : function (a, b) { return a.cpa == null && b.cpa == null ? a.cost - b.cost : a.cpa == null ? 1 : b.cpa == null ? -1 : a.cpa - b.cpa; });
+    var t = tot(pts), avgCtr = t.impr ? t.clicks / t.impr : 0, avgCpa = t.conv ? t.cost / t.conv : null, te = pts.reduce(function (q, p) { return q + p.enr; }, 0), avgCpe = te ? t.cost / te : null, K = QK(), avgK = K === 'cpe' ? avgCpe : avgCpa;
+    pts.forEach(function (p) { p.ctr = p.impr ? p.clicks / p.impr : 0; p.cpa = p.conv > 0 ? p.cost / p.conv : null; p.cpe = p.enr > 0 ? p.cost / p.enr : null;
+      var hi = p.ctr >= avgCtr, cheap = p[K] != null && avgK != null && p[K] <= avgK; p.q = hi ? (cheap ? 'tl' : 'tr') : (cheap ? 'bl' : 'br'); });
+    if (QF.mode === 'ctr' || QF.mode === 'cpa' || QF.mode === 'cpe') {   /* ranked on one metric: best first (CTR high; cost per conversion low, lines without conversions last, the costlier of them lower) */
+      var rk = pts.slice().sort(QF.mode === 'ctr' ? function (a, b) { return b.ctr - a.ctr; } : function (a, b) { return a[K] == null && b[K] == null ? a.cost - b.cost : a[K] == null ? 1 : b[K] == null ? -1 : a[K] - b[K]; });
       rk.forEach(function (p, i) { p.rank = i + 1; p.q = ['tl', 'tr', 'bl', 'br'][Math.min(3, Math.floor(i * 4 / rk.length))]; });
     }
-    return { pts: pts, avgCtr: avgCtr, avgCpa: avgCpa, t: t };
+    return { pts: pts, avgCtr: avgCtr, avgCpa: avgCpa, avgCpe: avgCpe, enr: te, t: t };
   }
   function drawerQPoint(p, P) {
-    var q = qdOf(p.q), I = qAdIndex(), rows = p.ads.map(function (r) { var a = I[r[0]]; return { a: a, impr: r[5], clicks: r[6], cost: r[7], conv: r[8] }; }).sort(function (x, y) { return y.impr - x.impr; });
+    var q = qdOf(p.q), I = qAdIndex(), rows = p.ads.map(function (r) { var a = I[r[0]]; return { a: a, impr: r[5], clicks: r[6], cost: r[7], conv: r[8], enr: r[9] || 0 }; }).sort(function (x, y) { return y.impr - x.impr; });
     var vs = function (v, avg, lowGood) { if (v == null || !avg) return ''; var d = Math.round(100 * (v / avg - 1)); return ' <span class="sub ' + ((lowGood ? d <= 0 : d >= 0) ? 'qs-hi' : 'qs-lo') + '">' + (d >= 0 ? '+' : '') + d + '% vs average</span>'; };
-    openDrawer(p.text, [['Basic info', '<p><span class="chip" style="color:' + q[3] + ';border-color:' + q[3] + '">' + esc(q[1]) + '</span> ' + esc(q[2]) + (p.rank ? ' Rank ' + p.rank + ' of ' + P.pts.length + ' on ' + (QF.mode === 'ctr' ? 'CTR' : 'cost per conversion') + '.' : '') + '</p>' +
+    openDrawer(p.text, [['Basic info', '<p><span class="chip" style="color:' + q[3] + ';border-color:' + q[3] + '">' + esc(q[1]) + '</span> ' + esc(q[2]) + (p.rank ? ' Rank ' + p.rank + ' of ' + P.pts.length + ' on ' + (QF.mode === 'ctr' ? 'CTR' : QKL()) + '.' : '') + '</p>' +
         kv([['Line', esc(p.text)], ['Type', p.f === 'H' ? 'headline' : 'description'], ['Impressions', n0(p.impr)], ['Clicks', n0(p.clicks)], ['CTR', pct(p.clicks, p.impr) + vs(p.ctr, P.avgCtr)],
-          ['Cost', usd(p.cost)], ['Conversions', n1(p.conv)], ['Cost / conv.', (p.cpa == null ? 'no conversions' : usd(p.cpa)) + vs(p.cpa, P.avgCpa, true)], ['Ads', String(rows.length)]]) +
-        '<p class="note">Averages of the lines shown: CTR ' + (100 * P.avgCtr).toFixed(1) + '%, cost per conversion ' + usd(P.avgCpa) + '. ' + esc(GA.assets.period) + '.</p>'],
-      ['Ads', '<div class="scroll"><table class="tbl"><thead><tr><th>Ad</th><th class="num">Impr.</th><th class="num">CTR</th><th class="num">Cost</th><th class="num">Conv.</th><th class="num">Cost / conv.</th></tr></thead><tbody>' +
+          ['Cost', usd(p.cost)], ['Conversions', n1(p.conv)], ['Cost / conv.', (p.cpa == null ? 'no conversions' : usd(p.cpa)) + vs(p.cpa, P.avgCpa, true)], ['Enrolled clients', n1(p.enr)], ['Cost / enrolled client', (p.cpe == null ? 'no enrolled clients' : usd(p.cpe)) + vs(p.cpe, P.avgCpe, true)], ['Ads', String(rows.length)]]) +
+        '<p class="note">Averages of the lines shown: CTR ' + (100 * P.avgCtr).toFixed(1) + '%, cost per conversion ' + usd(P.avgCpa) + ', cost per enrolled client ' + usd(P.avgCpe) + '. ' + esc(GA.assets.period) + '. Enrolled clients are the CRM “Enrolled” uploads Google credits to the ad impressions the line appeared in (fractional = data-driven attribution).</p>'],
+      ['Ads', '<div class="scroll"><table class="tbl"><thead><tr><th>Ad</th><th class="num">Impr.</th><th class="num">CTR</th><th class="num">Cost</th><th class="num">Conv.</th><th class="num">Cost / conv.</th><th class="num">Enrolled</th><th class="num">Cost / enrolled</th></tr></thead><tbody>' +
         rows.map(function (x) { return '<tr><td>' + (x.a.href ? '<a href="' + x.a.href + '">' + esc(x.a.label) + '</a>' : esc(x.a.label)) + '<div class="sub">' + esc((x.a.campaign ? x.a.campaign + ' › ' : '') + x.a.group) + '</div></td><td class="num">' + n0(x.impr) + '</td><td class="num">' + pct(x.clicks, x.impr) +
-          '</td><td class="num">' + usd(x.cost) + '</td><td class="num">' + n1(x.conv) + '</td><td class="num">' + per(x.cost, x.conv) + '</td></tr>'; }).join('') + '</tbody></table></div>']]);
+          '</td><td class="num">' + usd(x.cost) + '</td><td class="num">' + n1(x.conv) + '</td><td class="num">' + per(x.cost, x.conv) + '</td><td class="num">' + n1(x.enr) + '</td><td class="num">' + (x.enr > 0 ? usd(x.cost / x.enr) : dash) + '</td></tr>'; }).join('') + '</tbody></table></div>']]);
   }
   function qChart(P, f) {
     var W = 720, Hh = 470, L = 56, R = 16, T = 26, B = 46, pw = W - L - R, ph = Hh - T - B;
     if (!P.pts.length) return '<p class="empty">No ' + (f === 'H' ? 'headlines' : 'descriptions') + ' with ' + n0(QF.min) + '+ impressions in this selection.</p>';
-    if (QF.mode !== 'both') return qRankChart(P, f, W, Hh, L, R, T, B, pw, ph);
-    var fin = P.pts.filter(function (p) { return p.cpa != null; }).map(function (p) { return p.cpa; }), avg = P.avgCpa || 1;
+    if (QF.mode !== 'both' && QF.mode !== 'ctrE') return qRankChart(P, f, W, Hh, L, R, T, B, pw, ph);
+    var Q = QDX(), K = QK(), fin = P.pts.filter(function (p) { return p[K] != null; }).map(function (p) { return p[K]; }), avg = (K === 'cpe' ? P.avgCpe : P.avgCpa) || 1;
     var xmax = Math.max(avg * 2, Math.min(Math.max.apply(null, fin.concat([avg])), avg * 4)) * 1.08, ymax = Math.min(Math.max.apply(null, P.pts.map(function (p) { return p.ctr; }).concat([P.avgCtr * 2])), P.avgCtr * 2.6) * 1.08;   /* a few very high CTRs (brand) would flatten the rest: they sit on the top edge */
     var X = function (v) { return L + pw * Math.min(v, xmax) / xmax; }, Y = function (v) { return T + ph - ph * v / ymax; }, mi = Math.max.apply(null, P.pts.map(function (p) { return p.impr; }));
     var ax = X(avg), ay = Y(P.avgCtr), bg = function (x, y, w, h, c) { return '<rect x="' + x + '" y="' + y + '" width="' + Math.max(0, w) + '" height="' + Math.max(0, h) + '" fill="' + c + '" opacity=".07"/>'; };
-    var s = bg(L, T, ax - L, ay - T, QD[0][3]) + bg(ax, T, L + pw - ax, ay - T, QD[1][3]) + bg(L, ay, ax - L, T + ph - ay, QD[2][3]) + bg(ax, ay, L + pw - ax, T + ph - ay, QD[3][3]) +
+    var s = bg(L, T, ax - L, ay - T, Q[0][3]) + bg(ax, T, L + pw - ax, ay - T, Q[1][3]) + bg(L, ay, ax - L, T + ph - ay, Q[2][3]) + bg(ax, ay, L + pw - ax, T + ph - ay, Q[3][3]) +
       '<rect x="' + L + '" y="' + T + '" width="' + pw + '" height="' + ph + '" fill="none" stroke="#d5d9df"/>' +
       '<line x1="' + ax + '" y1="' + T + '" x2="' + ax + '" y2="' + (T + ph) + '" stroke="#8a929c" stroke-dasharray="4 3"/><line x1="' + L + '" y1="' + ay + '" x2="' + (L + pw) + '" y2="' + ay + '" stroke="#8a929c" stroke-dasharray="4 3"/>' +
-      [[L + 6, T + 14, 0, 'start'], [L + pw - 6, T + 14, 1, 'end'], [L + 6, T + ph - 8, 2, 'start'], [L + pw - 6, T + ph - 8, 3, 'end']].map(function (c) { return '<text x="' + c[0] + '" y="' + c[1] + '" font-size="13" font-weight="600" fill="' + QD[c[2]][3] + '" text-anchor="' + c[3] + '">' + esc(QD[c[2]][1]) + '</text>'; }).join('') +
-      '<text x="' + ax + '" y="' + (T - 8) + '" font-size="11.5" fill="#667080" text-anchor="middle">average ' + esc(usd(avg).replace(/<[^>]+>/g, '')) + ' / conv.</text>' +
+      [[L + 6, T + 14, 0, 'start'], [L + pw - 6, T + 14, 1, 'end'], [L + 6, T + ph - 8, 2, 'start'], [L + pw - 6, T + ph - 8, 3, 'end']].map(function (c) { return '<text x="' + c[0] + '" y="' + c[1] + '" font-size="13" font-weight="600" fill="' + Q[c[2]][3] + '" text-anchor="' + c[3] + '">' + esc(Q[c[2]][1]) + '</text>'; }).join('') +
+      '<text x="' + ax + '" y="' + (T - 8) + '" font-size="11.5" fill="#667080" text-anchor="middle">average ' + esc(usd(avg).replace(/<[^>]+>/g, '')) + (K === 'cpe' ? ' / enrolled client' : ' / conv.') + '</text>' +
       '<text x="' + (L - 6) + '" y="' + (ay + 3) + '" font-size="11.5" fill="#667080" text-anchor="end">' + (100 * P.avgCtr).toFixed(1) + '%</text>' +
       [0.5, 1.5, 2, 3].filter(function (k) { return k * avg < xmax; }).map(function (k) { return '<text x="' + X(k * avg) + '" y="' + (T + ph + 14) + '" font-size="11" fill="#8a929c" text-anchor="middle">$' + Math.round(k * avg) + '</text>'; }).join('') +
-      '<text x="' + (L + pw / 2) + '" y="' + (Hh - 8) + '" font-size="12" fill="#3a414b" text-anchor="middle">Cost per conversion → (left is cheaper; no conversions = right edge)</text>' +
+      '<text x="' + (L + pw / 2) + '" y="' + (Hh - 8) + '" font-size="12" fill="#3a414b" text-anchor="middle">' + (K === 'cpe' ? 'Cost per enrolled client → (left is cheaper; no enrolled clients = right edge)' : 'Cost per conversion → (left is cheaper; no conversions = right edge)') + '</text>' +
       '<text transform="translate(14 ' + (T + ph / 2) + ') rotate(-90)" font-size="12" fill="#3a414b" text-anchor="middle">CTR ↑ (higher CTRs sit on the top edge)</text>' + [0.5, 1.5, 2].map(function (k) { return '<text x="' + (L - 6) + '" y="' + (Y(k * P.avgCtr) + 3) + '" font-size="11" fill="#8a929c" text-anchor="end">' + (100 * k * P.avgCtr).toFixed(1) + '%</text>'; }).join('');
     s += P.pts.slice().sort(function (a, b) { return b.impr - a.impr; }).map(function (p) {
-      var x = p.cpa == null ? L + pw - 4 : X(p.cpa), y = Math.max(T + 4, Y(p.ctr)), r = 3 + 11 * Math.sqrt(p.impr / mi), c = qdOf(p.q)[3];
-      return '<g class="qpt"' + dr(function (el) { el.classList.add('sel'); drawerQPoint(p, P); }) + '><desc class="cap">' + esc(p.text) + '</desc><title>' + esc(p.text + ' · ' + n0(p.impr).replace(/<[^>]+>/g, '') + ' impr. · CTR ' + (100 * p.ctr).toFixed(1) + '% · ' + (p.cpa == null ? 'no conversions' : '$' + Math.round(p.cpa) + ' / conv.')) + '</title>' +
-        '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + r.toFixed(1) + '" fill="' + c + '" fill-opacity="' + (p.cpa == null ? '0' : '.55') + '" stroke="' + c + '" stroke-width="1.5"/></g>'; }).join('');
+      var x = p[K] == null ? L + pw - 4 : X(p[K]), y = Math.max(T + 4, Y(p.ctr)), r = 3 + 11 * Math.sqrt(p.impr / mi), c = qdOf(p.q)[3];
+      return '<g class="qpt"' + dr(function (el) { el.classList.add('sel'); drawerQPoint(p, P); }) + '><desc class="cap">' + esc(p.text) + '</desc><title>' + esc(p.text + ' · ' + n0(p.impr).replace(/<[^>]+>/g, '') + ' impr. · CTR ' + (100 * p.ctr).toFixed(1) + '% · ' + (p.cpa == null ? 'no conversions' : '$' + Math.round(p.cpa) + ' / conv.') + ' · ' + (p.cpe == null ? 'no enrolled clients' : '$' + Math.round(p.cpe) + ' / enrolled client')) + '</title>' +
+        '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + r.toFixed(1) + '" fill="' + c + '" fill-opacity="' + (p[K] == null ? '0' : '.55') + '" stroke="' + c + '" stroke-width="1.5"/></g>'; }).join('');
     return '<svg class="qchart" viewBox="0 0 ' + W + ' ' + Hh + '" role="img" aria-label="' + (f === 'H' ? 'Headlines' : 'Descriptions') + ' by CTR and cost per conversion">' + s + '</svg>';
   }
   function qRankChart(P, f, W, Hh, L, R, T, B, pw, ph) {
-    var ctr = QF.mode === 'ctr', avg = ctr ? P.avgCtr : (P.avgCpa || 1), fin = P.pts.filter(function (p) { return ctr || p.cpa != null; }).map(function (p) { return ctr ? p.ctr : p.cpa; });
+    var ctr = QF.mode === 'ctr', K = QK(), avg = ctr ? P.avgCtr : ((K === 'cpe' ? P.avgCpe : P.avgCpa) || 1), fin = P.pts.filter(function (p) { return ctr || p[K] != null; }).map(function (p) { return ctr ? p.ctr : p[K]; });
     var vmax = (ctr ? Math.min(Math.max.apply(null, fin.concat([avg * 2])), avg * 2.6) : Math.max(avg * 2, Math.min(Math.max.apply(null, fin.concat([avg])), avg * 4))) * 1.08 || 1;   /* || 1: a selection where every CTR is 0 */
-    var X = function (p) { var v = ctr ? p.ctr : p.cpa; if (v == null) return L + pw - 4; v = Math.min(v, vmax); return ctr ? L + pw * (1 - v / vmax) : L + pw * v / vmax; };   /* best on the left */
+    var X = function (p) { var v = ctr ? p.ctr : p[K]; if (v == null) return L + pw - 4; v = Math.min(v, vmax); return ctr ? L + pw * (1 - v / vmax) : L + pw * v / vmax; };   /* best on the left */
     var mi = Math.max.apply(null, P.pts.map(function (p) { return p.impr; })), Y = function (p) { return T + ph - (ph - 8) * Math.sqrt(p.impr / mi); };
     var Q = QDX(), rk = P.pts.slice().sort(function (a, b) { return a.rank - b.rank; }), edges = [L];
     [1, 2, 3].forEach(function (k) { var a = rk.filter(function (p) { return p.q === Q[k - 1][0]; }).pop(), b = rk.filter(function (p) { return p.q === Q[k][0]; })[0]; edges.push(a && b ? Math.max(edges[edges.length - 1], (X(a) + X(b)) / 2) : edges[edges.length - 1]); });
@@ -976,18 +982,18 @@
       '<rect x="' + L + '" y="' + T + '" width="' + pw + '" height="' + ph + '" fill="none" stroke="#d5d9df"/>' +
       [0.5, 1, 1.5, 2].filter(function (k) { return k * avg < vmax; }).map(function (k) { var x = ctr ? L + pw * (1 - k * avg / vmax) : L + pw * k * avg / vmax;
         return '<text x="' + x + '" y="' + (T + ph + 14) + '" font-size="11" fill="' + (k === 1 ? '#3a414b' : '#8a929c') + '" text-anchor="middle">' + (ctr ? (100 * k * avg).toFixed(1) + '%' : '$' + Math.round(k * avg)) + (k === 1 ? ' avg.' : '') + '</text>'; }).join('') +
-      '<text x="' + (L + pw / 2) + '" y="' + (Hh - 8) + '" font-size="12" fill="#3a414b" text-anchor="middle">' + (ctr ? '← higher CTR · lower CTR → (very high CTRs sit on the left edge)' : 'Cost per conversion → (left is cheaper; no conversions = right edge)') + '</text>' +
+      '<text x="' + (L + pw / 2) + '" y="' + (Hh - 8) + '" font-size="12" fill="#3a414b" text-anchor="middle">' + (ctr ? '← higher CTR · lower CTR → (very high CTRs sit on the left edge)' : K === 'cpe' ? 'Cost per enrolled client → (left is cheaper; no enrolled clients = right edge)' : 'Cost per conversion → (left is cheaper; no conversions = right edge)') + '</text>' +
       '<text transform="translate(14 ' + (T + ph / 2) + ') rotate(-90)" font-size="12" fill="#3a414b" text-anchor="middle">Impressions ↑</text>';
-    s += rk.map(function (p) { var c = qdOf(p.q)[3], hollow = !ctr && p.cpa == null;
-      return '<g class="qpt"' + dr(function (el) { el.classList.add('sel'); drawerQPoint(p, P); }) + '><desc class="cap">' + esc(p.text) + '</desc><title>' + esc('#' + p.rank + ' · ' + p.text + ' · ' + n0(p.impr).replace(/<[^>]+>/g, '') + ' impr. · CTR ' + (100 * p.ctr).toFixed(1) + '% · ' + (p.cpa == null ? 'no conversions' : '$' + Math.round(p.cpa) + ' / conv.')) + '</title>' +
+    s += rk.map(function (p) { var c = qdOf(p.q)[3], hollow = !ctr && p[K] == null;
+      return '<g class="qpt"' + dr(function (el) { el.classList.add('sel'); drawerQPoint(p, P); }) + '><desc class="cap">' + esc(p.text) + '</desc><title>' + esc('#' + p.rank + ' · ' + p.text + ' · ' + n0(p.impr).replace(/<[^>]+>/g, '') + ' impr. · CTR ' + (100 * p.ctr).toFixed(1) + '% · ' + (p.cpa == null ? 'no conversions' : '$' + Math.round(p.cpa) + ' / conv.') + ' · ' + (p.cpe == null ? 'no enrolled clients' : '$' + Math.round(p.cpe) + ' / enrolled client')) + '</title>' +
         '<circle cx="' + Math.max(L + 4, X(p)).toFixed(1) + '" cy="' + Y(p).toFixed(1) + '" r="5" fill="' + c + '" fill-opacity="' + (hollow ? '0' : '.6') + '" stroke="' + c + '" stroke-width="1.5"/></g>'; }).join('');
-    return '<svg class="qchart" viewBox="0 0 ' + W + ' ' + Hh + '" role="img" aria-label="' + (f === 'H' ? 'Headlines' : 'Descriptions') + ' ranked by ' + (ctr ? 'CTR' : 'cost per conversion') + '">' + s + '</svg>';
+    return '<svg class="qchart" viewBox="0 0 ' + W + ' ' + Hh + '" role="img" aria-label="' + (f === 'H' ? 'Headlines' : 'Descriptions') + ' ranked by ' + (ctr ? 'CTR' : QKL()) + '">' + s + '</svg>';
   }
   function qLists(P) {
     return '<div class="qlists">' + QDX().map(function (q) { var l = P.pts.filter(function (p) { return p.q === q[0]; }).sort(function (a, b) { return QF.mode === 'both' ? b.impr - a.impr : a.rank - b.rank; });   /* one metric: in rank order */
       return '<div class="qbox" style="border-top-color:' + q[3] + '"><h4 style="color:' + q[3] + '">' + esc(q[1]) + ' <span class="cnt">' + l.length + '</span></h4><p class="sub">' + esc(q[2]) + '</p>' +
-        (l.length ? '<table class="tbl qtbl"><thead><tr><th>Line</th><th class="num">Impr.</th><th class="num">CTR</th><th class="num">$ / conv.</th></tr></thead><tbody>' + l.map(function (p) {
-          return '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); drawerQPoint(p, P); }) + '><td>' + esc(p.text) + (QF.by === 'ad' ? '<div class="sub">' + esc(qAdIndex()[p.ads[0][0]].label) + '</div>' : p.ads.length > 1 ? '<div class="sub">' + p.ads.length + ' ads</div>' : '') + '</td><td class="num">' + n0(p.impr) + '</td><td class="num">' + pct(p.clicks, p.impr) + '</td><td class="num">' + (p.cpa == null ? '<span class="sub">none</span>' : usd(p.cpa)) + '</td></tr>'; }).join('') + '</tbody></table>' : '<p class="note">None.</p>') + '</div>'; }).join('') + '</div>';
+        (l.length ? '<table class="tbl qtbl"><thead><tr><th>Line</th><th class="num">Impr.</th><th class="num">CTR</th><th class="num">' + (QK() === 'cpe' ? '$ / enrolled' : '$ / conv.') + '</th></tr></thead><tbody>' + l.map(function (p) {
+          return '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); drawerQPoint(p, P); }) + '><td>' + esc(p.text) + (QF.by === 'ad' ? '<div class="sub">' + esc(qAdIndex()[p.ads[0][0]].label) + '</div>' : p.ads.length > 1 ? '<div class="sub">' + p.ads.length + ' ads</div>' : '') + '</td><td class="num">' + n0(p.impr) + '</td><td class="num">' + pct(p.clicks, p.impr) + '</td><td class="num">' + (p[QK()] == null ? '<span class="sub">none</span>' : usd(p[QK()])) + '</td></tr>'; }).join('')   /* the cost metric in use (the drawer has both) */ + '</tbody></table>' : '<p class="note">None.</p>') + '</div>'; }).join('') + '</div>';
   }
   function qBody() {
     var I = qAdIndex(), scope = qScope(), chosen = scope.filter(function (a) { return !QF.sel || QF.sel[a.id]; });
@@ -996,7 +1002,7 @@
     var picker = '<details class="state qpick"' + (QF.open ? ' open' : '') + '><summary>Ads: <b>' + chosen.length + '</b> of ' + scope.length + ' chosen</summary><div class="toolbar"><button type="button" class="btn" data-qall="1">All</button><button type="button" class="btn" data-qall="0">None</button><button type="button" class="btn" data-qall="run">Only running</button></div>' +
       Object.keys(byGrp).sort().map(function (k) { return '<div class="qgrp"><b>' + esc(k) + '</b>' + byGrp[k].map(function (a) {
         return '<label class="chk"><input type="checkbox" data-qad="' + esc(a.id) + '"' + (!QF.sel || QF.sel[a.id] ? ' checked' : '') + '> ' + esc(a.label) + ' <span class="sub">' + esc(a.id) + '</span>' + (a.running ? ' <span class="chip ok">running</span>' : a.running === false ? ' <span class="chip">not running</span>' : '') + '</label>'; }).join('') + '</div>'; }).join('') + '</details>';
-    var kp = function (P, f) { return '<p class="note">' + P.pts.length + ' ' + (f === 'H' ? 'headlines' : 'descriptions') + ' · average CTR ' + (100 * P.avgCtr).toFixed(1) + '% · average cost / conv. ' + usd(P.avgCpa) + ' · ' + QDX().map(function (q) { return q[1] + ' ' + P.pts.filter(function (p) { return p.q === q[0]; }).length; }).join(' · ') + '</p>'; };
+    var kp = function (P, f) { return '<p class="note">' + P.pts.length + ' ' + (f === 'H' ? 'headlines' : 'descriptions') + ' · average CTR ' + (100 * P.avgCtr).toFixed(1) + '% · average cost / conv. ' + usd(P.avgCpa) + ' · average cost / enrolled client ' + usd(P.avgCpe) + ' (' + n1(P.enr) + ' enrolled) · ' + QDX().map(function (q) { return q[1] + ' ' + P.pts.filter(function (p) { return p.q === q[0]; }).length; }).join(' · ') + '</p>'; };
     return picker + '<div class="qcols"><section><h2>Headlines</h2>' + kp(H, 'H') + qChart(H, 'H') + '</section><section><h2>Descriptions</h2>' + kp(D, 'D') + qChart(D, 'D') + '</section></div>' +
       '<h2>Headlines by quadrant</h2>' + qLists(H) + '<h2>Descriptions by quadrant</h2>' + qLists(D);
   }
@@ -1007,16 +1013,18 @@
     AFTER = wireCopyQuadrants;
     return '<h1>Headline and description quadrants</h1><p class="lead">Every headline and description that served in the last 90 days (' + esc(GA.assets.period) + ', pulled ' + esc(GA.assets.pulled) + ', read-only). Top left is best, bottom right is worst. Click a dot or a row for its numbers per ad.</p><ul class="notes">' +
       '<li><b>CTR and cost per conversion</b>: up = higher CTR (earns the click), left = lower cost per conversion (earns the lead cheaply). The dashed lines are the averages of the lines shown. Dot size = impressions; a hollow dot has no conversions.</li>' +
-      '<li><b>CTR only</b> or <b>cost per conversion only</b>: the lines are ranked on that metric and cut into four equal quarters. The chart shows the metric across (best on the left) and impressions up.</li></ul>' +
+      '<li><b>CTR and cost per enrolled client</b>: the same 2×2, with the cost of each client who enrolled (the CRM “Enrolled” stage uploaded to Google) instead of each conversion.</li>' +
+      '<li><b>CTR only</b>, <b>cost per conversion only</b> or <b>cost per enrolled client only</b>: the lines are ranked on that metric and cut into four equal quarters. The chart shows the metric across (best on the left) and impressions up.</li></ul>' +
       '<div class="stctl" id="qf-ctl"><select data-qf="camp" aria-label="Campaign">' + opt('!brand', 'All campaigns except S_Brand', QF.camp) + opt('', 'All campaigns', QF.camp) + Object.keys(camps).sort().map(function (c) { return opt(c, c, QF.camp); }).join('') + '</select>' +
       '<select data-qf="grp" aria-label="Ad group">' + opt('', 'All ad groups', QF.grp) + Object.keys(grps).sort().map(function (g) { return opt(g, g, QF.grp); }).join('') + '</select>' +
       '<select data-qf="run" aria-label="Running">' + opt('', 'Running and paused ads', QF.run) + opt('on', 'Running ads only', QF.run) + opt('off', 'Paused ads only', QF.run) + '</select>' +
-      '<select data-qf="mode" aria-label="Arrange by">' + opt('both', 'Arrange by CTR and cost per conversion', QF.mode) + opt('ctr', 'Arrange by CTR only', QF.mode) + opt('cpa', 'Arrange by cost per conversion only', QF.mode) + '</select>' +
+      '<select data-qf="mode" aria-label="Arrange by">' + opt('both', 'Arrange by CTR and cost per conversion', QF.mode) + opt('ctrE', 'Arrange by CTR and cost per enrolled client', QF.mode) + opt('ctr', 'Arrange by CTR only', QF.mode) + opt('cpa', 'Arrange by cost per conversion only', QF.mode) + opt('cpe', 'Arrange by cost per enrolled client only', QF.mode) + '</select>' +
       '<select data-qf="by" aria-label="Combine">' + opt('text', 'One dot per line (ads combined)', QF.by) + opt('ad', 'One dot per line and ad', QF.by) + '</select>' +
       '<select data-qf="min" aria-label="Minimum impressions">' + [50, 100, 300, 1000, 3000].map(function (v) { return opt(v, 'At least ' + v.toLocaleString('en-US') + ' impressions', QF.min); }).join('') + '</select></div>' +
       '<div id="qf-body">' + qBody() + '</div>' +
       '<details class="state"><summary>Method</summary><ul class="notes"><li>Source: Google Ads ad_group_ad_asset_view, ' + esc(GA.assets.period) + ', every ad group with impressions (read-only, Ryze). Each line’s numbers are those of the impressions it appeared in; a responsive search ad shows several lines at once, so the numbers of lines in the same ad overlap and do not add up to the ad’s.</li>' +
-      '<li>“Ads combined” sums a line used in several ads (e.g. “Flexible Payment Plans”); “per line and ad” shows each use on its own.</li><li>Lines below the impression minimum are left out, and the averages are taken over the lines shown, so changing the filters moves the cross-hairs.</li><li>Conversions are Google Ads conversions as configured (fractional = data-driven attribution).</li></ul></details>';
+      '<li>“Ads combined” sums a line used in several ads (e.g. “Flexible Payment Plans”); “per line and ad” shows each use on its own.</li><li>Lines below the impression minimum are left out, and the averages are taken over the lines shown, so changing the filters moves the cross-hairs.</li><li>Conversions are Google Ads conversions as configured (fractional = data-driven attribution).</li>' +
+      '<li>Enrolled clients are the CRM “Enrolled” uploads per line (' + esc(GA.assets.period) + '). They are few per line, so one enrolment can move a line a long way (a headline with one client from 594 impressions ranks among the cheapest): raise the impression minimum to read the cost per enrolled client on lines with more data.</li></ul></details>';
   }
   function wireCopyQuadrants() {
     var body = $('qf-body'), redraw = function () { body.innerHTML = qBody(); };
