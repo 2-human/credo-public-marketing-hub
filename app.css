@@ -412,4 +412,5 @@ ol.abl li.abprev > .abt { outline:1px dashed #d9b44a; outline-offset:2px; border
 .qlists { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:8px 0 18px; } .qbox { border:1px solid var(--line); border-top:3px solid; border-radius:6px; padding:8px 10px; background:var(--card); min-width:0; }
 .qbox h4 { margin:2px 0; font-size:13px; } .qbox .sub { margin:0 0 6px; } .qtbl { font-size:12.5px; width:100%; } .qtbl th { letter-spacing:0; } .qtbl td { padding:5px 6px; }
 @media (max-width:1300px) { .qlists { grid-template-columns:1fr 1fr; } } @media (max-width:700px) { .qlists { grid-template-columns:1fr; } }
+.qtbl tr.qcur td { background:#f3f6fb; font-weight:600; } .qonly { margin:14px 0 0; } .qonly .btn { margin-left:8px; }
 .qpick .qgrp { margin:8px 0; } .qpick .qgrp b { display:block; font-size:12.5px; margin-bottom:2px; } .qpick label.chk { display:block; font-size:13px; padding:2px 0; } .qpick .toolbar { margin:8px 0; }

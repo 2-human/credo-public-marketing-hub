@@ -893,7 +893,7 @@
      for this, and place it under search term clusters." Each line's 90-day numbers (ad_group_ad_asset_view) give a point:
      up = higher CTR (it earns the click), left = lower cost per conversion (it earns the lead cheaply). The cross-hairs are the
      shown lines' own averages, so a quadrant reads "better or worse than the rest of this selection". */
-  var QF = { camp: '!brand', grp: '', run: '', min: 300, by: 'text', mode: 'both', sel: null };   /* mode (operator 13 Oct): both = CTR × cost per conversion; ctr / cpa = ranked on that one metric, in quarters */   /* sel: the chosen ad ids (null = every ad in scope) */
+  var QF = { camp: '!brand', grp: '', ad: '', run: '', min: 300, by: 'text', mode: 'both', sel: null };   /* mode (operator 13 Oct): both = CTR × cost per conversion; ctr / cpa = ranked on that one metric, in quarters */   /* sel: the chosen ad ids (null = every ad in scope) */
   var QD = [['tl', 'Winners', 'High CTR, low cost per conversion: keep, reuse in new ads.', '#1f8a4c'], ['tr', 'Clicks, costly leads', 'People click, leads cost more: check the line against the page it lands on.', '#b07a00'],
     ['bl', 'Quiet converters', 'Few clicks, cheap leads: keep; they may deserve more exposure.', '#2f63ad'], ['br', 'Underperformers', 'Low CTR, costly or no leads: replace first.', '#c0392b']];
   /* one metric only: the lines ranked on it and cut into four equal quarters, best top left, worst bottom right */
@@ -911,19 +911,22 @@
   function qAdIndex() {   /* every ad in the snapshot: campaign, ad group, label, running, link (ads-tree for the ads it knows) */
     if (qAds) return qAds; qAds = {}; var tree = {}, gp = platBy.google;
     gp.campaigns.forEach(function (c) { c.groups.forEach(function (g) { g.ads.forEach(function (a) { tree[a.id] = { c: c, g: g, a: a }; }); }); });
-    var gById = {}; (GA.groups || []).forEach(function (g) { gById[g.id] = g; });
-    GA.assets.rows.forEach(function (r) { if (qAds[r[0]]) return; var t = tree[r[0]], g = gById[r[1]];
-      qAds[r[0]] = { id: r[0], campaign: t ? t.c.name : g ? g.campaign : '', group: r[2], label: t ? adLabel(gp, t.a) : 'Ad ' + r[0], running: t ? !!(t.a.serving && t.a.serving.running) : null, href: t ? adHref(gp, t.c, t.g, t.a) : null, t: t }; });
+    /* MH-87: an ad group paused in the last 30 days is missing from GA.groups; the 90-day ad snapshot names its campaign */
+    var campOf = {}; (GA.groups || []).forEach(function (g) { campOf[g.id] = g.campaign; }); ((GA.adPerf || {}).rows || []).forEach(function (r) { campOf[r[1]] = r[3]; });
+    GA.assets.rows.concat(((GA.adPerf || {}).rows || []).map(function (r) { return [r[0], r[1], r[2]]; })).forEach(function (r) { if (qAds[r[0]]) return; var t = tree[r[0]];
+      qAds[r[0]] = { id: r[0], campaign: t ? t.c.name : campOf[r[1]] || '', group: r[2], label: t ? adLabel(gp, t.a) : 'Ad ' + r[0], running: t ? !!(t.a.serving && t.a.serving.running) : null, href: t ? adHref(gp, t.c, t.g, t.a) : null, t: t }; });
     return qAds;
   }
   function qScope() { var I = qAdIndex(); return Object.keys(I).map(function (k) { return I[k]; }).filter(function (a) {
     return (!QF.camp || (QF.camp === '!brand' ? a.campaign !== 'S_Brand' : a.campaign === QF.camp)) && (!QF.grp || a.group === QF.grp) && (!QF.run || (QF.run === 'on' ? a.running === true : a.running === false)); }); }   /* an ad missing from the ad snapshot (running unknown) counts in neither */
   function qPoints(f) {   /* the shown lines of one type (H or D): one point per text (or per ad and text), with their quadrant */
-    var on = {}; qScope().forEach(function (a) { if (!QF.sel || QF.sel[a.id]) on[a.id] = 1; });
+    var on = {}; qScope().forEach(function (a) { if ((!QF.sel || QF.sel[a.id]) && (!QF.ad || a.id === QF.ad)) on[a.id] = 1; });   /* MH-87: the Ad filter */
     var by = {};
     GA.assets.rows.forEach(function (r) { if (r[3] !== f || !on[r[0]]) return; var k = QF.by === 'ad' ? r[0] + '|' + r[4] : r[4];
       var o = by[k] || (by[k] = { text: r[4], f: f, impr: 0, clicks: 0, cost: 0, conv: 0, enr: 0, ads: [] }); o.impr += r[5]; o.clicks += r[6]; o.cost += r[7]; o.conv += r[8]; o.enr += r[9] || 0; o.ads.push(r); });
-    var pts = Object.keys(by).map(function (k) { return by[k]; }).filter(function (p) { return p.impr >= QF.min; });
+    return qClassify(Object.keys(by).map(function (k) { return by[k]; }).filter(function (p) { return p.impr >= QF.min; }));
+  }
+  function qClassify(pts) {   /* the quadrant of each point (lines or, MH-87, ads) against the averages of the points shown */
     var t = tot(pts), avgCtr = t.impr ? t.clicks / t.impr : 0, avgCpa = t.conv ? t.cost / t.conv : null, te = pts.reduce(function (q, p) { return q + p.enr; }, 0), avgCpe = te ? t.cost / te : null, K = QK(), avgK = K === 'cpe' ? avgCpe : avgCpa;
     pts.forEach(function (p) { p.ctr = p.impr ? p.clicks / p.impr : 0; p.cpa = p.conv > 0 ? p.cost / p.conv : null; p.cpe = p.enr > 0 ? p.cost / p.enr : null;
       var hi = p.ctr >= avgCtr, cheap = p[K] != null && avgK != null && p[K] <= avgK; p.q = hi ? (cheap ? 'tl' : 'tr') : (cheap ? 'bl' : 'br'); });
@@ -933,9 +936,45 @@
     }
     return { pts: pts, avgCtr: avgCtr, avgCpa: avgCpa, avgCpe: avgCpe, enr: te, t: t };
   }
+  /* MH-87 (operator 14 Oct): "an ad level filter and analysis for the headline and description quadrant": each ad's own
+     90-day numbers (ad_group_ad, the lines' period) placed by the same rule; the chosen ads (picker) apply, the Ad filter
+     marks its ad here and limits the headline and description charts to it */
+  function qAdPoints() {
+    var I = qAdIndex(), on = {}; qScope().forEach(function (a) { if (!QF.sel || QF.sel[a.id]) on[a.id] = 1; });
+    return qClassify(((GA.adPerf || {}).rows || []).filter(function (r) { return on[r[0]] && r[4] >= QF.min; }).map(function (r) {
+      return { text: I[r[0]].label, f: 'A', id: r[0], a: I[r[0]], impr: r[4], clicks: r[5], cost: r[6], conv: r[7], enr: r[8] || 0, ads: [] }; }));
+  }
+  var qOpen = function (p, P) { return p.f === 'A' ? drawerQAd(p, P) : drawerQPoint(p, P); };
+  var qCap = function (p) { return p.f === 'A' ? p.text + ' · ' + p.a.group + ' · ' + p.id : p.text; };   /* a dot's name for its permalink */
+  var qKind = function (f) { return f === 'H' ? 'headlines' : f === 'D' ? 'descriptions' : 'ads'; };
+  var qVs = function (v, avg, lowGood) { if (v == null || !avg) return ''; var d = Math.round(100 * (v / avg - 1)); return ' <span class="sub ' + ((lowGood ? d <= 0 : d >= 0) ? 'qs-hi' : 'qs-lo') + '">' + (d >= 0 ? '+' : '') + d + '% vs average</span>'; };
+  function drawerQAd(p, P) {
+    var q = qdOf(p.q), a = p.a, H = qPoints('H'), D = qPoints('D'), find = function (r) { var X = r[3] === 'H' ? H : D, k = QF.by === 'ad' ? r[0] + '|' + r[4] : r[4];
+      return X.pts.filter(function (x) { return (QF.by === 'ad' ? x.ads[0][0] + '|' + x.text : x.text) === k; })[0]; };
+    var lines = GA.assets.rows.filter(function (r) { return r[0] === p.id; }).sort(function (x, y) { return x[3] < y[3] ? -1 : x[3] > y[3] ? 1 : y[5] - x[5]; });
+    openDrawer(a.label, [['Basic info', '<p><span class="chip" style="color:' + q[3] + ';border-color:' + q[3] + '">' + esc(q[1]) + '</span> ' + esc(q[2].replace(/line/g, 'ad')) + (p.rank ? ' Rank ' + p.rank + ' of ' + P.pts.length + ' on ' + (QF.mode === 'ctr' ? 'CTR' : QKL()) + '.' : '') + '</p>' +
+        kv([['Ad', (a.href ? '<a href="' + a.href + '">' + esc(a.label) + '</a>' : esc(a.label)) + ' <span class="sub">' + esc(p.id) + '</span>'], ['Ad group', esc((a.campaign ? a.campaign + ' › ' : '') + a.group)], ['Running', a.running ? 'yes' : a.running === false ? 'no' : 'not in the ad snapshot'],
+          ['Impressions', n0(p.impr)], ['Clicks', n0(p.clicks)], ['CTR', pct(p.clicks, p.impr) + qVs(p.ctr, P.avgCtr)], ['Cost', usd(p.cost)], ['Conversions', n1(p.conv)], ['Cost / conv.', (p.cpa == null ? 'no conversions' : usd(p.cpa)) + qVs(p.cpa, P.avgCpa, true)],
+          ['Enrolled clients', n1(p.enr)], ['Cost / enrolled client', (p.cpe == null ? 'no enrolled clients' : usd(p.cpe)) + qVs(p.cpe, P.avgCpe, true)], ['Lines', lines.filter(function (r) { return r[3] === 'H'; }).length + ' headlines, ' + lines.filter(function (r) { return r[3] === 'D'; }).length + ' descriptions']]) +
+        '<div class="toolbar"><button type="button" class="btn"' + dr(function () { QF.ad = p.id; closeDrawer(); route(); }) + '>Show only this ad’s lines</button></div>' +
+        '<p class="note">Averages of the ads shown: CTR ' + (100 * P.avgCtr).toFixed(1) + '%, cost per conversion ' + usd(P.avgCpa) + ', cost per enrolled client ' + usd(P.avgCpe) + '. ' + esc(GA.adPerf.period) + ' (the ad’s own numbers; its lines overlap and do not add up to them).</p>'],
+      ['Lines', '<div class="scroll"><table class="tbl"><thead><tr><th>Line</th><th>Quadrant</th><th class="num">Impr.</th><th class="num">CTR</th><th class="num">Cost / conv.</th><th class="num">Enrolled</th></tr></thead><tbody>' +
+        lines.map(function (r) { var x = find(r), qq = x && qdOf(x.q);
+          return '<tr><td>' + esc(r[4]) + '<div class="sub">' + (r[3] === 'H' ? 'headline' : 'description') + '</div></td><td>' + (qq ? '<span class="chip" style="color:' + qq[3] + ';border-color:' + qq[3] + '">' + esc(qq[1]) + '</span>' : '<span class="sub">' + (r[5] < QF.min ? 'under ' + n0(QF.min) + ' impr.' : 'outside the selection') + '</span>') +
+            '</td><td class="num">' + n0(r[5]) + '</td><td class="num">' + pct(r[6], r[5]) + '</td><td class="num">' + per(r[7], r[8]) + '</td><td class="num">' + n1(r[9] || 0) + '</td></tr>'; }).join('') + '</tbody></table></div>' +
+        '<p class="note">The quadrant is the line’s place in the headline or description chart with the current filters' + (QF.by === 'ad' ? ' (one dot per line and ad)' : ' (ads combined)') + '; the numbers are this ad’s.</p>']], true);
+  }
+  function qAdTable(P) {
+    var order = { tl: 0, tr: 1, bl: 2, br: 3 }, K = QK();
+    if (!P.pts.length) return '';
+    return '<div class="scroll"><table class="tbl qtbl"><thead><tr><th>Ad</th><th>Quadrant</th><th class="num">Impr.</th><th class="num">CTR</th><th class="num">' + (K === 'cpe' ? '$ / enrolled' : '$ / conv.') + '</th><th class="num">Enrolled</th></tr></thead><tbody>' +
+      P.pts.slice().sort(function (a, b) { return order[a.q] - order[b.q] || (a.rank && b.rank ? a.rank - b.rank : b.impr - a.impr); }).map(function (p) { var q = qdOf(p.q);
+        return '<tr class="clk' + (p.id === QF.ad ? ' qcur' : '') + '"' + dr(function (el) { el.classList.add('sel'); qOpen(p, P); }) + '><td>' + esc(p.text) + '<div class="sub">' + esc((p.a.campaign ? p.a.campaign + ' › ' : '') + p.a.group + ' · ' + p.id) + (p.id === QF.ad ? ' · lines shown below' : '') + '</div></td><td><span class="chip" style="color:' + q[3] + ';border-color:' + q[3] + '">' + esc(q[1]) + '</span></td><td class="num">' + n0(p.impr) + '</td><td class="num">' + pct(p.clicks, p.impr) +
+          '</td><td class="num">' + (p[K] == null ? '<span class="sub">none</span>' : usd(p[K])) + '</td><td class="num">' + n1(p.enr) + '</td></tr>'; }).join('') + '</tbody></table></div>';
+  }
   function drawerQPoint(p, P) {
     var q = qdOf(p.q), I = qAdIndex(), rows = p.ads.map(function (r) { var a = I[r[0]]; return { a: a, impr: r[5], clicks: r[6], cost: r[7], conv: r[8], enr: r[9] || 0 }; }).sort(function (x, y) { return y.impr - x.impr; });
-    var vs = function (v, avg, lowGood) { if (v == null || !avg) return ''; var d = Math.round(100 * (v / avg - 1)); return ' <span class="sub ' + ((lowGood ? d <= 0 : d >= 0) ? 'qs-hi' : 'qs-lo') + '">' + (d >= 0 ? '+' : '') + d + '% vs average</span>'; };
+    var vs = qVs;
     openDrawer(p.text, [['Basic info', '<p><span class="chip" style="color:' + q[3] + ';border-color:' + q[3] + '">' + esc(q[1]) + '</span> ' + esc(q[2]) + (p.rank ? ' Rank ' + p.rank + ' of ' + P.pts.length + ' on ' + (QF.mode === 'ctr' ? 'CTR' : QKL()) + '.' : '') + '</p>' +
         kv([['Line', esc(p.text)], ['Type', p.f === 'H' ? 'headline' : 'description'], ['Impressions', n0(p.impr)], ['Clicks', n0(p.clicks)], ['CTR', pct(p.clicks, p.impr) + vs(p.ctr, P.avgCtr)],
           ['Cost', usd(p.cost)], ['Conversions', n1(p.conv)], ['Cost / conv.', (p.cpa == null ? 'no conversions' : usd(p.cpa)) + vs(p.cpa, P.avgCpa, true)], ['Enrolled clients', n1(p.enr)], ['Cost / enrolled client', (p.cpe == null ? 'no enrolled clients' : usd(p.cpe)) + vs(p.cpe, P.avgCpe, true)], ['Ads', String(rows.length)]]) +
@@ -946,7 +985,7 @@
   }
   function qChart(P, f) {
     var W = 720, Hh = 470, L = 56, R = 16, T = 26, B = 46, pw = W - L - R, ph = Hh - T - B;
-    if (!P.pts.length) return '<p class="empty">No ' + (f === 'H' ? 'headlines' : 'descriptions') + ' with ' + n0(QF.min) + '+ impressions in this selection.</p>';
+    if (!P.pts.length) return '<p class="empty">No ' + qKind(f) + ' with ' + n0(QF.min) + '+ impressions in this selection.</p>';
     if (QF.mode !== 'both' && QF.mode !== 'ctrE') return qRankChart(P, f, W, Hh, L, R, T, B, pw, ph);
     var Q = QDX(), K = QK(), fin = P.pts.filter(function (p) { return p[K] != null; }).map(function (p) { return p[K]; }), avg = (K === 'cpe' ? P.avgCpe : P.avgCpa) || 1;
     var xmax = Math.max(avg * 2, Math.min(Math.max.apply(null, fin.concat([avg])), avg * 4)) * 1.08, ymax = Math.min(Math.max.apply(null, P.pts.map(function (p) { return p.ctr; }).concat([P.avgCtr * 2])), P.avgCtr * 2.6) * 1.08;   /* a few very high CTRs (brand) would flatten the rest: they sit on the top edge */
@@ -963,9 +1002,9 @@
       '<text transform="translate(14 ' + (T + ph / 2) + ') rotate(-90)" font-size="12" fill="#3a414b" text-anchor="middle">CTR ↑ (higher CTRs sit on the top edge)</text>' + [0.5, 1.5, 2].map(function (k) { return '<text x="' + (L - 6) + '" y="' + (Y(k * P.avgCtr) + 3) + '" font-size="11" fill="#8a929c" text-anchor="end">' + (100 * k * P.avgCtr).toFixed(1) + '%</text>'; }).join('');
     s += P.pts.slice().sort(function (a, b) { return b.impr - a.impr; }).map(function (p) {
       var x = p[K] == null ? L + pw - 4 : X(p[K]), y = Math.max(T + 4, Y(p.ctr)), r = 3 + 11 * Math.sqrt(p.impr / mi), c = qdOf(p.q)[3];
-      return '<g class="qpt"' + dr(function (el) { el.classList.add('sel'); drawerQPoint(p, P); }) + '><desc class="cap">' + esc(p.text) + '</desc><title>' + esc(p.text + ' · ' + n0(p.impr).replace(/<[^>]+>/g, '') + ' impr. · CTR ' + (100 * p.ctr).toFixed(1) + '% · ' + (p.cpa == null ? 'no conversions' : '$' + Math.round(p.cpa) + ' / conv.') + ' · ' + (p.cpe == null ? 'no enrolled clients' : '$' + Math.round(p.cpe) + ' / enrolled client')) + '</title>' +
-        '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + r.toFixed(1) + '" fill="' + c + '" fill-opacity="' + (p[K] == null ? '0' : '.55') + '" stroke="' + c + '" stroke-width="1.5"/></g>'; }).join('');
-    return '<svg class="qchart" viewBox="0 0 ' + W + ' ' + Hh + '" role="img" aria-label="' + (f === 'H' ? 'Headlines' : 'Descriptions') + ' by CTR and cost per conversion">' + s + '</svg>';
+      return '<g class="qpt"' + dr(function (el) { el.classList.add('sel'); qOpen(p, P); }) + '><desc class="cap">' + esc(qCap(p)) + '</desc><title>' + esc(p.text + ' · ' + n0(p.impr).replace(/<[^>]+>/g, '') + ' impr. · CTR ' + (100 * p.ctr).toFixed(1) + '% · ' + (p.cpa == null ? 'no conversions' : '$' + Math.round(p.cpa) + ' / conv.') + ' · ' + (p.cpe == null ? 'no enrolled clients' : '$' + Math.round(p.cpe) + ' / enrolled client')) + '</title>' +
+        '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + r.toFixed(1) + '" fill="' + c + '" fill-opacity="' + (p[K] == null ? '0' : '.55') + '" stroke="' + (p.f === 'A' && p.id === QF.ad ? '#111' : c) + '" stroke-width="' + (p.f === 'A' && p.id === QF.ad ? 3 : 1.5) + '"/></g>'; }).join('');
+    return '<svg class="qchart" viewBox="0 0 ' + W + ' ' + Hh + '" role="img" aria-label="' + qKind(f).replace(/^./, function (c) { return c.toUpperCase(); }) + ' by CTR and ' + QKL() + '">' + s + '</svg>';
   }
   function qRankChart(P, f, W, Hh, L, R, T, B, pw, ph) {
     var ctr = QF.mode === 'ctr', K = QK(), avg = ctr ? P.avgCtr : ((K === 'cpe' ? P.avgCpe : P.avgCpa) || 1), fin = P.pts.filter(function (p) { return ctr || p[K] != null; }).map(function (p) { return ctr ? p.ctr : p[K]; });
@@ -984,15 +1023,15 @@
       '<text x="' + (L + pw / 2) + '" y="' + (Hh - 8) + '" font-size="12" fill="#3a414b" text-anchor="middle">' + (ctr ? '← higher CTR · lower CTR → (very high CTRs sit on the left edge)' : K === 'cpe' ? 'Cost per enrolled client → (left is cheaper; no enrolled clients = right edge)' : 'Cost per conversion → (left is cheaper; no conversions = right edge)') + '</text>' +
       '<text transform="translate(14 ' + (T + ph / 2) + ') rotate(-90)" font-size="12" fill="#3a414b" text-anchor="middle">Impressions ↑</text>';
     s += rk.map(function (p) { var c = qdOf(p.q)[3], hollow = !ctr && p[K] == null;
-      return '<g class="qpt"' + dr(function (el) { el.classList.add('sel'); drawerQPoint(p, P); }) + '><desc class="cap">' + esc(p.text) + '</desc><title>' + esc('#' + p.rank + ' · ' + p.text + ' · ' + n0(p.impr).replace(/<[^>]+>/g, '') + ' impr. · CTR ' + (100 * p.ctr).toFixed(1) + '% · ' + (p.cpa == null ? 'no conversions' : '$' + Math.round(p.cpa) + ' / conv.') + ' · ' + (p.cpe == null ? 'no enrolled clients' : '$' + Math.round(p.cpe) + ' / enrolled client')) + '</title>' +
-        '<circle cx="' + Math.max(L + 4, X(p)).toFixed(1) + '" cy="' + Y(p).toFixed(1) + '" r="5" fill="' + c + '" fill-opacity="' + (hollow ? '0' : '.6') + '" stroke="' + c + '" stroke-width="1.5"/></g>'; }).join('');
-    return '<svg class="qchart" viewBox="0 0 ' + W + ' ' + Hh + '" role="img" aria-label="' + (f === 'H' ? 'Headlines' : 'Descriptions') + ' ranked by ' + (ctr ? 'CTR' : QKL()) + '">' + s + '</svg>';
+      return '<g class="qpt"' + dr(function (el) { el.classList.add('sel'); qOpen(p, P); }) + '><desc class="cap">' + esc(qCap(p)) + '</desc><title>' + esc('#' + p.rank + ' · ' + p.text + ' · ' + n0(p.impr).replace(/<[^>]+>/g, '') + ' impr. · CTR ' + (100 * p.ctr).toFixed(1) + '% · ' + (p.cpa == null ? 'no conversions' : '$' + Math.round(p.cpa) + ' / conv.') + ' · ' + (p.cpe == null ? 'no enrolled clients' : '$' + Math.round(p.cpe) + ' / enrolled client')) + '</title>' +
+        '<circle cx="' + Math.max(L + 4, X(p)).toFixed(1) + '" cy="' + Y(p).toFixed(1) + '" r="5" fill="' + c + '" fill-opacity="' + (hollow ? '0' : '.6') + '" stroke="' + (p.f === 'A' && p.id === QF.ad ? '#111' : c) + '" stroke-width="' + (p.f === 'A' && p.id === QF.ad ? 3 : 1.5) + '"/></g>'; }).join('');
+    return '<svg class="qchart" viewBox="0 0 ' + W + ' ' + Hh + '" role="img" aria-label="' + qKind(f).replace(/^./, function (c) { return c.toUpperCase(); }) + ' ranked by ' + (ctr ? 'CTR' : QKL()) + '">' + s + '</svg>';
   }
   function qLists(P) {
     return '<div class="qlists">' + QDX().map(function (q) { var l = P.pts.filter(function (p) { return p.q === q[0]; }).sort(function (a, b) { return QF.mode === 'both' ? b.impr - a.impr : a.rank - b.rank; });   /* one metric: in rank order */
       return '<div class="qbox" style="border-top-color:' + q[3] + '"><h4 style="color:' + q[3] + '">' + esc(q[1]) + ' <span class="cnt">' + l.length + '</span></h4><p class="sub">' + esc(q[2]) + '</p>' +
         (l.length ? '<table class="tbl qtbl"><thead><tr><th>Line</th><th class="num">Impr.</th><th class="num">CTR</th><th class="num">' + (QK() === 'cpe' ? '$ / enrolled' : '$ / conv.') + '</th></tr></thead><tbody>' + l.map(function (p) {
-          return '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); drawerQPoint(p, P); }) + '><td>' + esc(p.text) + (QF.by === 'ad' ? '<div class="sub">' + esc(qAdIndex()[p.ads[0][0]].label) + '</div>' : p.ads.length > 1 ? '<div class="sub">' + p.ads.length + ' ads</div>' : '') + '</td><td class="num">' + n0(p.impr) + '</td><td class="num">' + pct(p.clicks, p.impr) + '</td><td class="num">' + (p[QK()] == null ? '<span class="sub">none</span>' : usd(p[QK()])) + '</td></tr>'; }).join('')   /* the cost metric in use (the drawer has both) */ + '</tbody></table>' : '<p class="note">None.</p>') + '</div>'; }).join('') + '</div>';
+          return '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); qOpen(p, P); }) + '><td>' + esc(p.text) + (p.f === 'A' ? '<div class="sub">' + esc(p.a.group) + '</div>' : QF.by === 'ad' ? '<div class="sub">' + esc(qAdIndex()[p.ads[0][0]].label) + '</div>' : p.ads.length > 1 ? '<div class="sub">' + p.ads.length + ' ads</div>' : '') + '</td><td class="num">' + n0(p.impr) + '</td><td class="num">' + pct(p.clicks, p.impr) + '</td><td class="num">' + (p[QK()] == null ? '<span class="sub">none</span>' : usd(p[QK()])) + '</td></tr>'; }).join('')   /* the cost metric in use (the drawer has both) */ + '</tbody></table>' : '<p class="note">None.</p>') + '</div>'; }).join('') + '</div>';
   }
   function qBody() {
     var I = qAdIndex(), scope = qScope(), chosen = scope.filter(function (a) { return !QF.sel || QF.sel[a.id]; });
@@ -1001,8 +1040,11 @@
     var picker = '<details class="state qpick"' + (QF.open ? ' open' : '') + '><summary>Ads: <b>' + chosen.length + '</b> of ' + scope.length + ' chosen</summary><div class="toolbar"><button type="button" class="btn" data-qall="1">All</button><button type="button" class="btn" data-qall="0">None</button><button type="button" class="btn" data-qall="run">Only running</button></div>' +
       Object.keys(byGrp).sort().map(function (k) { return '<div class="qgrp"><b>' + esc(k) + '</b>' + byGrp[k].map(function (a) {
         return '<label class="chk"><input type="checkbox" data-qad="' + esc(a.id) + '"' + (!QF.sel || QF.sel[a.id] ? ' checked' : '') + '> ' + esc(a.label) + ' <span class="sub">' + esc(a.id) + '</span>' + (a.running ? ' <span class="chip ok">running</span>' : a.running === false ? ' <span class="chip">not running</span>' : '') + '</label>'; }).join('') + '</div>'; }).join('') + '</details>';
-    var kp = function (P, f) { return '<p class="note">' + P.pts.length + ' ' + (f === 'H' ? 'headlines' : 'descriptions') + ' · average CTR ' + (100 * P.avgCtr).toFixed(1) + '% · average cost / conv. ' + usd(P.avgCpa) + ' · average cost / enrolled client ' + usd(P.avgCpe) + ' (' + n1(P.enr) + ' enrolled) · ' + QDX().map(function (q) { return q[1] + ' ' + P.pts.filter(function (p) { return p.q === q[0]; }).length; }).join(' · ') + '</p>'; };
-    return picker + '<div class="qcols"><section><h2>Headlines</h2>' + kp(H, 'H') + qChart(H, 'H') + '</section><section><h2>Descriptions</h2>' + kp(D, 'D') + qChart(D, 'D') + '</section></div>' +
+    var kp = function (P, f) { return '<p class="note">' + P.pts.length + ' ' + qKind(f) + ' · average CTR ' + (100 * P.avgCtr).toFixed(1) + '% · average cost / conv. ' + usd(P.avgCpa) + ' · average cost / enrolled client ' + usd(P.avgCpe) + ' (' + n1(P.enr) + ' enrolled) · ' + QDX().map(function (q) { return q[1] + ' ' + P.pts.filter(function (p) { return p.q === q[0]; }).length; }).join(' · ') + '</p>'; };
+    var A = qAdPoints(), only = QF.ad && I[QF.ad];
+    return picker + '<h2>Ads</h2>' + (GA.adPerf ? kp(A, 'A') + '<div class="qcols"><section>' + qChart(A, 'A') + '</section><section>' + qAdTable(A) + '</section></div>' : '<p class="empty">The ad snapshot (GA.adPerf) is not loaded.</p>') +
+      (only ? '<p class="note qonly">Headlines and descriptions: only <b>' + esc(only.label) + '</b> (' + esc(only.group) + ', ' + esc(only.id) + '). <button type="button" class="btn" data-qad-clear="1">Show every chosen ad</button></p>' : '') +
+      '<div class="qcols"><section><h2>Headlines</h2>' + kp(H, 'H') + qChart(H, 'H') + '</section><section><h2>Descriptions</h2>' + kp(D, 'D') + qChart(D, 'D') + '</section></div>' +
       '<h2>Headlines by quadrant</h2>' + qLists(H) + '<h2>Descriptions by quadrant</h2>' + qLists(D);
   }
   function viewCopyQuadrants() {
@@ -1013,9 +1055,11 @@
     return '<h1>Headline and description quadrants</h1><p class="lead">Every headline and description that served in the last 90 days (' + esc(GA.assets.period) + ', pulled ' + esc(GA.assets.pulled) + ', read-only). Top left is best, bottom right is worst. Click a dot or a row for its numbers per ad.</p><ul class="notes">' +
       '<li><b>CTR and cost per conversion</b>: up = higher CTR (earns the click), left = lower cost per conversion (earns the lead cheaply). The dashed lines are the averages of the lines shown. Dot size = impressions; a hollow dot has no conversions.</li>' +
       '<li><b>CTR and cost per enrolled client</b>: the same 2×2, with the cost of each client who enrolled (the CRM “Enrolled” stage uploaded to Google) instead of each conversion.</li>' +
+      '<li><b>Ads</b> (MH-87): each ad’s own numbers for the same 90 days, placed by the same rule against the averages of the ads shown. Click an ad for its lines and their quadrants; <b>Ad</b> (filter) limits the headline and description charts to one ad.</li>' +
       '<li><b>CTR only</b>, <b>cost per conversion only</b> or <b>cost per enrolled client only</b>: the lines are ranked on that metric and cut into four equal quarters. The chart shows the metric across (best on the left) and impressions up.</li></ul>' +
       '<div class="stctl" id="qf-ctl"><select data-qf="camp" aria-label="Campaign">' + opt('!brand', 'All campaigns except S_Brand', QF.camp) + opt('', 'All campaigns', QF.camp) + Object.keys(camps).sort().map(function (c) { return opt(c, c, QF.camp); }).join('') + '</select>' +
       '<select data-qf="grp" aria-label="Ad group">' + opt('', 'All ad groups', QF.grp) + Object.keys(grps).sort().map(function (g) { return opt(g, g, QF.grp); }).join('') + '</select>' +
+      '<select data-qf="ad" aria-label="Ad">' + opt('', 'All ads', QF.ad) + qScope().sort(function (x, y) { return (x.group + x.label).localeCompare(y.group + y.label); }).map(function (a) { return opt(a.id, a.group + ' · ' + a.label + ' · ' + a.id, QF.ad); }).join('') + '</select>' +
       '<select data-qf="run" aria-label="Running">' + opt('', 'Running and paused ads', QF.run) + opt('on', 'Running ads only', QF.run) + opt('off', 'Paused ads only', QF.run) + '</select>' +
       '<select data-qf="mode" aria-label="Arrange by">' + opt('both', 'Arrange by CTR and cost per conversion', QF.mode) + opt('ctrE', 'Arrange by CTR and cost per enrolled client', QF.mode) + opt('ctr', 'Arrange by CTR only', QF.mode) + opt('cpa', 'Arrange by cost per conversion only', QF.mode) + opt('cpe', 'Arrange by cost per enrolled client only', QF.mode) + '</select>' +
       '<select data-qf="by" aria-label="Combine">' + opt('text', 'One dot per line (ads combined)', QF.by) + opt('ad', 'One dot per line and ad', QF.by) + '</select>' +
@@ -1027,11 +1071,11 @@
   }
   function wireCopyQuadrants() {
     var body = $('qf-body'), redraw = function () { body.innerHTML = qBody(); };
-    $('qf-ctl').addEventListener('change', function (e) { var k = e.target.getAttribute('data-qf'); if (!k) return; QF[k] = k === 'min' ? +e.target.value : e.target.value; if (k === 'camp') QF.grp = ''; if (k === 'camp' || k === 'grp' || k === 'run') QF.sel = null;
-      if (k === 'camp') { route(); return; } redraw(); });   /* the ad-group list depends on the campaign */
+    $('qf-ctl').addEventListener('change', function (e) { var k = e.target.getAttribute('data-qf'); if (!k) return; QF[k] = k === 'min' ? +e.target.value : e.target.value; if (k === 'camp') QF.grp = ''; if (k === 'camp' || k === 'grp' || k === 'run') { QF.sel = null; QF.ad = ''; }
+      if (k === 'camp' || k === 'grp' || k === 'run') { route(); return; } redraw(); });   /* the ad-group and ad lists depend on them */   /* the ad-group list depends on the campaign */
     body.addEventListener('change', function (e) { var id = e.target.getAttribute('data-qad'); if (!id) return; var I = qAdIndex();
       if (!QF.sel) { QF.sel = {}; qScope().forEach(function (a) { QF.sel[a.id] = 1; }); } if (e.target.checked) QF.sel[id] = 1; else delete QF.sel[id]; QF.open = true; redraw(); });
-    body.addEventListener('click', function (e) { var b = e.target.closest('[data-qall]'); if (!b) return; var v = b.getAttribute('data-qall'); QF.open = true;
+    body.addEventListener('click', function (e) { if (e.target.closest('[data-qad-clear]')) { QF.ad = ''; route(); return; } var b = e.target.closest('[data-qall]'); if (!b) return; var v = b.getAttribute('data-qall'); QF.open = true;
       QF.sel = v === '1' ? null : {}; if (v === 'run') qScope().forEach(function (a) { if (a.running) QF.sel[a.id] = 1; }); redraw(); });
     body.addEventListener('toggle', function (e) { if (e.target.classList && e.target.classList.contains('qpick')) QF.open = e.target.open; }, true);
   }
@@ -2181,7 +2225,8 @@
   /* the new set (B) against a term, with the same rule as the current lines (termLevel) */
   function cluSetLevel(D, term) { var v = D.terms[term], S = (D.adSets || {})[v.cluster], L = cluAdLines(D); if (!S) return null;
     return termLevel(v, ['problem', 'solution', 'cta', 'description'].reduce(function (q, r) { return q.concat(S[r].map(function (i) { return L[i]; })); }, []).filter(function (l) { return l.status !== 'rejected'; })); }
-  window.HUB_TEST = { pageRecApply: function () { return pageRecApply.apply(null, arguments); }, pageBlocks: function (d) { return pageBlocks(d); }, cluIntentAds: cluIntentAds, cluSetLevel: cluSetLevel, termLevel: termLevel, lineLevel: lineLevel, lineIn: lineIn, cluBase: function () { return CLUS; }, cluDoc: function () { return cluDoc(); } };   /* for check-clusters-hub */
+  window.HUB_TEST = { pageRecApply: function () { return pageRecApply.apply(null, arguments); }, pageBlocks: function (d) { return pageBlocks(d); }, cluIntentAds: cluIntentAds, cluSetLevel: cluSetLevel, termLevel: termLevel, lineLevel: lineLevel, lineIn: lineIn, cluBase: function () { return CLUS; }, cluDoc: function () { return cluDoc(); },
+    abPlan: function () { return abPlan(); }, cluDoc0: function (ik) { return cluDoc0(ik); } };   /* for check-clusters-hub and analyze-b-lines (MH-87) */
   var cluNum = function (c) { var n = parseInt(c.label, 10); return isNaN(n) ? 99 : n; };
   function cluOrder(D) { return D.clusters.slice().sort(function (a, b) { return cluNum(a) - cluNum(b); }); }
   function cluRows(D, key, bad) {
