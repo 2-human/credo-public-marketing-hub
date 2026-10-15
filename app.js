@@ -3053,50 +3053,56 @@
   /* MH-92 (operator 15 Oct): "prepare a handoff for current ad groups that contains the adgroup information, the new ad specs
      and the landing page ... everything that is required for a person to apply the deliverable to google ads and webflow
      platforms via a prompt"; later: "Apply all the recommendations for the new pages ... completely new landing pages, with new
-     urls ... the correct utm tags ... based the current model used in the active ads". One row per running ad group, plus the
-     shared step that runs first (data/handoff.js, from tools/marketing-hub/build-handoff.mjs, which also writes the same handoff
-     as files: content/campaigns/google-ads/handoff/<date>/). The drawer holds the prompt, the ad group, the new ad with its UTM
-     tags, the new landing page (preview + every Webflow value, head code, menu, phone row) and the open items. */
-  var hoStrip = function (h) { var d = Object.assign({}, h); delete d.promptHead; delete d.csv; delete d.folder; return d; };
-  var hoPrompt = function (h) { return h.promptHead + '## Data\n```json\n' + JSON.stringify(hoStrip(h), null, 1) + '\n```\n'; };
+     urls ... the correct utm tags ... based the current model used in the active ads"; and "These landing pages needs to be
+     published on the start. subdomain, Use the New Design page draft as the template ... Do not change any of the code on the
+     page". One row per running ad group (data/handoff.js, from tools/marketing-hub/build-handoff.mjs, which also writes the
+     same handoff as files: content/campaigns/google-ads/handoff/<date>/). The drawer holds the prompt, the ad group, the new
+     ad with its UTM tags, the new start page (content preview + every text by section) and the open items. */
+  var hoStrip = function (h) { var d = Object.assign({}, h); delete d.promptAds; delete d.promptWebflow; delete d.csv; delete d.folder; return d; };
+  /* operator 15 Oct: "separate prompts for publishing ads to google ads and for publishing pages on webflow ... go to different
+     people": each prompt carries only its own data (the generator writes PROMPT-google-ads.md and PROMPT-webflow.md) */
+  var hoPrompt = function (h, kind) { return kind === 'ads' ? h.promptAds : h.promptWebflow; };
+  var HOFILE = { ads: 'PROMPT-google-ads.md', webflow: 'PROMPT-webflow.md' };
   var hoData = function (h) { return JSON.stringify(hoStrip(h), null, 1) + '\n'; };
-  var hoVals = function (h, nw) { return Object.keys(h.webflow.components).reduce(function (q, c) { return q + h.webflow.components[c].values.filter(function (v) { return !nw || v.newProp; }).length; }, 0); };
-  var hoOf = function (k) { var X = HO(); return k === 'shared' ? X.shared : X.groups[+k]; };
-  var hoBtns = function (k, csv) { return '<div class="hobtns"><button type="button" class="btn" data-hocopy="' + k + '">Copy prompt</button> <button type="button" class="btn" data-hodl="' + k + '" data-f="PROMPT.md">PROMPT.md</button> <button type="button" class="btn" data-hodl="' + k + '" data-f="handoff.json">handoff.json</button>' +
+  var hoTexts = function (h) { return h.webflow.content.reduce(function (q, c) { return q + c.items.length; }, 0); };
+  var hoOf = function (k) { return HO().groups[+k]; };
+  var hoBtns = function (k, csv, kind) { kind = kind || 'webflow'; return '<div class="hobtns"><button type="button" class="btn" data-hocopy="' + k + '" data-hokind="' + kind + '">Copy prompt</button> <button type="button" class="btn" data-hodl="' + k + '" data-hokind="' + kind + '" data-f="' + HOFILE[kind] + '">' + HOFILE[kind] + '</button> <button type="button" class="btn" data-hodl="' + k + '" data-f="handoff.json">handoff.json</button>' +
     (csv ? ' <button type="button" class="btn" data-hodl="' + k + '" data-f="google-ads-editor.csv">google-ads-editor.csv</button>' : '') + ' <span class="sub" data-homsg></span></div>'; };
   function viewHandoff() { var X = HO();
     if (!X) return '<h1>Handoff</h1><p class="empty">The handoff (data/handoff.js) is not loaded. Build it with node tools/marketing-hub/build-handoff.mjs.</p>';
-    var G = X.groups, SH = X.shared, pc = function (v) { return v == null ? dash : Math.round(v * 100) + '%'; };
-    var lead = '<p class="lead">For each running ad group: the ad group as it is today, the new ad (B) with its UTM tags, and a completely new landing page at its own address carrying every recommendation, with a prompt that applies them. Run the shared step once, then each ad group’s prompt, in a Claude session with the Google Ads (Ryze) and Webflow connectors; each prompt carries its own data and limits. Generated ' + esc(X.generated) + ' from the A/B plan (' + esc(X.scope) + '). Nothing has been applied.</p>';
-    var nProps = Object.keys(SH.components).reduce(function (q, c) { return q + SH.components[c].props.length; }, 0);
-    var shared = '<div class="hostep"><h3>1 · Shared step, once: component props</h3><p>Texts that are fixed in the shared LP components today (section headings, two buttons, the closing heading, the FAQ heading) become props with today’s text as the default, and the FAQ gets slots 8–14, hidden by default: ' + n0(nProps) + ' new props on ' + Object.keys(SH.components).length + ' components. Every existing page renders as before; the prompt checks three of them before and after. Phone numbers are set per ad group, so the phone table does not change.</p>' +
-      '<details class="state"><summary>The new props</summary><ul class="notes">' + Object.keys(SH.components).map(function (c) { var L = SH.components[c].props;
-        return '<li><b>' + esc(c) + '</b>: ' + esc(L.filter(function (p) { return !/^(FAQ|Show FAQ) \d+/.test(p.name); }).map(function (p) { return p.name + ' (default “' + p.def + '”)'; }).join('; ')) + (L.some(function (p) { return /^FAQ \d+/.test(p.name); }) ? esc((L.length > 2 ? '; ' : '') + 'FAQ 8–14 question / answer and Show FAQ 8–14 (hidden by default)') : '') + '</li>'; }).join('') + '</ul></details>' +
-      hoBtns('shared') + '<p class="sub">Also in the repo: ' + esc(SH.folder) + '/</p></div>';
+    var G = X.groups, ST = X.site, pc = function (v) { return v == null ? dash : Math.round(v * 100) + '%'; };
+    var lead = '<p class="lead">For each running ad group: the ad group as it is today, the new ad (B) with its UTM tags, and a completely new landing page on <b>' + esc(ST.host) + '</b>: a copy of the “' + esc(ST.template.title) + '” draft with the text of the new ad’s landing page, carrying every recommendation. Each ad group has two prompts for two people: the Webflow prompt publishes the page, the Google Ads prompt creates the paused ad once the page is live; each carries only its own data and limits. Generated ' + esc(X.generated) + ' from the A/B plan (' + esc(X.scope) + '). Nothing has been applied.</p>';
     var dec = '<details class="state"><summary>Decisions (' + X.decisions.length + ')</summary><ol class="notes">' + X.decisions.map(function (d) {
       return '<li>' + esc(d.q) + '<div class="sub"><b>Now:</b> ' + esc(d.now) + '</div></li>'; }).join('') + '</ol></details>';
-    var how = '<details class="state"><summary>What each ad group’s prompt does, and what it never does</summary><ol class="notes">' +
-      '<li><b>Check</b> the shared step is done, the campaign and ad group in Google Ads (account 9399506772 only), and that their UTM suffix is still the one in the handoff; stop if the ad already exists.</li>' +
-      '<li><b>New page</b> on staging: a duplicate of the base landing page for its design, at the new address, with title, SEO, head code (canonical, og:url) and the landing-page menu; left unpublished.</li>' +
-      '<li><b>Copy:</b> every component value on the new page, then read back; the FAQPage JSON-LD.</li>' +
-      '<li><b>Google Ads:</b> the new responsive search ad, <b>paused</b>, with the final URL and the UTM suffix of its ad group’s model; read back.</li>' +
-      '<li><b>Report</b> what was done and every open item.</li></ol>' +
-      '<p class="sub">Never: any other Google Ads change (keywords, bids, budgets, ad group suffixes, other ads), start.credolegal.com’s Webflow projects or the Consumer Legal Group sites, other staging pages, publishing, forms, GTM / GA4. The ad goes live only when the attorney review is cleared, the operator has published the page, checked the UTM fields on a test click and the conversions in Google Ads, and enables the ad.</p></details>';
-    var body = G.map(function (h, i) { var A = h.googleAds, N = A.newAd, W = h.webflow;
+    var how = '<details class="state" open><summary>What each prompt does, and what it never does</summary><ol class="notes">' +
+      '<li><b>Check</b> the campaign and ad group in Google Ads (account 9399506772 only) and that their UTM suffix is still the one in the handoff; check start: the template exists, the new address is free, and which changes on start are not yet published.</li>' +
+      '<li><b>New page</b> on ' + esc(ST.host) + ' (' + esc(ST.name) + '): a copy of the “' + esc(ST.template.title) + '” draft (page ' + esc(ST.template.id) + '), as a draft, with the new address, title and SEO.</li>' +
+      '<li><b>Text only:</b> the words of each section replaced with the landing page’s content (accents kept), list items added or removed to match; every text read back; the FAQPage JSON-LD.</li>' +
+      '<li><b>Publish</b> only with the operator’s OK in that session, and only if nothing else on start is waiting to be published (publishing start publishes every pending change).</li>' +
+      '<li><b>Google Ads:</b> the new responsive search ad, <b>paused</b>, with the new page as final URL and the UTM suffix of its ad group’s model; read back.</li></ol>' +
+      '<p class="sub">Never: code on the page (custom code, embeds, the form, classes, styles, attributes, components, interactions), the “' + esc(ST.template.title) + '” draft itself, other start pages, shared components, styles, site settings or site code, the staging site, the Consumer Legal Group sites, any other Google Ads change, forms, GTM / GA4. The ad goes live only when the attorney review is cleared, the page is published, a test click shows the UTM fields, conversions are counted, and the operator enables the ad.</p></details>';
+    var body = G.map(function (h) { var A = h.googleAds, N = A.newAd, W = h.webflow;
       return '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); drawerHO(h); }) + '><td><b>' + esc(A.adGroup.name) + '</b><div class="sub">' + esc(A.campaign.name) + '</div></td>' +
-        '<td class="hoslug">' + esc('/' + W.newPage.slug) + '<div class="sub">design from ' + esc(W.basePage.slug) + '</div></td>' +
+        '<td class="hoslug">' + esc(W.host + '/' + W.newPage.slug) + '<div class="sub">copy of “' + esc(W.template.title) + '”</div></td>' +
         '<td class="num">' + pc(N.coverage.fullNow) + ' → <b>' + pc(N.coverage.fullB) + '</b></td>' +
         '<td class="num">' + N.headlines.length + ' + ' + N.descriptions.length + '<div class="sub">paused</div></td>' +
         '<td>' + (N.finalUrlSuffix ? 'suffix on the ad' : 'inherited') + '<div class="sub">utm_content={creative}</div></td>' +
         '<td class="num">' + esc(W.applied.split(' ')[0]) + ' / ' + esc(W.applied.split(' ')[2]) + (W.notApplied.length ? '<div class="sub">' + W.notApplied.length + ' not applied</div>' : '') + '</td>' +
-        '<td class="num">' + n0(hoVals(h)) + '<div class="sub">' + n0(hoVals(h, true)) + ' on new props</div></td>' +
-        '<td class="num">' + W.faq.items.length + '</td><td class="num">' + h.attorneyReview.length + '</td>' +
-        '<td><span class="chip">after step 1</span></td></tr>'; }).join('');
+        '<td class="num">' + n0(hoTexts(h)) + '</td><td class="num">' + W.lists.faq + '</td><td class="num">' + h.attorneyReview.length + '</td>' +
+        '<td><span class="chip">ready to apply</span></td></tr>'; }).join('');
     var tot = function (f) { return G.reduce(function (q, h) { return q + f(h); }, 0); };
-    return '<h1>Handoff</h1>' + lead + '<div class="mgrid wide">' + mt('Ad groups', n0(G.length)) + mt('New ads (paused)', n0(G.length)) + mt('New landing pages', n0(G.length)) +
-      mt('Webflow values', n0(tot(function (h) { return hoVals(h); }))) + mt('New component props', n0(nProps)) + mt('Attorney review items', n0(tot(function (h) { return h.attorneyReview.length; }))) + '</div>' + shared + dec + how +
-      '<h3>2 · Per ad group: the new ad and its new landing page</h3><div class="scroll"><table class="tbl"><thead><tr><th>Ad group</th><th>New page</th><th class="num" title="Share of impressions from terms with a headline holding all their key words">Full: now → B</th><th class="num">Ad: headlines + descriptions</th><th>UTM tags</th><th class="num" title="Edits of the page recommendation applied">Page edits</th><th class="num">Webflow values</th><th class="num">FAQ</th><th class="num">Attorney review</th><th>Status</th></tr></thead><tbody>' +
+    return '<h1>Handoff</h1>' + lead + '<div class="mgrid wide">' + mt('Ad groups', n0(G.length)) + mt('New ads (paused)', n0(G.length)) + mt('New pages on start', n0(G.length)) +
+      mt('Texts to set', n0(tot(hoTexts))) + mt('Page-rec edits applied', n0(tot(function (h) { return +h.webflow.applied.split(' ')[0]; }))) + mt('Attorney review items', n0(tot(function (h) { return h.attorneyReview.length; }))) + '</div>' + how + dec +
+      '<div class="scroll"><table class="tbl"><thead><tr><th>Ad group</th><th>New page</th><th class="num" title="Share of impressions from terms with a headline holding all their key words">Full: now → B</th><th class="num">Ad: headlines + descriptions</th><th>UTM tags</th><th class="num" title="Edits of the page recommendation applied">Page edits</th><th class="num">Texts</th><th class="num">FAQ</th><th class="num">Attorney review</th><th>Status</th></tr></thead><tbody>' +
       body + '</tbody></table></div>';
+  }
+  function hoPhones(ph) {   /* the ad group's per-source numbers next to the template's (MH-92) */
+    if (!ph.adGroupSet) return esc(ph.number || dash);
+    var f = function (n) { return n ? '(' + n.slice(1, 4) + ') ' + n.slice(4, 7) + '-' + n.slice(7) : dash; };
+    return '<div class="scroll"><table class="tbl"><thead><tr><th>utm_source</th><th>This ad group</th><th>The page now</th><th>The template</th></tr></thead><tbody>' +
+      ['google', 'meta', 'bing', 'default'].map(function (k) { var on = (ph.onPage || ph.templateSet)[k], same = ph.adGroupSet[k] === on;
+        return '<tr><td>' + k + '</td><td>' + f(ph.adGroupSet[k]) + '</td><td>' + f(on) + ' <span class="chip' + (same ? ' ok">same' : ' warn">change') + '</span></td><td class="sub">' + f(ph.templateSet[k]) + '</td></tr>'; }).join('') +
+      '</tbody></table></div><div class="sub">from ' + esc(ph.from) + (ph.set ? ' · set on the page ' + esc(ph.set) : '') + '</div>';
   }
   function drawerHO(h) { var A = h.googleAds, N = A.newAd, W = h.webflow, T = A.urlTracking, i = HO().groups.indexOf(h), pc = function (v) { return v == null ? dash : Math.round(v * 100) + '%'; };
     var l30 = A.adGroup.last30;
@@ -3120,32 +3126,38 @@
         ['Paths / pins', 'none (as the current ads)'], ['Status', 'paused: the operator enables it after the go-live checks']]) +
       '<details class="state"><summary>The UTM model of the active ads (GAQL, ' + esc(T.pulled) + ')</summary><p class="sub">' + esc(T.model) + '</p></details>';
     var P = STG() && cluDoc() ? abPlan() : [], g = P.filter(function (x) { return x.key === A.campaign.name + '|' + A.adGroup.name; })[0], pg = g ? abPageTab(g) : null;
-    var comps = Object.keys(W.components).map(function (c) { var v = W.components[c].values, nn = v.filter(function (x) { return x.newProp; }).length;
-      return '<details class="state"><summary>' + esc(c) + ' · ' + v.length + ' values' + (nn ? ' (' + nn + ' on new props)' : '') + '</summary><div class="scroll"><table class="tbl"><thead><tr><th>Prop</th><th>Value</th></tr></thead><tbody>' +
-        v.map(function (x) { return '<tr><td>' + esc(x.prop) + (x.newProp ? ' <span class="chip">new prop</span>' : '') + '</td><td class="hoval">' + esc(x.type === 'boolean' ? String(x.boolean_value) : x.string_value) + '</td></tr>'; }).join('') + '</tbody></table></div><p class="sub">Component ' + esc(W.components[c].componentId) + '</p></details>'; }).join('');
-    var tPg = kv([['Webflow site', esc('staging · ' + W.siteId) + '<div class="sub">' + esc(W.host) + '</div>'], ['New page', esc('/' + W.newPage.slug) + '<div class="sub">' + esc(W.newPage.url) + ' (created by the prompt; live once the operator publishes)</div>'],
-        ['Design from', esc(W.basePage.slug) + '<div class="sub">page ' + esc(W.basePage.id || dash) + ': duplicated for its layout, every text replaced</div>'],
+    var secs = W.content.map(function (c) {
+      return '<details class="state"><summary>' + esc(c.label) + (c.anchor ? ' <span class="sub">' + esc(c.anchor) + '</span>' : '') + ' · ' + c.items.length + ' texts</summary><div class="scroll"><table class="tbl"><thead><tr><th>Text</th><th>Now in the template</th><th>New words</th></tr></thead><tbody>' +
+        c.items.map(function (x) { return '<tr><td>' + esc(x.slot) + (x.hint ? '<div class="sub">' + esc(x.hint) + '</div>' : '') + '</td><td class="hoval sub">' + (x.newItem ? 'new item (a copy of the list’s last)' : x.missing ? '<span class="chip warn">Designer</span> no place for it: added after the accent' : esc(x.current || '')) + '</td><td class="hoval">' + (x.text === '' ? '<span class="sub">(empty)</span>' : esc(x.text)) + '</td></tr>'; }).join('') + '</tbody></table></div></details>'; }).join('');
+    var L = W.lists;
+    var tPg = kv([['Webflow project', esc(W.site + ' · ' + W.siteId) + '<div class="sub">' + esc(W.host) + '</div>'], ['Template', '“' + esc(W.template.title) + '” draft · page ' + esc(W.template.id) + '<div class="sub">a copy of ' + esc(W.template.copyOf || '') + '; copied for each new page, never edited itself</div>'],
+        ['New page', esc(W.newPage.url) + '<div class="sub">' + (h.built ? 'built 15 Oct (page ' + esc(h.built.pageId) + '), on ' + link(h.built.stagingUrl, 'staging') + '; ' : 'created by the prompt; ') + 'live once published with the operator’s OK</div>'],
         ['Title', esc(W.newPage.title)], ['SEO title', esc(W.newPage.seoTitle)], ['SEO description', esc(W.newPage.seoDesc) + ' <span class="chip warn">draft</span>'],
-        ['Menu', 'landing-page links (Page links on, Site menu off)'], ['Phone', esc(W.phone.number || 'the ad group’s number') + '<div class="sub">' + esc(W.phone.note) + '</div>'],
-        ['Recommendations', esc(W.applied) + ' applied' + (W.notApplied.length ? ' · <span class="chip warn">' + W.notApplied.length + ' not applied</span>' : '')]]) +
-      (pg ? '<h3>Preview</h3>' + pg : '') + '<h3>Webflow values (' + n0(hoVals(h)) + ')</h3><p class="sub">Set on the new page’s component instances with set_component_instance_prop_values; “new prop” values use the props the shared step creates.</p>' + comps +
-      '<h3>FAQ (' + W.faq.items.length + ')</h3><ol class="notes">' + W.faq.items.map(function (f) { return '<li>' + esc(f.q) + ' <span class="chip">' + (f.src.indexOf('topical') === 0 ? 'topical' : 'about Credo') + '</span></li>'; }).join('') + '</ol>' +
-      '<details class="state"><summary>Head code</summary><pre class="hopre">' + esc(W.headCode) + '</pre></details>' +
+        ['What changes', 'text only: ' + n0(hoTexts(h)) + ' texts in ' + W.content.length + ' sections; code, form, classes, components and embeds stay as in the template'],
+        ['List changes', (W.listOps.length ? W.listOps.map(function (o) { return esc(o.section) + ' ' + o.template + ' → ' + o.content; }).join(' · ') : 'none') + '<div class="sub">against the template; extra items are copies of the list’s last item, surplus items are removed</div>'],
+        ['Designer steps', W.content.some(function (c) { return c.items.some(function (x) { return x.missing; }); }) ? 'the H1’s words after the accent (the template’s H1 has none)' : 'none beyond the heading accents'],
+        ['Lists', n0(L.whatItems) + ' what-we-do items · ' + n0(L.whyCards) + ' why cards · ' + n0(L.problemCards) + ' problem cards · ' + n0(L.whoItems) + ' who-this-helps items · ' + n0(L.steps) + ' steps · ' + n0(L.rights) + ' rights · ' + n0(L.faq) + ' FAQ questions'],
+        ['Phone', hoPhones(W.phone) + '<div class="sub">' + esc(W.phone.note) + '</div>'],
+        ['Recommendations', esc(W.applied) + ' applied' + (W.notApplied.length ? ' · <span class="chip warn">' + W.notApplied.length + ' not applied</span>' : '') + '<div class="sub">' + esc(W.contentFrom) + '</div>']]) +
+      (pg ? '<h3>Preview of the content</h3><p class="sub">The text as written for the ad, shown in the staging layout; on start it goes into the “' + esc(W.template.title) + '” design.</p>' + pg : '') + '<h3>The text, section by section (' + n0(hoTexts(h)) + ')</h3>' + secs +
       '<details class="state"><summary>FAQPage JSON-LD</summary><pre class="hopre">' + esc(JSON.stringify(W.faqJsonLd, null, 1)) + '</pre></details>';
     var tOpen = (W.notApplied.length ? '<h3>Recommendations not applied (' + W.notApplied.length + ')</h3><div class="scroll"><table class="tbl"><thead><tr><th>Section</th><th>Now</th><th>Page rec</th></tr></thead><tbody>' + W.notApplied.map(function (x) { return '<tr><td>' + esc(x.section) + '</td><td>' + esc(x.old) + '</td><td>' + esc(x.new) + '</td></tr>'; }).join('') + '</tbody></table></div>' : '<p class="note">Every recommendation of the page is in the values (' + esc(W.applied) + ').</p>') +
+      (W.phone.adGroupSet && !W.phone.matches ? '<h3>Phone numbers <span class="chip warn">operator’s OK</span></h3><p class="sub">The page’s phone embed still has the template’s numbers (CC_Lawsuit). Changing them to this ad group’s set is a code change, so it waits for the operator’s OK (Webflow prompt step 2).</p>' + hoPhones(W.phone) : '') +
       '<h3>Attorney review before publishing (' + h.attorneyReview.length + ')</h3><ul class="notes">' + h.attorneyReview.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' +
       '<h3>Disclaimer</h3><p class="sub">' + esc(W.disclaimer || dash) + '</p>';
-    var tPr = '<p class="note">Run the shared step first (Handoff page, step 1). Then paste this prompt into a Claude session with the Google Ads (Ryze) and Webflow connectors. It carries its data (' + Math.round(hoData(h).length / 1024) + ' KB of JSON), so nothing else is needed.</p>' +
-      hoBtns(i, true) + '<p class="sub">Also in the repo: ' + esc(h.folder) + '/</p><pre class="hopre">' + esc(h.promptHead) + '</pre><p class="sub">…followed by “## Data” and the JSON.</p>';
-    openDrawer(A.adGroup.name + ' · handoff', [['Prompt', tPr], ['Ad group', tAG], ['New ad', tAd], ['Landing page', tPg], ['Open items', tOpen]], 'x');
+    var tWf = '<p class="note"><b>For the Webflow person.</b> Paste into a Claude session with the Webflow connector: publish the page /' + esc(W.newPage.slug) + ' on ' + esc(W.host) + (h.built ? ' (built, on staging: ' + link(h.built.stagingUrl, 'preview') + ')' : '') + ', with the pending-changes check and the operator’s OK. It carries only the page’s data (' + Math.round(h.promptWebflow.length / 1024) + ' KB).</p>' +
+      hoBtns(i, false, 'webflow') + '<pre class="hopre">' + esc(h.promptWebflow.split('## Data')[0]) + '</pre><p class="sub">…followed by “## Data” and the JSON.</p>';
+    var tAds = '<p class="note"><b>For the Google Ads person.</b> Paste into a Claude session with the Google Ads (Ryze) connector: create the ad, paused, whatever the page’s status (operator 15 Oct, this occasion only; it is enabled only after the page loads at ' + esc(N.finalUrl) + '). It carries only the ad’s data (' + Math.round(h.promptAds.length / 1024) + ' KB).</p>' +
+      hoBtns(i, true, 'ads') + '<pre class="hopre">' + esc(h.promptAds.split('## Data')[0]) + '</pre><p class="sub">…followed by “## Data” and the JSON.</p>';
+    openDrawer(A.adGroup.name + ' · handoff', [['Webflow prompt', tWf], ['Google Ads prompt', tAds], ['Ad group', tAG], ['New ad', tAd], ['Landing page', tPg], ['Open items', tOpen]], 'x');
     if (pg) abPageLoad();
   }
   document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-hocopy], [data-hodl]'); if (!b || !HO()) return;
-    var k = b.getAttribute('data-hocopy') || b.getAttribute('data-hodl'), h = hoOf(k), msg = b.parentNode.querySelector('[data-homsg]');
-    if (b.hasAttribute('data-hocopy')) { var t = hoPrompt(h), legacy = function () { var ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select();   /* when the Clipboard API is refused (window not focused) */
+    var k = b.getAttribute('data-hocopy') || b.getAttribute('data-hodl'), h = hoOf(k), msg = b.parentNode.querySelector('[data-homsg]'), kind = b.getAttribute('data-hokind') || 'webflow';
+    if (b.hasAttribute('data-hocopy')) { var t = hoPrompt(h, kind), legacy = function () { var ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select();   /* when the Clipboard API is refused (window not focused) */
         var ok = false; try { ok = document.execCommand('copy'); } catch (x) {} ta.remove(); msg.textContent = ok ? 'Prompt copied.' : 'Could not copy: use PROMPT.md.'; };
       (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () { msg.textContent = 'Prompt copied.'; }, legacy); return; }
-    var f = b.getAttribute('data-f'), txt = f === 'PROMPT.md' ? hoPrompt(h) : f === 'handoff.json' ? hoData(h) : h.csv;
+    var f = b.getAttribute('data-f'), txt = /^PROMPT-/.test(f) ? hoPrompt(h, kind) : f === 'handoff.json' ? hoData(h) : h.csv;
     var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([txt], { type: f.slice(-3) === 'csv' ? 'text/csv' : f.slice(-4) === 'json' ? 'application/json' : 'text/markdown' }));
     a.download = h.id + '-' + f; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 0); msg.textContent = f + ' saved.'; });
   function drawerAB(g) {
