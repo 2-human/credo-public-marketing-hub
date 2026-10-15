@@ -421,3 +421,13 @@ ol.abl li.abprev > .abt { outline:1px dashed #d9b44a; outline-offset:2px; border
 .nofeed { max-width:880px; margin:8px 0 18px; } .nofeed h3 { display:flex; gap:8px; align-items:center; } .mthumb { max-width:220px; max-height:220px; border-radius:6px; border:1px solid var(--line); margin:0 0 10px; display:block; }
 .qtbl tr.qcur td { background:#f3f6fb; font-weight:600; } .qonly { margin:14px 0 0; } .qonly .btn { margin-left:8px; }
 .qpick .qgrp { margin:8px 0; } .qpick .qgrp b { display:block; font-size:12.5px; margin-bottom:2px; } .qpick label.chk { display:block; font-size:13px; padding:2px 0; } .qpick .toolbar { margin:8px 0; }
+/* MH-92 handoff */
+.hopre { background:#f6f8fa; border:1px solid var(--line); border-radius:5px; padding:10px 12px; overflow:auto; font:12px/1.45 ui-monospace,Menlo,monospace; white-space:pre-wrap; max-height:420px; max-width:100%; }
+.hobtns { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:8px 0; }
+.hoad { border:1px solid var(--line); border-radius:8px; padding:12px 14px; max-width:600px; margin:10px 0 4px; font-size:14px; line-height:1.4; }
+.hoadh { color:#1a0dab; font-size:18px; margin:2px 0 4px; }
+.tbl td.hoslug { min-width:300px; }
+.hostep { border:1px solid var(--line); border-radius:8px; padding:12px 16px; margin:12px 0; }
+.hostep h3 { margin-top:0; }
+code.hocode { display:block; font:12px/1.5 ui-monospace,Menlo,monospace; word-break:break-all; background:#f6f8fa; padding:6px 8px; border-radius:4px; }
+.tbl td.hoval { white-space:pre-wrap; }
