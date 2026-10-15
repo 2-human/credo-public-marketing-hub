@@ -294,7 +294,7 @@
     };
     /* MH-80: Google's children are Google Ads' own sections (its campaigns under Campaigns); Meta and Nextdoor list their campaigns */
     var ads = plats.map(function (p) {
-      return { label: p.label, href: adHref(p), count: p.key === 'google' ? null : p.campaigns.length,
+      return { key: p.key, label: p.label, href: adHref(p), count: p.key === 'google' ? null : p.campaigns.length,
         children: p.key === 'google' ? gNav(p, campNode) : p.campaigns.map(function (c) { return campNode(p, c); }) };
     });
     var work = B ? [{ label: 'Board', href: '#/work', count: B.pbis.filter(function (p) { return p.visible !== false; }).length,
@@ -306,11 +306,8 @@
       .map(function (x) { return { label: x[1], href: '#/more/' + x[0] }; });
     var lps = lpTypes.map(function (g) { return { label: g.label, href: lpHref(g), count: g.pages.length,
       children: g.pages.map(function (x) { return { label: x.p.label, href: lpHref(g, x), dot: x.p.running ? 'on' : null }; }) }; });
-    return [{ sec: 'Overview', label: 'All sections', href: '#/overview' },   /* MH-68 */
-            { sec: 'Websites', label: 'Microsites', href: '#/website', count: sites.length, children: web },
-            { label: 'Landing pages', href: LP_BASE, count: lpCount, children: lps },
-            { sec: 'Ads', label: 'Platforms', href: '#/ads', count: plats.length, children: ads, ovKids: true },   /* MH-80: phones, search terms, clusters, A/B tests, new clusters and new pages moved under Google */
-            { sec: 'Organic' }].concat(organicNav(), [{ sec: 'Work' }, streamNav()], work, [{ sec: 'Reference' }, { label: 'Statutes', href: '#/reference/statutes', count: ST ? ST.statutes.length : 0 }], [{ sec: 'More' }], more);
+    return [{ sec: 'Overview', label: 'All sections', href: '#/overview' }].concat(platformNav(ads, web, lps), [   /* MH-68; MH-88: Websites and Ads → Platforms */
+            { sec: 'Organic' }].concat(organicNav(), [{ sec: 'Work' }, streamNav()], work, [{ sec: 'Reference' }, { label: 'Statutes', href: '#/reference/statutes', count: ST ? ST.statutes.length : 0 }], [{ sec: 'More' }], more));
   }
   function adLabel(p, a) { return p.key === 'google' ? (a.headlines[0] || a.name) : p.key === 'meta' ? (a.version + ' · ' + a.name.split('-').slice(0, -1).join('-').replace(/^DD_/, '')) : a.name; }
   function renderTree() {
@@ -1078,6 +1075,297 @@
     body.addEventListener('click', function (e) { if (e.target.closest('[data-qad-clear]')) { QF.ad = ''; route(); return; } var b = e.target.closest('[data-qall]'); if (!b) return; var v = b.getAttribute('data-qall'); QF.open = true;
       QF.sel = v === '1' ? null : {}; if (v === 'run') qScope().forEach(function (a) { if (a.running) QF.sel[a.id] = 1; }); redraw(); });
     body.addEventListener('toggle', function (e) { if (e.target.classList && e.target.classList.contains('qpick')) QF.open = e.target.open; }, true);
+  }
+
+  /* ───────────── MH-88: Platforms ─────────────
+     Operator 14 Oct: "Rename the Ads section into Platforms. Then make the top level sections: Google, Meta Business Suite,
+     Nextdoor, LinkedIn, Webflow. Under Google, place Google Ads, Google Analytics, Google Search Console, Google Business.
+     Under Linkedin, place Company Page and LinkedIn Ads. Under Nextdoor place Business Page and Nextdoor ads. Use the
+     connectors to create the environment for each platform, all of its available features and interfaces, but adapt it to
+     the hub's three column system." Data: data/platforms.js (build-platforms.mjs; read-only snapshots of GA4, Meta and
+     Webflow staging). Search Console and LinkedIn Ads are not connected (operator, 14 Oct); Google Business, the LinkedIn
+     Company Page and Nextdoor have no connector. Existing addresses (#/ads/…, #/website…, #/organic/<channel>) keep working. */
+  var PF = window.HUB_PLATFORMS || null;
+  var PFH = { google: '#/platforms/google', meta: '#/platforms/meta', nextdoor: '#/platforms/nextdoor', linkedin: '#/platforms/linkedin', webflow: '#/platforms/webflow' };
+  var PFL = { google: 'Google', meta: 'Meta Business Suite', nextdoor: 'Nextdoor', linkedin: 'LinkedIn', webflow: 'Webflow' };
+  var CHPF = { nextdoor: ['nextdoor', 'Business Page'], facebook: ['meta', 'Facebook Page'], instagram: ['meta', 'Instagram'], linkedin: ['linkedin', 'Company Page'] };   /* organic channel → platform, page label */
+  var ADPF = { google: ['google', 'Google Ads'], meta: ['meta', 'Hand-off campaigns'], nextdoor: ['nextdoor', 'Nextdoor Ads'] };   /* ads-tree platform → platform, area label */
+  var pfCrumbs = function (k) { return [['Platforms', '#/platforms'], [PFL[k], PFH[k]]]; };
+  var pfNote = function (src) { return '<p class="note">' + src + '</p>'; };
+  var pfKpis = function (k) { return '<div class="tiles kpis">' + k.map(function (x) { return '<div class="tile static"><p>' + esc(x[0]) + '</p><div class="big">' + x[1] + '</div><p>' + (x[2] || '') + '</p></div>'; }).join('') + '</div>'; };
+  var pfTile = function (href, title, big, sub) { return '<a class="tile" href="' + esc(href) + '">' + '<h3>' + esc(title) + '</h3>' + (big != null && big !== '' ? '<div class="big">' + big + '</div>' : '') + '<p>' + sub + '</p></a>'; };
+  var pfState = function (s) { return { live: '<span class="chip ok">connected · read-only</span>', off: '<span class="chip warn">not connected</span>', none: '<span class="chip">no connector</span>', repo: '<span class="chip">from the repo</span>' }[s]; };
+  var SEVC = { red: 'red', warn: 'warn', '': '' };
+  var pfLines = function (l) { return '<span class="pfl">' + l.map(function (x) { return '<span>' + esc(x[0]) + ' ' + pfState(x[1]) + '</span>'; }).join('') + '</span>'; };
+  function pfFindings(list, title) {
+    if (!list.length) return '<p class="empty">No findings.</p>';
+    return '<div class="scroll"><table class="tbl"><thead><tr><th>Finding</th><th>What it means</th></tr></thead><tbody>' + list.map(function (f) {
+      return '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); openDrawer(f.title, [['Basic info', '<p><span class="chip ' + SEVC[f.sev || ''] + '">' + (f.sev === 'red' ? 'fix first' : f.sev === 'warn' ? 'to check' : 'note') + '</span></p><p>' + esc(f.text) + '</p><p class="note">' + esc(title) + '</p>']]); }) +
+        '><td><b>' + esc(f.title) + '</b> <span class="chip ' + SEVC[f.sev || ''] + '">' + (f.sev === 'red' ? 'fix first' : f.sev === 'warn' ? 'to check' : 'note') + '</span></td><td>' + esc(f.text.length > 160 ? f.text.slice(0, 157) + '…' : f.text) + '</td></tr>'; }).join('') + '</tbody></table></div>';
+  }
+  function pfNoFeed(name, why, would, extra) {
+    return '<div class="tile static nofeed"><h3>' + esc(name) + ' ' + why[0] + '</h3><p>' + esc(why[1]) + '</p>' + (would ? '<p><b>Once connected, this page shows:</b> ' + esc(would) + '</p>' : '') + (extra || '') + '</div>';
+  }
+  /* bars (one metric) and a line (another), one per day, the month under its first day */
+  function pfDaily(days, bi, li, lb, ll, fb) {
+    if (!days.length) return '';
+    var W = 760, Hh = 150, n = days.length, bw = W / n, mb = Math.max.apply(null, days.map(function (d) { return d[bi]; })) || 1, ml = Math.max.apply(null, days.map(function (d) { return d[li]; })) || 1;
+    var s = days.map(function (d, i) { var h = Math.max(1, (Hh - 26) * d[bi] / mb), x = i * bw;
+      return '<rect x="' + (x + 1).toFixed(1) + '" y="' + (Hh - 20 - h).toFixed(1) + '" width="' + Math.max(1, bw - 2).toFixed(1) + '" height="' + h.toFixed(1) + '" fill="#8fa9d6"><title>' + esc(d[0] + ': ' + fb(d[bi]) + ' ' + lb + ' · ' + (Math.round(d[li] * 10) / 10) + ' ' + ll) + '</title></rect>' +
+        (i === 0 || d[0].slice(5, 7) !== days[i - 1][0].slice(5, 7) ? '<text x="' + (x + 1).toFixed(1) + '" y="' + (Hh - 5) + '" font-size="10" fill="#667080">' + esc(new Date(d[0] + 'T12:00:00').toLocaleString('en-US', { month: 'short', day: 'numeric' })) + '</text>' : ''); }).join('');
+    var line = days.map(function (d, i) { return (i ? 'L' : 'M') + (i * bw + bw / 2).toFixed(1) + ' ' + (Hh - 20 - (Hh - 26) * d[li] / ml).toFixed(1); }).join(' ');
+    return '<svg class="bars gday" viewBox="0 0 ' + W + ' ' + Hh + '" role="img" aria-label="' + esc(lb + ' and ' + ll + ' per day') + '">' + s + '<path d="' + line + '" fill="none" stroke="#c0392b" stroke-width="1.5"/></svg>' +
+      '<p class="note"><span class="key kb"></span> ' + esc(lb) + ' per day · <span class="key kr"></span> ' + esc(ll) + ' per day.</p>';
+  }
+  var pfRow = function (title, rows) { return function (r) { openDrawer(title(r), [['Basic info', kv(rows(r))]]); }; };
+
+  /* ── the Platforms page and each platform's home ── */
+  function viewPlatforms() {
+    var g = PF && PF.ga4, m = PF && PF.meta, w = PF && PF.webflow, s30 = g ? g.channels.reduce(function (q, c) { return q + c.sessions; }, 0) : null;
+    return '<h1>Platforms</h1><p class="lead">Each platform Credo uses, in the hub’s three columns: choose a platform on the left; its areas follow the platform’s own interface. Everything here is read-only: nothing in the hub changes a platform.</p><div class="tiles links">' +
+      pfTile(PFH.google, 'Google', GA ? usd(tot(GA.camps).cost) : '', 'Google Ads cost, last 30 days' + pfLines([['Google Ads', 'live'], ['Google Analytics', g ? 'live' : 'off'], ['Google Search Console', 'off'], ['Google Business', 'none']])) +
+      pfTile(PFH.meta, 'Meta Business Suite', m ? usd(m.totals.spend) : '', (m ? 'spent in 90 days · ' + n0(m.totals.leads) + ' leads' : '') + pfLines([['Ads, Page and Instagram', m ? 'live' : 'off']])) +
+      pfTile(PFH.nextdoor, 'Nextdoor', O ? String(O.posts.filter(function (p) { return p.channel === 'nextdoor'; }).length) : '', 'Business Page posts' + pfLines([['Business Page', 'repo'], ['Nextdoor Ads', 'repo']])) +
+      pfTile(PFH.linkedin, 'LinkedIn', PF ? esc(PF.audit.linkedin.followers) : '', 'followers (audit)' + pfLines([['Company Page', 'none'], ['LinkedIn Ads', 'off']])) +
+      pfTile(PFH.webflow, 'Webflow', w ? String(w.pages.length) : '', 'pages on staging' + pfLines([['Staging project', w ? 'live' : 'off']])) + '</div>';
+  }
+  function viewPfGoogle() {
+    var g = PF && PF.ga4, gk = g ? g.channels.reduce(function (q, c) { q.s += c.sessions; q.k += c.key; return q; }, { s: 0, k: 0 }) : null, t = GA ? tot(GA.camps) : null;
+    return '<h1>Google</h1><p class="lead">Google Ads, Google Analytics, Google Search Console and Google Business, as in Google’s own products. Read-only.</p><div class="tiles links">' +
+      pfTile('#/ads/google', 'Google Ads', t ? usd(t.cost) : '', (t ? 'cost, last 30 days · ' + n1(t.conv) + ' conversions · ' : '') + pfState('live')) +
+      pfTile('#/platforms/google/analytics', 'Google Analytics', gk ? n0(gk.s) : '', (gk ? 'sessions, 30 days · ' + n0(gk.k) + ' key events · ' : '') + pfState(g ? 'live' : 'off')) +
+      pfTile('#/platforms/google/search-console', 'Google Search Console', '', 'queries, pages, indexing · ' + pfState('off')) +
+      pfTile('#/platforms/google/business', 'Google Business', PF ? PF.audit.gbp.rating + '★' : '', (PF ? PF.audit.gbp.reviews + ' reviews (audit 28 Jul) · ' : '') + pfState('none')) + '</div>';
+  }
+
+  /* ── Google Analytics (GA4 property 474656297) ── */
+  var GA4T = [['overview', 'Reports snapshot'], ['acquisition', 'Acquisition'], ['engagement', 'Engagement'], ['pages', 'Pages and screens'], ['landing', 'Landing pages'], ['users', 'Users and tech'], ['admin', 'Admin'], ['findings', 'Findings']];
+  function viewGA4() {
+    var g = PF && PF.ga4, base = '#/platforms/google/analytics';
+    if (!g) return '<h1>Google Analytics</h1><p class="empty">The GA4 snapshot (data/platforms.js) is not loaded.</p>';
+    var tabs = GA4T.map(function (t) { return t[0] === 'findings' ? t.concat([g.findings.length]) : t; }), tab = TAB || 'overview';
+    var h = '<div class="pagehead"><h1>Google Analytics</h1></div><p class="lead">GA4 property “' + esc(g.account) + '” (' + esc(g.property) + '), read-only. Click a row for its details.</p>' + tabsBar(base, tabs, TAB) +
+      pfNote('Snapshot pulled ' + esc(g.pulled) + ' (Ryze, read-only). ' + esc(g.period) + (tab === 'overview' ? '; the daily chart covers ' + esc(g.daily90) : '') + '. Internal traffic is included (see Findings).');
+    var sum = function (a, f) { return a.reduce(function (q, x) { return q + (x[f] || 0); }, 0); };
+    var ercol = function (k) { return [k, 'Engagement rate', 1, function (r) { return r[k] == null ? dash : Math.round(100 * r[k]) + '%'; }]; };
+    if (tab === 'overview') {
+      var s = sum(g.channels, 'sessions'), e = sum(g.channels, 'engaged'), k = sum(g.channels, 'key'), u = sum(g.firstUser, 'users'), nu = sum(g.firstUser, 'newUsers');
+      return h + pfKpis([['Sessions', n0(s), '30 days'], ['Users', n0(u), n0(nu) + ' new'], ['Engaged sessions', n0(e), pct(e, s) + ' engagement rate'], ['Key events', n0(k), pct(k, s) + ' per session'], ['Views', n0(sum(g.hosts, 'views')), 'pages and screens'], ['Sites', String(g.hosts.length), 'host names sending data']]) +
+        '<h2>Sessions and key events per day</h2>' + pfDaily(g.daily, 1, 5, 'sessions', 'key events', function (v) { return Math.round(v).toLocaleString('en-US'); }) +
+        '<h2>By site</h2>' + gtable('ga4h', [['host', 'Host name', 0, function (r) { return esc(r.host); }], ['sessions', 'Sessions', 1, function (r) { return n0(r.sessions); }], ['users', 'Users', 1, function (r) { return n0(r.users); }], ercol('er'), ['key', 'Key events', 1, function (r) { return n0(r.key); }], ['views', 'Views', 1, function (r) { return n0(r.views); }]], g.hosts, { sort: ['sessions', -1] });
+    }
+    if (tab === 'acquisition') return h + '<h2>Traffic acquisition: session primary channel group</h2>' +
+      gtable('ga4c', [['name', 'Channel', 0, function (r) { return esc(r.name); }], ['sessions', 'Sessions', 1, function (r) { return n0(r.sessions); }], ['users', 'Users', 1, function (r) { return n0(r.users); }], ercol('er'), ['dur', 'Avg. session', 1, function (r) { return Math.floor(r.dur / 60) + 'm ' + (r.dur % 60) + 's'; }], ['key', 'Key events', 1, function (r) { return n0(r.key); }], ['kr', 'Key event rate', 1, function (r) { return (100 * r.kr).toFixed(1) + '%'; }]], g.channels,
+        { sort: ['sessions', -1], click: pfRow(function (r) { return r.name; }, function (r) { return [['Channel', esc(r.name)], ['Sessions', n0(r.sessions)], ['Users', n0(r.users) + ' (' + n0(r.newUsers) + ' new)'], ['Engaged sessions', n0(r.engaged) + ' · ' + Math.round(100 * r.er) + '%'], ['Average session', r.dur + ' s'], ['Key events', n0(r.key) + ' · ' + (100 * r.kr).toFixed(1) + '% of sessions']]; }) }) +
+      '<h2>User acquisition: first user primary channel group</h2>' + gtable('ga4u', [['name', 'Channel', 0, function (r) { return esc(r.name); }], ['users', 'Users', 1, function (r) { return n0(r.users); }], ['newUsers', 'New users', 1, function (r) { return n0(r.newUsers); }], ['engaged', 'Engaged sessions', 1, function (r) { return n0(r.engaged); }], ['key', 'Key events', 1, function (r) { return n0(r.key); }]], g.firstUser, { sort: ['users', -1] }) +
+      '<h2>Session source / medium</h2>' + gtable('ga4s', [['source', 'Source / medium', 0, function (r) { return esc(r.source + ' / ' + r.medium); }, function (r) { return r.source + r.medium; }], ['sessions', 'Sessions', 1, function (r) { return n0(r.sessions); }], ['users', 'Users', 1, function (r) { return n0(r.users); }], ercol('er'), ['key', 'Key events', 1, function (r) { return n0(r.key); }]], g.sourceMedium, { sort: ['sessions', -1], find: function (r) { return r.source + ' ' + r.medium; }, findLabel: 'Find a source' }) +
+      '<h2>Session campaign</h2>' + gtable('ga4k', [['name', 'Campaign', 0, function (r) { return esc(r.name || '(empty)'); }], ['sessions', 'Sessions', 1, function (r) { return n0(r.sessions); }], ['users', 'Users', 1, function (r) { return n0(r.users); }], ercol('er'), ['key', 'Key events', 1, function (r) { return n0(r.key); }]], g.campaigns, { sort: ['sessions', -1] });
+    if (tab === 'engagement') return h + '<h2>Events</h2>' + pfNote('The ' + g.events.length + ' most frequent of ' + g.eventsTotal + ' event names. Key events are the ones marked in Admin (form_submit here).') +
+      gtable('ga4e', [['name', 'Event name', 0, function (r) { return esc(r.name) + (r.key ? ' <span class="chip ok">key event</span>' : ''); }, function (r) { return r.name; }], ['count', 'Event count', 1, function (r) { return n0(r.count); }], ['users', 'Users', 1, function (r) { return n0(r.users); }], ['perUser', 'Per user', 1, function (r) { return r.perUser.toFixed(2); }], ['key', 'Key events', 1, function (r) { return n0(r.key); }]], g.events,
+        { sort: ['count', -1], find: function (r) { return r.name; }, findLabel: 'Find an event', filters: [['kind', 'Kind', [['', 'All events'], ['auto', 'Automatic and enhanced (lower_case)'], ['label', 'Named after a button or link']], function (r, v) { return v === 'auto' ? /^[a-z_]+$/.test(r.name) : !/^[a-z_]+$/.test(r.name); }]] });
+    var hosts = [['', 'All sites']].concat(g.hosts.map(function (x) { return [x.host, x.host]; }));
+    if (tab === 'pages') return h + '<h2>Pages and screens: host name and page path</h2>' + pfNote('The ' + g.pages.length + ' pages with the most views.') +
+      gtable('ga4p', [['path', 'Page', 0, function (r) { return esc(r.path) + '<div class="sub">' + esc(r.host) + '</div>'; }, function (r) { return r.host + r.path; }], ['views', 'Views', 1, function (r) { return n0(r.views); }], ['users', 'Users', 1, function (r) { return n0(r.users); }], ['eng', 'Engagement time per user', 1, function (r) { return r.users ? Math.round(r.eng / r.users) + ' s' : dash; }, function (r) { return r.users ? r.eng / r.users : 0; }], ['events', 'Events', 1, function (r) { return n0(r.events); }], ['key', 'Key events', 1, function (r) { return n0(r.key); }]], g.pages,
+        { sort: ['views', -1], find: function (r) { return r.host + r.path; }, findLabel: 'Find a page', filters: [['host', 'Site', hosts, function (r, v) { return r.host === v; }]], click: pfRow(function (r) { return r.host + r.path; }, function (r) { return [['Page', '<a href="https://' + esc(r.host + r.path) + '" target="_blank" rel="noopener">' + esc(r.host + r.path) + ' ↗</a>'], ['Views', n0(r.views)], ['Users', n0(r.users)], ['Engagement time', n0(r.eng) + ' s in all'], ['Events', n0(r.events)], ['Key events', n0(r.key)]]; }) });
+    if (tab === 'landing') return h + '<h2>Landing pages</h2>' + pfNote('The first page of each session. “(not set)” = sessions without a page view (mostly the internal traffic in Findings).') +
+      gtable('ga4l', [['path', 'Landing page', 0, function (r) { return esc(r.path || '(empty)') + '<div class="sub">' + esc(r.host) + '</div>'; }, function (r) { return r.host + r.path; }], ['sessions', 'Sessions', 1, function (r) { return n0(r.sessions); }], ['users', 'Users', 1, function (r) { return n0(r.users); }], ercol('er'), ['dur', 'Avg. session', 1, function (r) { return r.dur + ' s'; }], ['key', 'Key events', 1, function (r) { return n0(r.key); }], ['kr', 'Key event rate', 1, function (r) { return (100 * r.kr).toFixed(1) + '%'; }]], g.landing,
+        { sort: ['sessions', -1], find: function (r) { return r.host + r.path; }, findLabel: 'Find a page', filters: [['host', 'Site', hosts, function (r, v) { return r.host === v; }]], click: pfRow(function (r) { return r.host + r.path; }, function (r) { return [['Landing page', esc(r.host + r.path)], ['Sessions', n0(r.sessions)], ['Users', n0(r.users)], ['Engaged sessions', n0(r.engaged) + ' · ' + Math.round(100 * r.er) + '%'], ['Average session', r.dur + ' s'], ['Key events', n0(r.key) + ' · ' + (100 * r.kr).toFixed(1) + '% of sessions']]; }) });
+    if (tab === 'users') return h + '<h2>Demographics: country and region</h2>' + pfNote('The ' + g.geo.length + ' regions with the most sessions.') +
+      gtable('ga4g', [['region', 'Region', 0, function (r) { return esc(r.region) + '<div class="sub">' + esc(r.country) + '</div>'; }, function (r) { return r.country + r.region; }], ['sessions', 'Sessions', 1, function (r) { return n0(r.sessions); }], ['users', 'Users', 1, function (r) { return n0(r.users); }], ['engaged', 'Engaged sessions', 1, function (r) { return n0(r.engaged); }], ['key', 'Key events', 1, function (r) { return n0(r.key); }]], g.geo,
+        { sort: ['sessions', -1], find: function (r) { return r.country + ' ' + r.region; }, findLabel: 'Find a region', filters: [['us', 'Country', [['', 'All countries'], ['us', 'United States'], ['other', 'Other countries']], function (r, v) { return v === 'us' ? r.country === 'United States' : r.country !== 'United States'; }]] }) +
+      '<h2>Tech: device, operating system and browser</h2>' + gtable('ga4t', [['device', 'Device', 0, function (r) { return esc(r.device) + '<div class="sub">' + esc(r.os + ' · ' + r.browser) + '</div>'; }, function (r) { return r.device + r.os + r.browser; }], ['sessions', 'Sessions', 1, function (r) { return n0(r.sessions); }], ['users', 'Users', 1, function (r) { return n0(r.users); }], ['engaged', 'Engaged sessions', 1, function (r) { return n0(r.engaged); }], ['key', 'Key events', 1, function (r) { return n0(r.key); }]], g.tech,
+        { sort: ['sessions', -1], filters: [['dev', 'Device', [['', 'All devices'], ['mobile', 'Mobile'], ['desktop', 'Desktop'], ['tablet', 'Tablet']], function (r, v) { return r.device === v; }]] });
+    if (tab === 'admin') return h + '<h2>Data stream</h2>' + (g.stream ? kv([['Name', esc(g.stream.name)], ['Measurement ID', esc(g.stream.id)], ['Default URL', esc(g.stream.uri)], ['Created', esc(g.stream.created.slice(0, 10))]]) : '<p class="empty">No web stream.</p>') +
+      '<h2>Key events</h2>' + gtable('ga4a', [['name', 'Event', 0, function (r) { return esc(r.name); }], ['created', 'Marked', 0, function (r) { return esc(r.created); }], ['custom', 'Type', 0, function (r) { return r.custom ? 'custom' : 'default'; }], ['counting', 'Counting', 0, function (r) { return r.counting === 'ONCE_PER_EVENT' ? 'once per event' : esc(r.counting); }]], g.keyEventsCfg, { sort: ['created', 1] }) +
+      pfNote('Read with the GA4 Admin API (GET only). The hub never changes the property.');
+    return h + '<h2>Findings</h2>' + pfFindings(g.findings, 'GA4 snapshot ' + g.pulled + ', ' + g.period + '.') +
+      '<h2>Internal traffic in detail</h2>' + gtable('ga4i', [['host', 'Site', 0, function (r) { return esc(r.host) + '<div class="sub">' + esc(r.browser + ' · ' + r.channel) + '</div>'; }, function (r) { return r.host + r.browser; }], ['sessions', 'Sessions', 1, function (r) { return n0(r.sessions); }], ['engaged', 'Engaged', 1, function (r) { return n0(r.engaged); }], ['key', 'Key events', 1, function (r) { return n0(r.key); }]], g.internal, { sort: ['sessions', -1] });
+  }
+  function viewGSC() {
+    var g = PF && PF.ga4, org = g ? g.sourceMedium.filter(function (r) { return r.medium === 'organic'; }) : [];
+    return '<h1>Google Search Console</h1>' + pfNoFeed('Search Console', [pfState('off'), 'The Ryze connection for Search Console exists but is not connected (operator, 14 Oct: skipped for now).'],
+        'search queries with clicks, impressions, CTR and position; the pages they land on; indexing and Core Web Vitals per site (credolegal.com, start., staging.)') +
+      (org.length ? '<h2>Meanwhile: organic search in Google Analytics</h2>' + pfNote('Sessions from search engines, last 30 days (GA4). Search Console would add the queries behind them.') +
+        gtable('gscorg', [['source', 'Search engine', 0, function (r) { return esc(r.source); }], ['sessions', 'Sessions', 1, function (r) { return n0(r.sessions); }], ['users', 'Users', 1, function (r) { return n0(r.users); }], ['er', 'Engagement rate', 1, function (r) { return Math.round(100 * r.er) + '%'; }], ['key', 'Key events', 1, function (r) { return n0(r.key); }]], org, { sort: ['sessions', -1] }) : '');
+  }
+  function viewGBP() {
+    var a = PF && PF.audit.gbp;
+    return '<h1>Google Business</h1>' + pfNoFeed('Google Business Profile', [pfState('none'), 'No API connector reaches Google Business Profile; the facts below are from the online-properties audit of 28 Jul 2026.'], 'reviews and ratings over time, calls, direction requests and website clicks from the profile, and posts') +
+      (a ? '<h2>Profile (audit ' + esc(a.audited) + ')</h2>' + kv([['Name', esc(a.name)], ['Rating', a.rating + ' ★ from ' + a.reviews + ' reviews'], ['Address', esc(a.address)], ['Phone', esc(a.phone)]]) +
+        '<h2>Finding</h2>' + pfFindings([{ sev: 'warn', title: 'Name, address and phone differ across profiles', text: a.nap }], 'Online-properties audit, ' + a.audited + '.') : '');
+  }
+
+  /* ── Meta Business Suite (act_887852709872066) ── */
+  var mAct = function (r) { return r && r.m ? r.m : null; }, mCpl = function (x) { return x && x.leads ? usd(x.spend / x.leads) : dash; };
+  var MST = { ACTIVE: ['active', 'ok'], PAUSED: ['paused', ''], CAMPAIGN_PAUSED: ['campaign paused', ''], ADSET_PAUSED: ['ad set paused', ''], ARCHIVED: ['archived', ''], WITH_ISSUES: ['with issues', 'red'], DISAPPROVED: ['disapproved', 'red'] };
+  var mChip = function (s) { var x = MST[s] || [String(s || '').toLowerCase().replace(/_/g, ' '), '']; return '<span class="chip ' + x[1] + '">' + esc(x[0]) + '</span>'; };
+  function mSum(list) { return list.reduce(function (q, x) { var m = x.m || {}; ['impr', 'clicks', 'spend', 'reach', 'link', 'lpv', 'leads', 'calls'].forEach(function (k) { q[k] += m[k] || 0; }); return q; }, { impr: 0, clicks: 0, spend: 0, reach: 0, link: 0, lpv: 0, leads: 0, calls: 0 }); }
+  function viewPfMeta() {
+    var m = PF && PF.meta;
+    if (!m) return '<h1>Meta Business Suite</h1><p class="empty">The Meta snapshot (data/platforms.js) is not loaded.</p>';
+    var t = m.totals, a = m.account, igi = m.ig.insights30 || {};
+    var fl = [{ sev: 'warn', title: 'Both campaigns are paused', text: m.campaigns.map(function (c) { return c.name.replace('Credo Legal — ', ''); }).join(' and ') + ' are paused (last change ' + m.campaigns.map(function (c) { return c.updated.slice(0, 10); }).filter(function (d, i, a) { return a.indexOf(d) === i; }).join(', ') + '); Competitive v1’s ' + m.adsets.filter(function (s) { return s.campaign === (m.campaigns[0] || {}).id && s.status === 'ACTIVE'; }).length + ' ad sets stay active inside the paused campaign.' },
+      { sev: 'warn', title: 'No custom audiences', text: 'The account has ' + m.audiences + ' custom audiences: no website visitors, lead lists or lookalikes to retarget or exclude converted leads.' },
+      { sev: '', title: 'No organic posts in 90 days', text: 'The Facebook Page and Instagram (@' + m.ig.username + ', ' + (igi.follower_count || 0) + ' followers) have no posts in the last 90 days; the organic campaign (Organic › Campaign) is still in drafts.' },
+      { sev: '', title: 'No instant forms', text: 'The Page has ' + m.leadForms + ' lead (instant) forms: every lead comes through the website form or a call.' }];
+    return '<div class="pagehead"><h1>Meta Business Suite</h1></div><p class="lead">The credo_legal ad account, the Credo Legal Facebook Page and Instagram, read-only (operator OK, 14 Oct). The areas follow Meta Business Suite and Ads Manager.</p>' +
+      pfNote('Snapshot pulled ' + esc(m.pulled) + ' (Meta Marketing API via Pipeboard, read-only). Metrics: ' + esc(m.period) + '.') +
+      pfKpis([['Amount spent', usd(t.spend), '90 days · ' + usd(a.spent) + ' all time'], ['Leads', n0(t.leads), 'cost per lead ' + per(t.spend, t.leads)], ['Link clicks', n0(m.daily.reduce(function (q, d) { return q + d[5]; }, 0)), 'CTR (all) ' + t.ctr.toFixed(1) + '%'], ['Reach', n0(t.reach), 'frequency ' + t.freq.toFixed(2)], ['CPM', usd(t.cpm), 'cost per 1,000 impressions'], ['Account', esc(a.status.toLowerCase()), esc(a.currency + ' · ' + a.tz)]]) +
+      '<h2>Areas</h2><div class="tiles links">' + pfTile('#/platforms/meta/ads-manager', 'Ads Manager', String(m.ads.length), 'ads in ' + m.campaigns.length + ' campaigns and ' + m.adsets.length + ' ad sets') +
+      pfTile('#/platforms/meta/insights', 'Insights', usd(t.spend), 'per day, and Instagram account insights') + pfTile('#/platforms/meta/events', 'Events Manager', String(m.pixels.length), 'pixel · last fired ' + esc((m.pixels[0] || {}).lastFired ? m.pixels[0].lastFired.slice(0, 10) : '–')) +
+      pfTile('#/organic/facebook', 'Facebook Page', O ? String(O.posts.filter(function (p) { return p.channel === 'facebook'; }).length) : '', 'planned posts · ' + m.fbPosts90 + ' published in 90 days') + pfTile('#/organic/instagram', 'Instagram', O ? String(O.posts.filter(function (p) { return p.channel === 'instagram'; }).length) : '', 'planned posts · @' + esc(m.ig.username)) +
+      (platBy.meta ? pfTile(adHref(platBy.meta), 'Hand-off campaigns', String(platBy.meta.campaigns.length), 'the repo’s campaign builds (Debt Defense v4, A1–A6 creatives)') : '') + '</div>' +
+      '<h2>Findings</h2>' + pfFindings(fl, 'Meta snapshot ' + m.pulled + '.');
+  }
+  var MAT = [['campaigns', 'Campaigns'], ['adsets', 'Ad sets'], ['ads', 'Ads'], ['audiences', 'Audiences']];
+  function drawerMCampaign(c) { var m = PF.meta, s = m.adsets.filter(function (x) { return x.campaign === c.id; }), t = mSum(s);
+    openDrawer(c.name, [['Basic info', kv([['Campaign', esc(c.name) + ' ' + mChip(c.status)], ['ID', esc(c.id)], ['Objective', esc(c.objective.replace('OUTCOME_', '').toLowerCase())], ['Daily budget', c.budget ? usd(c.budget) : 'set on the ad sets'], ['Bid strategy', esc((c.bid || '').toLowerCase().replace(/_/g, ' ') || '–')], ['Special ad category', esc(c.cats.join(', ').toLowerCase().replace(/_/g, ' '))], ['Started', esc(c.start)], ['Updated', esc(c.updated.replace('T', ' '))]])],
+      ['Metrics', kv([['Amount spent', usd(t.spend)], ['Impressions', n0(t.impr)], ['Reach', n0(t.reach)], ['Link clicks', n0(t.link)], ['Landing page views', n0(t.lpv)], ['Leads', n0(t.leads) + ' · ' + per(t.spend, t.leads) + ' each'], ['20-second calls', n0(t.calls)]]) + pfNote(esc(m.period) + ', summed over its ad sets.')],
+      ['Ad sets', '<ul class="notes">' + s.map(function (x) { return '<li>' + esc(x.name) + ' ' + mChip(x.status) + ' · ' + usd((x.m || {}).spend) + ' · ' + n0((x.m || {}).leads) + ' leads</li>'; }).join('') + '</ul>']]); }
+  function drawerMAdset(s) { var m = PF.meta, c = m.campaigns.filter(function (x) { return x.id === s.campaign; })[0] || {}, x = s.m || {}, ads = m.ads.filter(function (a) { return a.adset === s.id; });
+    openDrawer(s.name, [['Basic info', kv([['Ad set', esc(s.name) + ' ' + mChip(s.status)], ['Campaign', esc(c.name || s.campaign)], ['Optimization', esc((s.goal || '').toLowerCase().replace(/_/g, ' '))], ['Billing', esc((s.billing || '').toLowerCase())], ['Age', s.age.join('–')], ['Locations', s.regions.length ? s.regions.length + ' states: ' + esc(s.regions.join(', ')) : esc(s.countries.join(', ') || '–')], ['Started', esc(s.start)]])],
+      ['Metrics', kv([['Amount spent', usd(x.spend)], ['Impressions', n0(x.impr)], ['Reach', n0(x.reach) + ' · frequency ' + (x.freq || 0)], ['Link clicks', n0(x.link) + ' · CTR ' + pct(x.clicks, x.impr)], ['Landing page views', n0(x.lpv)], ['Leads', n0(x.leads) + ' · ' + mCpl(x) + ' each'], ['20-second calls', n0(x.calls)]])],
+      ['Ads', '<ul class="notes">' + ads.map(function (a) { return '<li>' + esc(a.name) + ' ' + mChip(a.eff || a.status) + ' · ' + usd((a.m || {}).spend) + '</li>'; }).join('') + '</ul>']]); }
+  function drawerMAd(a) { var m = PF.meta, s = m.adsets.filter(function (x) { return x.id === a.adset; })[0] || {}, x = a.m || {};
+    openDrawer(a.name, [['Basic info', (a.thumb ? '<img class="mthumb" src="' + esc(a.thumb) + '" alt="" loading="lazy" referrerpolicy="no-referrer">' : '') + kv([['Ad', esc(a.name) + ' ' + mChip(a.eff || a.status)], ['Ad set', esc(s.name || a.adset)], ['Created', esc(a.created)], ['Headline', esc(a.title || '')], ['Primary text', esc(a.body || '')], ['Call to action', esc((a.cta || '').toLowerCase().replace(/_/g, ' '))], ['URL parameters', esc(a.tags || '')]]) +
+        pfNote('Text and image come from the creative; video and multi-asset ads carry their copy in the post, which the snapshot does not read.')],
+      ['Metrics', kv([['Amount spent', usd(x.spend)], ['Impressions', n0(x.impr)], ['Reach', n0(x.reach)], ['Link clicks', n0(x.link) + ' · CTR ' + pct(x.clicks, x.impr)], ['Landing page views', n0(x.lpv)], ['Leads', n0(x.leads) + ' · ' + mCpl(x) + ' each'], ['20-second calls', n0(x.calls)], ['Video views', n0(x.video)]])]]); }
+  function viewMetaAds() {
+    var m = PF && PF.meta; if (!m) return '<h1>Ads Manager</h1><p class="empty">The Meta snapshot is not loaded.</p>';
+    var tab = TAB || 'campaigns', cn = {}; m.campaigns.forEach(function (c) { cn[c.id] = c.name; }); var sn = {}; m.adsets.forEach(function (s) { sn[s.id] = s.name; });
+    var h = '<div class="pagehead"><h1>Ads Manager</h1></div><p class="lead">Campaigns, ad sets and ads in credo_legal, as in Ads Manager; read-only. Click a row for its details.</p>' + tabsBar('#/platforms/meta/ads-manager', MAT.map(function (t) { return t.concat([t[0] === 'campaigns' ? m.campaigns.length : t[0] === 'adsets' ? m.adsets.length : t[0] === 'ads' ? m.ads.length : m.audiences]); }), TAB) + pfNote(esc(m.period) + '. Leads = website leads (pixel) and on-Facebook leads; calls = the 20-second call event.');
+    var mcols = [['spend', 'Amount spent', 1, function (r) { return usd((r.m || {}).spend); }, function (r) { return (r.m || {}).spend || 0; }], ['impr', 'Impressions', 1, function (r) { return n0((r.m || {}).impr); }, function (r) { return (r.m || {}).impr || 0; }], ['ctr', 'CTR (all)', 1, function (r) { return pct((r.m || {}).clicks, (r.m || {}).impr); }, function (r) { var x = r.m || {}; return x.impr ? x.clicks / x.impr : 0; }],
+      ['leads', 'Leads', 1, function (r) { return n0((r.m || {}).leads); }, function (r) { return (r.m || {}).leads || 0; }], ['cpl', 'Cost per lead', 1, function (r) { return mCpl(r.m); }, function (r) { var x = r.m || {}; return x.leads ? x.spend / x.leads : 1e9; }], ['calls', 'Calls', 1, function (r) { return n0((r.m || {}).calls); }, function (r) { return (r.m || {}).calls || 0; }]];
+    if (tab === 'campaigns') { var cr = m.campaigns.map(function (c) { return Object.assign({}, c, { m: mSum(m.adsets.filter(function (s) { return s.campaign === c.id; })) }); });
+      return h + gtable('mcamp', [['name', 'Campaign', 0, function (r) { return esc(r.name) + '<div class="sub">' + esc(r.objective.replace('OUTCOME_', '').toLowerCase()) + ' · started ' + esc(r.start) + '</div>'; }], ['status', 'Status', 0, function (r) { return mChip(r.status); }], ['budget', 'Budget', 1, function (r) { return r.budget ? usd(r.budget) + '/day' : '<span class="sub">ad sets</span>'; }]].concat(mcols), cr, { sort: ['spend', -1], click: function (r) { drawerMCampaign(r); } }); }
+    if (tab === 'adsets') return h + gtable('madset', [['name', 'Ad set', 0, function (r) { return esc(r.name) + '<div class="sub">' + esc(cn[r.campaign] || '') + '</div>'; }], ['status', 'Status', 0, function (r) { return mChip(r.status); }], ['regions', 'Locations', 1, function (r) { return r.regions.length ? r.regions.length + ' states' : esc(r.countries.join(', ')); }, function (r) { return r.regions.length; }]].concat(mcols), m.adsets,
+      { sort: ['spend', -1], find: function (r) { return r.name + ' ' + cn[r.campaign]; }, findLabel: 'Find an ad set', filters: [['camp', 'Campaign', [['', 'All campaigns']].concat(m.campaigns.map(function (c) { return [c.id, c.name]; })), function (r, v) { return r.campaign === v; }]], click: function (r) { drawerMAdset(r); } });
+    if (tab === 'ads') return h + gtable('mads', [['name', 'Ad', 0, function (r) { return esc(r.name) + '<div class="sub">' + esc(sn[r.adset] || '') + '</div>'; }], ['eff', 'Delivery', 0, function (r) { return mChip(r.eff || r.status); }]].concat(mcols), m.ads,
+      { sort: ['spend', -1], find: function (r) { return r.name + ' ' + sn[r.adset] + ' ' + (r.title || '') + ' ' + (r.body || ''); }, findLabel: 'Find an ad', filters: [['camp', 'Campaign', [['', 'All campaigns']].concat(m.campaigns.map(function (c) { return [c.id, c.name]; })), function (r, v) { return r.campaign === v; }]], click: function (r) { drawerMAd(r); } });
+    return h + '<p class="empty">The account has no custom or lookalike audiences. Each ad set targets ages and US states directly (see Ad sets).</p>';
+  }
+  function viewMetaInsights() {
+    var m = PF && PF.meta; if (!m) return '<h1>Insights</h1><p class="empty">The Meta snapshot is not loaded.</p>';
+    var igi = m.ig.insights30 || {};
+    return '<h1>Insights</h1><p class="lead">Results per day for the ad account, and the Instagram account’s own insights. Read-only.</p>' + pfNote(esc(m.period) + ' for the account; Instagram: last 30 days.') +
+      '<h2>Amount spent and leads per day</h2>' + pfDaily(m.daily, 3, 4, 'spent', 'leads', function (v) { return '$' + Math.round(v).toLocaleString('en-US'); }) +
+      '<h2>Instagram @' + esc(m.ig.username) + '</h2>' + kv([['Followers', n0(igi.follower_count)], ['Accounts reached', n0(igi.reach) + ' (ads included)'], ['Views', n0(igi.views)], ['Accounts engaged', n0(igi.accounts_engaged)], ['Interactions', n0(igi.total_interactions)], ['Profile views', n0(igi.profile_views)], ['Website clicks', n0(igi.website_clicks)]]) +
+      (igi.note ? pfNote(esc(igi.note)) : '') + '<h2>Facebook Page and Instagram posts</h2>' + kv([['Facebook Page posts, 90 days', String(m.fbPosts90)], ['Instagram posts, 90 days', String(m.igPosts90)]]) + pfNote('The planned organic posts are in Facebook Page and Instagram (left).');
+  }
+  function viewMetaEvents() {
+    var m = PF && PF.meta; if (!m) return '<h1>Events Manager</h1><p class="empty">The Meta snapshot is not loaded.</p>';
+    return '<h1>Events Manager</h1><p class="lead">The data sources the ads measure with. Read-only.</p>' +
+      gtable('mpix', [['name', 'Pixel', 0, function (r) { return esc(r.name) + '<div class="sub">' + esc(r.id) + '</div>'; }], ['created', 'Created', 0, function (r) { return esc((r.created || '').slice(0, 10)); }], ['lastFired', 'Last fired', 0, function (r) { return esc((r.lastFired || '').replace('T', ' ').slice(0, 16)); }]], m.pixels, { sort: ['created', 1] }) +
+      kv([['Instant forms on the Page', String(m.leadForms)], ['Custom audiences', String(m.audiences)]]) + pfNote('Event counts and match quality per event are not in this snapshot (they need the dataset quality API).');
+  }
+
+  /* ── Nextdoor and LinkedIn ── */
+  function viewPfNextdoor() {
+    var nd = platBy.nextdoor, posts = O ? O.posts.filter(function (p) { return p.channel === 'nextdoor'; }) : [];
+    return '<h1>Nextdoor</h1><p class="lead">' + esc(PF ? PF.audit.nextdoor.note : 'Nextdoor has no API connector.') + '</p><div class="tiles links">' +
+      pfTile('#/organic/nextdoor', 'Business Page', String(posts.length), 'posts in the calendar · ' + posts.filter(function (p) { return stOf(p) === 'published'; }).length + ' published · ' + pfState('repo')) +
+      (nd ? pfTile(adHref(nd), 'Nextdoor Ads', String(nd.campaigns.length), 'campaigns in the hand-off · ' + pfState('repo')) : '') + '</div>';
+  }
+  function viewPfLinkedIn() {
+    var a = PF && PF.audit.linkedin, posts = O ? O.posts.filter(function (p) { return p.channel === 'linkedin'; }) : [];
+    return '<h1>LinkedIn</h1><p class="lead">The Credo Legal company page and LinkedIn Ads. No connector reads the company page; LinkedIn Ads is not connected (operator, 14 Oct).</p><div class="tiles links">' +
+      pfTile('#/organic/linkedin', 'Company Page', a ? esc(a.followers) : '', 'followers (audit ' + (a ? esc(a.audited) : '') + ') · ' + posts.length + ' posts in the calendar · ' + pfState('none')) +
+      pfTile('#/platforms/linkedin/ads', 'LinkedIn Ads', '', 'campaigns, audiences, lead gen forms · ' + pfState('off')) + '</div>';
+  }
+  function viewLinkedInAds() {
+    return '<h1>LinkedIn Ads</h1>' + pfNoFeed('LinkedIn Ads', [pfState('off'), 'Ryze can connect LinkedIn Ads; the operator chose not to connect it for now (14 Oct).'], 'campaign groups, campaigns and ads with spend, impressions, clicks and leads; matched audiences; lead gen forms') +
+      pfNote('The organic LinkedIn posts are under Company Page.');
+  }
+
+  /* ── Webflow (staging 6ab90fb0…) ── */
+  var WFT = { pages: 'Pages', cms: 'CMS', forms: 'Forms', assets: 'Assets', code: 'Custom code' };
+  var wfUrl = function (p) { return 'https://staging.credolegal.com' + (p.path || '/' + p.slug); };
+  function viewPfWebflow() {
+    var w = PF && PF.webflow; if (!w) return '<h1>Webflow</h1><p class="empty">The Webflow snapshot (data/platforms.js) is not loaded.</p>';
+    var s = w.site, noAlt = w.assets.filter(function (a) { return !a.alt && /^image\//.test(a.type); }).length, noDesc = w.pages.filter(function (p) { return !p.draft && !p.seoDesc; }).length;
+    var fl = [{ sev: noAlt ? 'warn' : '', title: noAlt + ' images without alt text', text: noAlt + ' of ' + w.assets.filter(function (a) { return /^image\//.test(a.type); }).length + ' image assets have no alt text in the asset library (an image placed on a page can still carry its own alt).' },
+      { sev: noDesc ? 'warn' : '', title: noDesc + ' published pages without a meta description', text: noDesc + ' of ' + w.pages.filter(function (p) { return !p.draft; }).length + ' pages have no SEO description; search engines then write their own snippet.' },
+      { sev: '', title: w.forms.length + ' form instances', text: 'Each page’s copy of the lead form is its own form in Webflow (' + w.forms.length + ' in all); submissions are read in Webflow, not here (the hub never reads them).' },
+      { sev: '', title: 'Publishing', text: 'The site was last fully compiled ' + s.published.replace('T', ' ') + '; staging.credolegal.com was last published ' + (s.domains[0] || {}).published.replace('T', ' ') + '.' }];
+    return '<div class="pagehead"><h1>Webflow</h1></div><p class="lead">The staging project “' + esc(s.name) + '” (' + esc(s.domains.map(function (d) { return d.url; }).join(', ')) + '), read-only. start.credolegal.com and enroll stay out of the hub’s reach.</p>' +
+      pfNote('Snapshot pulled ' + esc(w.pulled) + ' (Webflow Data API, read-only).') +
+      pfKpis([['Pages', String(w.pages.length), w.pages.filter(function (p) { return p.draft; }).length + ' draft'], ['CMS collections', String(w.collections.length), Object.keys(w.items).reduce(function (q, k) { return q + w.items[k].length; }, 0) + ' items'], ['Forms', String(w.forms.length), 'form instances'], ['Assets', String(w.assets.length), Math.round(w.assets.reduce(function (q, a) { return q + (a.size || 0); }, 0) / 1e6) + ' MB'], ['Registered scripts', String(w.scripts.length), 'hosted code'], ['Last published', esc((s.domains[0] || {}).published.slice(0, 10)), esc((s.domains[0] || {}).url)]]) +
+      '<h2>Areas</h2><div class="tiles links">' + pfTile('#/website', 'Microsites', String(sites.length), 'the default site and the cluster microsites, mirrored 1:1') + pfTile(LP_BASE, 'Landing pages', String(lpCount), 'by debt type') +
+      Object.keys(WFT).map(function (k) { return pfTile('#/platforms/webflow/' + k, WFT[k], String(k === 'pages' ? w.pages.length : k === 'cms' ? w.collections.length : k === 'forms' ? w.forms.length : k === 'assets' ? w.assets.length : w.scripts.length), { pages: 'titles, slugs, SEO and Open Graph', cms: 'collections and items', forms: 'one per page copy of the form', assets: 'images and files', code: 'registered scripts' }[k]); }).join('') + '</div>' +
+      '<h2>Findings</h2>' + pfFindings(fl, 'Webflow snapshot ' + w.pulled + '.');
+  }
+  /* MH-90 (operator 14 Oct): "pull the design of each page and show it in the drawer when I click on the page in the list".
+     A page with a local 1:1 copy (microsites/, synced from staging by sync-staging + build-microsites) shows that copy live;
+     the others show full-page screenshots (shoot-webflow-pages.mjs; trackers blocked). Desktop = 1280 wide, scaled to fit. */
+  var wfNorm = function (p) { return (p || '').replace(/\/$/, '') || '/'; };
+  var WFMIRROR = null;
+  function wfMirror(path) {
+    if (!WFMIRROR) { WFMIRROR = {}; sites.forEach(function (s) { s.pages.forEach(function (p) { var k = wfNorm('/' + p.staging.slice(STAGING.length)); if (!WFMIRROR[k]) WFMIRROR[k] = p.file; }); }); }
+    return WFMIRROR[wfNorm(path)] || null;
+  }
+  var WFD = { dev: 'desktop' };
+  function wfdLayout() {
+    var box = document.querySelector('#drawer-body .wfd'); if (!box || !box.offsetParent) return;
+    var dev = WFD.dev, W = box.clientWidth, H = Math.max(420, window.innerHeight - box.getBoundingClientRect().top - 24);
+    [].forEach.call(document.querySelectorAll('#drawer-body [data-wfdev]'), function (b) { b.classList.toggle('on', b.getAttribute('data-wfdev') === dev); b.setAttribute('aria-pressed', b.getAttribute('data-wfdev') === dev); });
+    box.style.height = H + 'px'; box.classList.toggle('phone', dev === 'phone');
+    var fr = box.querySelector('iframe'), img = box.querySelector('img');
+    if (fr) { var w = dev === 'phone' ? 390 : 1280, sc = dev === 'phone' ? Math.min(1, W / 390) : W / 1280;
+      fr.style.width = w + 'px'; fr.style.height = Math.round(H / sc) + 'px'; fr.style.transform = 'scale(' + sc + ')'; fr.style.marginLeft = dev === 'phone' ? Math.max(0, (W - 390 * sc) / 2) + 'px' : '0'; }
+    if (img) { var shot = JSON.parse(box.getAttribute('data-wfd-shots')); img.src = shot[dev].file; img.style.maxWidth = dev === 'phone' ? '390px' : '100%'; }
+  }
+  document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-wfdev]'); if (b) { WFD.dev = b.getAttribute('data-wfdev'); wfdLayout(); return; }
+    if (e.target.closest && e.target.closest('[data-dtab]')) setTimeout(wfdLayout, 0); });
+  window.addEventListener('resize', function () { if (document.querySelector('#drawer-body .wfd')) wfdLayout(); });
+  function drawerWfPage(r) {
+    var path = wfNorm(r.path || '/' + r.slug), file = wfMirror(path), shots = (PF.webflow.shots || {})[path], live = !r.draft && !/^\/(404|401|page)$/.test(path);
+    var bar = function (src) { return '<div class="wfd-bar"><span class="seg"><button type="button" class="btn" data-wfdev="desktop">Desktop</button><button type="button" class="btn" data-wfdev="phone">Phone</button></span>' +
+      (live ? '<a class="btn" href="' + esc(wfUrl(r)) + '" target="_blank" rel="noopener">Open on staging ↗</a>' : '') + '<span class="sub">' + src + '</span></div>'; };
+    var design = file ? bar('Local copy of the staging page (synced ' + esc((S.built || '').slice(0, 10) || '9 Oct') + '), live: scroll and click inside it.') + '<div class="wfd"><iframe src="' + esc(file) + '" title="' + esc(r.title) + ' (design)" loading="lazy"></iframe></div>'
+      : shots ? bar('Screenshot of staging, ' + esc(shots.at) + ' (no local copy of this page).') + '<div class="wfd wfd-shot" data-wfd-shots="' + esc(JSON.stringify({ desktop: shots.desktop, phone: shots.phone })) + '"><img alt="' + esc(r.title) + ', full page" src="' + esc(shots.desktop.file) + '"></div>'
+      : '<p class="empty">' + (r.draft ? 'A draft: it is not published on staging, so there is no design to pull. Open it in the Webflow Designer.' : path === '/page' ? 'The CMS template for the Site Pages collection: its design shows on each item (Thank you, Already submitted).' : 'A system page (' + esc(path) + '): Webflow shows it only on an error or a password prompt.') + '</p>';
+    openDrawer(r.title, [['Design', design], ['Basic info', kv([['Page', esc(r.title)], ['Address', r.draft ? esc(r.path || '/' + r.slug) + ' (draft)' : '<a href="' + esc(wfUrl(r)) + '" target="_blank" rel="noopener">' + esc(wfUrl(r)) + ' ↗</a>'], ['SEO title', esc(r.seoTitle) || '<span class="chip warn">none</span>'], ['Meta description', esc(r.seoDesc) || '<span class="chip warn">none</span>'], ['Open Graph title', esc(r.ogTitle)], ['Created', esc(r.created)], ['Updated', esc(r.updated)], ['Page ID', esc(r.id)], ['Design source', file ? 'local copy: ' + esc(file) : shots ? 'screenshots ' + esc(shots.at) : 'none']])]], 'x');
+    setTimeout(wfdLayout, 0);
+  }
+  function viewWebflowArea(k) {
+    var w = PF && PF.webflow; if (!w) return '<h1>' + esc(WFT[k]) + '</h1><p class="empty">The Webflow snapshot is not loaded.</p>';
+    var h = '<h1>' + esc(WFT[k]) + '</h1>' + pfNote('Webflow staging, read-only snapshot ' + esc(w.pulled) + '. Click a row for its details.');
+    if (k === 'pages') return h + gtable('wfp', [['title', 'Page', 0, function (r) { return esc(r.title) + '<div class="sub">' + esc(r.path || '/' + r.slug) + '</div>'; }], ['state', 'Status', 0, function (r) { return r.draft ? '<span class="chip">draft</span>' : '<span class="chip ok">published</span>'; }, function (r) { return r.draft ? 1 : 0; }], ['seo', 'SEO', 0, function (r) { return (r.seoTitle ? 'title' : '<span class="chip warn">no title</span>') + ' · ' + (r.seoDesc ? 'description' : '<span class="chip warn">no description</span>'); }, function (r) { return (r.seoTitle ? 1 : 0) + (r.seoDesc ? 1 : 0); }], ['updated', 'Updated', 0, function (r) { return esc(r.updated); }]], w.pages,
+      { sort: ['updated', -1], find: function (r) { return r.title + ' ' + r.slug; }, findLabel: 'Find a page', filters: [['st', 'Status', [['', 'All pages'], ['pub', 'Published'], ['draft', 'Draft'], ['nodesc', 'No meta description']], function (r, v) { return v === 'pub' ? !r.draft : v === 'draft' ? r.draft : !r.seoDesc; }]],
+        click: function (r) { drawerWfPage(r); } });
+    if (k === 'cms') return h + w.collections.map(function (c) { var it = w.items[c.id] || [];
+      return '<h2>' + esc(c.name) + ' <span class="cnt">' + it.length + '</span></h2>' + gtable('wfc' + c.id.slice(-4), [['name', 'Item', 0, function (r) { return esc(r.name) + '<div class="sub">/' + esc(c.slug + '/' + r.slug) + '</div>'; }], ['st', 'Status', 0, function (r) { return r.isDraft ? '<span class="chip">draft</span>' : '<span class="chip ok">published</span>'; }, function (r) { return r.isDraft ? 1 : 0; }], ['lastPublished', 'Last published', 0, function (r) { return esc((r.lastPublished || '').slice(0, 10)) || dash; }], ['lastUpdated', 'Updated', 0, function (r) { return esc((r.lastUpdated || '').slice(0, 10)); }]], it, { sort: ['lastUpdated', -1] }); }).join('');
+    if (k === 'forms') return h + gtable('wff', [['page', 'Page', 0, function (r) { return esc(r.page || '–') + '<div class="sub">' + esc(r.name) + '</div>'; }, function (r) { return (r.page || '') + r.name; }], ['fields', 'Fields', 1, function (r) { return String(r.fields.length); }, function (r) { return r.fields.length; }], ['updated', 'Updated', 0, function (r) { return esc(r.updated); }]], w.forms,
+      { sort: ['updated', -1], find: function (r) { return (r.page || '') + ' ' + r.name; }, findLabel: 'Find a form', click: pfRow(function (r) { return r.name + ' · ' + (r.page || ''); }, function (r) { return [['Form', esc(r.name)], ['Page', esc(r.page || '–')], ['Fields', esc(r.fields.join(' · '))], ['Updated', esc(r.updated)], ['Form ID', esc(r.id)]]; }) }) + pfNote('Form definitions only: the hub never reads submissions.');
+    if (k === 'assets') return h + gtable('wfa', [['name', 'Asset', 0, function (r) { return esc(r.name) + '<div class="sub">' + esc(r.type) + '</div>'; }], ['size', 'Size', 1, function (r) { return r.size >= 1e6 ? (r.size / 1e6).toFixed(1) + ' MB' : Math.round(r.size / 1e3) + ' KB'; }, function (r) { return r.size; }], ['alt', 'Alt text', 0, function (r) { return r.alt ? esc(r.alt) : '<span class="chip warn">none</span>'; }, function (r) { return r.alt ? 1 : 0; }], ['created', 'Added', 0, function (r) { return esc(r.created); }]], w.assets,
+      { sort: ['size', -1], find: function (r) { return r.name; }, findLabel: 'Find an asset', filters: [['t', 'Type', [['', 'All types'], ['image/', 'Images'], ['video/', 'Video'], ['other', 'Other']], function (r, v) { return v === 'other' ? !/^(image|video)\//.test(r.type) : r.type.indexOf(v) === 0; }]],
+        click: function (r) { openDrawer(r.name, [['Basic info', (/^image\//.test(r.type) ? '<img class="mthumb" src="' + esc(r.url) + '" alt="" loading="lazy">' : '') + kv([['Asset', esc(r.name)], ['Type', esc(r.type)], ['Size', n0(r.size) + ' bytes'], ['Alt text', esc(r.alt) || '<span class="chip warn">none</span>'], ['Added', esc(r.created)], ['File', '<a href="' + esc(r.url) + '" target="_blank" rel="noopener">open ↗</a>']])]]); } });
+    return h + gtable('wfs', [['name', 'Script', 0, function (r) { return esc(r.name) + '<div class="sub">' + esc(r.id) + '</div>'; }], ['version', 'Version', 0, function (r) { return esc(r.version); }], ['created', 'Registered', 0, function (r) { return esc(r.created); }]], w.scripts,
+      { sort: ['created', -1], click: pfRow(function (r) { return r.name; }, function (r) { return [['Script', esc(r.name)], ['Version', esc(r.version)], ['Registered', esc(r.created)], ['Hosted at', '<a href="' + esc(r.url) + '" target="_blank" rel="noopener">' + esc(r.url.replace(/^https:\/\/cdn\.prod\.website-files\.com\/[^%]+/, '…')) + ' ↗</a>']]; }) }) +
+      pfNote('The site-wide head and footer code (GTM, the phone table) is not listed here: the snapshot reads registered scripts only.');
+  }
+  function routePlatforms(parts, crumbs) {   /* #/platforms/<platform>/<area> → html */
+    crumbs.push(['Platforms', '#/platforms']); var k = parts[1], a = parts[2];
+    if (!PFL[k]) return viewPlatforms();
+    crumbs.push([PFL[k], PFH[k]]);
+    var area = function (label) { crumbs.push([label, location.hash.split('?')[0]]); };
+    if (k === 'google') { if (a === 'analytics') { area('Google Analytics'); return viewGA4(); } if (a === 'search-console') { area('Google Search Console'); return viewGSC(); } if (a === 'business') { area('Google Business'); return viewGBP(); } return viewPfGoogle(); }
+    if (k === 'meta') { if (a === 'ads-manager') { area('Ads Manager'); return viewMetaAds(); } if (a === 'insights') { area('Insights'); return viewMetaInsights(); } if (a === 'events') { area('Events Manager'); return viewMetaEvents(); } return viewPfMeta(); }
+    if (k === 'linkedin') { if (a === 'ads') { area('LinkedIn Ads'); return viewLinkedInAds(); } return viewPfLinkedIn(); }
+    if (k === 'webflow') { if (WFT[a]) { area(WFT[a]); return viewWebflowArea(a); } return viewPfWebflow(); }
+    return viewPfNextdoor();
+  }
+  /* the menu: Platforms › Google | Meta Business Suite | Nextdoor | LinkedIn | Webflow (children are leaves, MH-86; deeper
+     pages are kept so the current item and the filter find them) */
+  function platformNav(ads, web, lps) {
+    var ad = function (k) { return ads.filter(function (n) { return n.key === k; })[0] || null; };
+    var oc = function (c) { var p = CHPF[c]; return { label: p[1], href: '#/organic/' + c, count: O ? O.posts.filter(function (x) { return x.channel === c; }).length : null }; };
+    var m = PF && PF.meta, w = PF && PF.webflow, g = ad('google'), md = ad('meta'), nd = ad('nextdoor');
+    return [{ sec: 'Platforms', label: 'Google', href: PFH.google, children: [g ? { label: 'Google Ads', href: g.href, children: g.children } : null, { label: 'Google Analytics', href: '#/platforms/google/analytics' }, { label: 'Google Search Console', href: '#/platforms/google/search-console' }, { label: 'Google Business', href: '#/platforms/google/business' }].filter(Boolean) },
+      { label: 'Meta Business Suite', href: PFH.meta, count: m ? m.ads.length : null, children: [{ label: 'Ads Manager', href: '#/platforms/meta/ads-manager', count: m ? m.ads.length : null }, { label: 'Insights', href: '#/platforms/meta/insights' }, { label: 'Events Manager', href: '#/platforms/meta/events' }, oc('facebook'), oc('instagram'), md ? { label: 'Hand-off campaigns', href: md.href, count: md.count, children: md.children } : null].filter(Boolean) },
+      { label: 'Nextdoor', href: PFH.nextdoor, children: [oc('nextdoor'), nd ? { label: 'Nextdoor Ads', href: nd.href, count: nd.count, children: nd.children } : null].filter(Boolean) },
+      { label: 'LinkedIn', href: PFH.linkedin, children: [oc('linkedin'), { label: 'LinkedIn Ads', href: '#/platforms/linkedin/ads' }] },
+      { label: 'Webflow', href: PFH.webflow, count: w ? w.pages.length : null, children: [{ label: 'Microsites', href: '#/website', count: sites.length, children: web }, { label: 'Landing pages', href: LP_BASE, count: lpCount, children: lps }].concat(Object.keys(WFT).map(function (k) { return { label: WFT[k], href: '#/platforms/webflow/' + k }; })) }];
   }
 
   /* ───────────── MH-84: Work › Streams ─────────────
@@ -1907,7 +2195,7 @@
     var n = function (c) { return O.posts.filter(function (p) { return p.channel === c; }).length; };
     var drafts = O.posts.filter(function (p) { return stOf(p) === 'draft'; }).length;
     return [{ label: 'Calendar', href: '#/organic', count: O.posts.length }, { label: 'Campaign', href: '#/organic/campaign', count: drafts ? drafts + ' to approve' : null }]
-      .concat(CHS.map(function (c) { return { label: CH[c], href: '#/organic/' + c, count: n(c) }; }))
+      /* MH-88: the channel pages (Nextdoor, Facebook, Instagram, LinkedIn) are under their platforms */
       .concat([{ label: 'Articles', href: '#/organic/articles', count: O.articles.length, children: O.articles.map(function (a) { return { label: a.title, href: '#/organic/articles/' + enc(a.slug) }; }) }]);
   }
 
@@ -2168,7 +2456,7 @@
     var parts = location.hash.split('?')[0].replace(/^#\//, '').split('/').map(dec); ORG.crumbs = [['Organic', '#/organic']];
     if (parts[1] === 'articles') { var ar = parts[2] && O.articles.filter(function (x) { return x.slug === parts[2]; })[0]; ORG.crumbs.push(['Articles', '#/organic/articles']); if (ar) ORG.crumbs.push([ar.title, location.hash]); return ar ? viewArticle(ar) : viewArticles(); }
     if (parts[1] === 'campaign' && OC) { ORG.crumbs.push(['Campaign', '#/organic/campaign']); return viewOrgCampaign(); }
-    if (CH[parts[1]]) { ORG.crumbs.push([CH[parts[1]], '#/organic/' + parts[1]]); return viewChannel(parts[1]); }
+    if (CH[parts[1]]) { var cp = CHPF[parts[1]]; ORG.crumbs = pfCrumbs(cp[0]).concat([[cp[1], '#/organic/' + parts[1]]]); return viewChannel(parts[1]); }   /* MH-88 */
     return viewCalendar();
   }
 
@@ -2982,7 +3270,7 @@
     var parts = hash.replace(/^#\//, '').split('/').map(dec), main = $('app-main'), html = '', crumbs = [];
     main.classList.remove('flush'); var after = null;
     if (parts[0] === 'website') {
-      crumbs.push(['Websites', '#/website']);
+      crumbs.push(['Platforms', '#/platforms'], ['Webflow', PFH.webflow]); if (parts[1] !== 'landing-pages') crumbs.push(['Microsites', '#/website']);   /* MH-88 */
       var s = siteBy[parts[1]];
       if (parts[1] === 'landing-pages') {   /* MH-66 */
         crumbs.push(['Landing pages', LP_BASE]); var lg = lpTypeBy[parts[2]], lx = lg && parts[3] ? lg.pages.filter(function (x) { return x.p.label === parts[3]; })[0] : null;
@@ -2996,10 +3284,10 @@
       }
     } else if (parts[0] === 'ads') {
       if (STREAM_OF[parts[1]]) { var sx = STREAM_OF[parts[1]]; crumbs.push(['Work', '#/work'], ['Streams', '#/work/streams'], [streamTitle(sx), streamHref(sx)]); if (ITEM_OF[parts[1]]) crumbs.push([ITEM_OF[parts[1]].label, ITEM_OF[parts[1]].href]); }   /* MH-84, MH-85 */
-      else crumbs.push(['Ads', '#/ads']);
-      if (GPARENT[parts[1]]) { crumbs.push(['Google', '#/ads/google']); if (parts[1] !== 'terms') crumbs.push([gsLabel(GPARENT[parts[1]]), gsHref(GPARENT[parts[1]])]); }   /* MH-80 */
-      if (parts[1] === 'google' && GSECV[parts[2]]) { crumbs.push(['Google', '#/ads/google'], [gsLabel(parts[2]), hash]); AFTER = null; html = GA ? GSECV[parts[2]]() : '<h1>' + esc(gsLabel(parts[2])) + '</h1><p class="empty">The account snapshot (data/google-account.js) is not loaded.</p>'; after = AFTER; }
-      else if (parts[1] === 'google' && !parts[2]) { crumbs.push(['Google', '#/ads/google']); html = viewGoogle(platBy.google); }
+      else if (!ADPF[parts[1]] || parts[1] === 'google') crumbs.push(['Platforms', '#/platforms']);   /* MH-88 (Google's own crumbs below) */
+      if (GPARENT[parts[1]]) { crumbs.push(['Google', PFH.google], ['Google Ads', '#/ads/google']); if (parts[1] !== 'terms') crumbs.push([gsLabel(GPARENT[parts[1]]), gsHref(GPARENT[parts[1]])]); }   /* MH-80 */
+      if (parts[1] === 'google' && GSECV[parts[2]]) { crumbs.push(['Google', PFH.google], ['Google Ads', '#/ads/google'], [gsLabel(parts[2]), hash]); AFTER = null; html = GA ? GSECV[parts[2]]() : '<h1>' + esc(gsLabel(parts[2])) + '</h1><p class="empty">The account snapshot (data/google-account.js) is not loaded.</p>'; after = AFTER; }
+      else if (parts[1] === 'google' && !parts[2]) { crumbs.push(['Google', PFH.google], ['Google Ads', '#/ads/google']); html = viewGoogle(platBy.google); }
       else if (parts[1] === 'copy-quadrants') { crumbs.push(['Headline and description quadrants', hash]); AFTER = null; html = viewCopyQuadrants(); after = AFTER; }   /* MH-81 */
       else if (parts[1] === 'phones' && PM) { crumbs.push(['Ads → pages → phones', '#/ads/phones']); html = viewPhoneMap(); }
       else if (parts[1] === 'terms' && STG()) { crumbs.push(['Search terms', '#/ads/terms']); if (parts[2] === 'page' && parts[3]) crumbs.push([pageLabel(parts[3]), hash]); AFTER = null; html = viewSearchTerms(parts[2] === 'page' ? parts[3] : ''); after = AFTER; }
@@ -3012,14 +3300,16 @@
         html = CLUS[parts[2]] ? viewClusters(parts[2], parts[3] || '') : viewClusters('debt_lawyer', parts[2] || ''); after = AFTER; }
       else if (parts[1] === 'new-pages' && STG()) { crumbs.push(['New pages', '#/ads/new-pages']); html = viewNewPages(); }
       else if (parts[1] === 'meta' && parts[3] === 'A1-A6' && findAd('meta', parts[2]).c) { var fo = findAd('meta', parts[2]);   /* MH-64: A1–A6 creatives overview */
-        crumbs.push([fo.p.label, adHref(fo.p)], [fo.c.name, adHref(fo.p, fo.c)], ['A1–A6 creatives', hash]); html = viewMetaOverview(fo.p, fo.c);
+        crumbs.push.apply(crumbs, pfCrumbs('meta').concat([['Hand-off campaigns', adHref(fo.p)], [fo.c.name, adHref(fo.p, fo.c)], ['A1–A6 creatives', hash]])); html = viewMetaOverview(fo.p, fo.c);
         after = function () { [].forEach.call(main.querySelectorAll('.ovgrid video'), function (v) {   /* videos play while hovered */
           v.parentNode.addEventListener('mouseenter', function () { var q = v.play(); if (q && q.catch) q.catch(function () {}); }); v.parentNode.addEventListener('mouseleave', function () { v.pause(); }); }); }; }
       else {
       var f = findAd(parts[1], parts[2], parts[3], parts[4]);
-      if (f.p) crumbs.push([f.p.label, adHref(f.p)]); if (f.c && f.p.key === 'google' && GA) crumbs.push(['Campaigns', gsHref('campaigns')]); if (f.c) crumbs.push([f.c.name, adHref(f.p, f.c)]); if (f.g) crumbs.push([f.g.name, adHref(f.p, f.c, f.g)]); if (f.a) crumbs.push([adLabel(f.p, f.a), hash]);
-      AFTER = null; html = f.a ? viewAd(f.p, f.c, f.g, f.a) : f.g ? viewGroup(f.p, f.c, f.g) : f.c ? viewCampaign(f.p, f.c) : f.p ? viewPlatform(f.p) : viewAds(); after = AFTER;
+      if (f.p) { var ap = ADPF[f.p.key]; crumbs.push.apply(crumbs, ap ? pfCrumbs(ap[0]).concat([[ap[1], adHref(f.p)]]) : [[f.p.label, adHref(f.p)]]); } if (f.c && f.p.key === 'google' && GA) crumbs.push(['Campaigns', gsHref('campaigns')]); if (f.c) crumbs.push([f.c.name, adHref(f.p, f.c)]); if (f.g) crumbs.push([f.g.name, adHref(f.p, f.c, f.g)]); if (f.a) crumbs.push([adLabel(f.p, f.a), hash]);
+      AFTER = null; html = f.a ? viewAd(f.p, f.c, f.g, f.a) : f.g ? viewGroup(f.p, f.c, f.g) : f.c ? viewCampaign(f.p, f.c) : f.p ? viewPlatform(f.p) : viewPlatforms(); after = AFTER;
       }
+    } else if (parts[0] === 'platforms') {   /* MH-88 */
+      AFTER = null; html = routePlatforms(parts, crumbs); after = AFTER;
     } else if (parts[0] === 'organic' && O) {
       html = organicHtml(); crumbs = crumbs.concat(ORG.crumbs);
     } else if (parts[0] === 'reference') {

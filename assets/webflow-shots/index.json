@@ -1,0 +1,227 @@
+{
+ "/letter": {
+  "desktop": {
+   "file": "assets/webflow-shots/letter-desktop.jpg",
+   "w": 1280,
+   "h": 7365,
+   "status": 200
+  },
+  "phone": {
+   "file": "assets/webflow-shots/letter-phone.jpg",
+   "w": 390,
+   "h": 12100,
+   "status": 200
+  },
+  "at": "2026-10-14 15:14 UTC"
+ },
+ "/florida": {
+  "desktop": {
+   "file": "assets/webflow-shots/florida-desktop.jpg",
+   "w": 1280,
+   "h": 7524,
+   "status": 200
+  },
+  "phone": {
+   "file": "assets/webflow-shots/florida-phone.jpg",
+   "w": 390,
+   "h": 12181,
+   "status": 200
+  },
+  "at": "2026-10-14 15:14 UTC"
+ },
+ "/new-jersey": {
+  "desktop": {
+   "file": "assets/webflow-shots/new-jersey-desktop.jpg",
+   "w": 1280,
+   "h": 7524,
+   "status": 200
+  },
+  "phone": {
+   "file": "assets/webflow-shots/new-jersey-phone.jpg",
+   "w": 390,
+   "h": 12212,
+   "status": 200
+  },
+  "at": "2026-10-14 15:14 UTC"
+ },
+ "/new-york": {
+  "desktop": {
+   "file": "assets/webflow-shots/new-york-desktop.jpg",
+   "w": 1280,
+   "h": 7524,
+   "status": 200
+  },
+  "phone": {
+   "file": "assets/webflow-shots/new-york-phone.jpg",
+   "w": 390,
+   "h": 12212,
+   "status": 200
+  },
+  "at": "2026-10-14 15:14 UTC"
+ },
+ "/colorado": {
+  "desktop": {
+   "file": "assets/webflow-shots/colorado-desktop.jpg",
+   "w": 1280,
+   "h": 7524,
+   "status": 200
+  },
+  "phone": {
+   "file": "assets/webflow-shots/colorado-phone.jpg",
+   "w": 390,
+   "h": 12212,
+   "status": 200
+  },
+  "at": "2026-10-14 15:15 UTC"
+ },
+ "/maryland": {
+  "desktop": {
+   "file": "assets/webflow-shots/maryland-desktop.jpg",
+   "w": 1280,
+   "h": 7524,
+   "status": 200
+  },
+  "phone": {
+   "file": "assets/webflow-shots/maryland-phone.jpg",
+   "w": 390,
+   "h": 12212,
+   "status": 200
+  },
+  "at": "2026-10-14 15:15 UTC"
+ },
+ "/minnesota": {
+  "desktop": {
+   "file": "assets/webflow-shots/minnesota-desktop.jpg",
+   "w": 1280,
+   "h": 7524,
+   "status": 200
+  },
+  "phone": {
+   "file": "assets/webflow-shots/minnesota-phone.jpg",
+   "w": 390,
+   "h": 12212,
+   "status": 200
+  },
+  "at": "2026-10-14 15:15 UTC"
+ },
+ "/california": {
+  "desktop": {
+   "file": "assets/webflow-shots/california-desktop.jpg",
+   "w": 1280,
+   "h": 7524,
+   "status": 200
+  },
+  "phone": {
+   "file": "assets/webflow-shots/california-phone.jpg",
+   "w": 390,
+   "h": 12212,
+   "status": 200
+  },
+  "at": "2026-10-14 15:15 UTC"
+ },
+ "/kansas": {
+  "desktop": {
+   "file": "assets/webflow-shots/kansas-desktop.jpg",
+   "w": 1280,
+   "h": 7524,
+   "status": 200
+  },
+  "phone": {
+   "file": "assets/webflow-shots/kansas-phone.jpg",
+   "w": 390,
+   "h": 12181,
+   "status": 200
+  },
+  "at": "2026-10-14 15:15 UTC"
+ },
+ "/missouri": {
+  "desktop": {
+   "file": "assets/webflow-shots/missouri-desktop.jpg",
+   "w": 1280,
+   "h": 7524,
+   "status": 200
+  },
+  "phone": {
+   "file": "assets/webflow-shots/missouri-phone.jpg",
+   "w": 390,
+   "h": 12212,
+   "status": 200
+  },
+  "at": "2026-10-14 15:15 UTC"
+ },
+ "/south-dakota": {
+  "desktop": {
+   "file": "assets/webflow-shots/south-dakota-desktop.jpg",
+   "w": 1280,
+   "h": 7524,
+   "status": 200
+  },
+  "phone": {
+   "file": "assets/webflow-shots/south-dakota-phone.jpg",
+   "w": 390,
+   "h": 12212,
+   "status": 200
+  },
+  "at": "2026-10-14 15:15 UTC"
+ },
+ "/utah": {
+  "desktop": {
+   "file": "assets/webflow-shots/utah-desktop.jpg",
+   "w": 1280,
+   "h": 7524,
+   "status": 200
+  },
+  "phone": {
+   "file": "assets/webflow-shots/utah-phone.jpg",
+   "w": 390,
+   "h": 12161,
+   "status": 200
+  },
+  "at": "2026-10-14 15:15 UTC"
+ },
+ "/kentucky": {
+  "desktop": {
+   "file": "assets/webflow-shots/kentucky-desktop.jpg",
+   "w": 1280,
+   "h": 7524,
+   "status": 200
+  },
+  "phone": {
+   "file": "assets/webflow-shots/kentucky-phone.jpg",
+   "w": 390,
+   "h": 12212,
+   "status": 200
+  },
+  "at": "2026-10-14 15:15 UTC"
+ },
+ "/ohio": {
+  "desktop": {
+   "file": "assets/webflow-shots/ohio-desktop.jpg",
+   "w": 1280,
+   "h": 7524,
+   "status": 200
+  },
+  "phone": {
+   "file": "assets/webflow-shots/ohio-phone.jpg",
+   "w": 390,
+   "h": 12161,
+   "status": 200
+  },
+  "at": "2026-10-14 15:15 UTC"
+ },
+ "/multiple-collectors-one-attorney": {
+  "desktop": {
+   "file": "assets/webflow-shots/multiple-collectors-one-attorney-desktop.jpg",
+   "w": 1280,
+   "h": 8056,
+   "status": 200
+  },
+  "phone": {
+   "file": "assets/webflow-shots/multiple-collectors-one-attorney-phone.jpg",
+   "w": 390,
+   "h": 13353,
+   "status": 200
+  },
+  "at": "2026-10-14 15:15 UTC"
+ }
+}
