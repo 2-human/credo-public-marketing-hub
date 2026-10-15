@@ -1127,7 +1127,7 @@
       pfTile(PFH.meta, 'Meta Business Suite', m ? usd(m.totals.spend) : '', (m ? 'spent in 90 days · ' + n0(m.totals.leads) + ' leads' : '') + pfLines([['Ads, Page and Instagram', m ? 'live' : 'off']])) +
       pfTile(PFH.nextdoor, 'Nextdoor', O ? String(O.posts.filter(function (p) { return p.channel === 'nextdoor'; }).length) : '', 'Business Page posts' + pfLines([['Business Page', 'repo'], ['Nextdoor Ads', 'repo']])) +
       pfTile(PFH.linkedin, 'LinkedIn', PF ? esc(PF.audit.linkedin.followers) : '', 'followers (audit)' + pfLines([['Company Page', 'none'], ['LinkedIn Ads', 'off']])) +
-      pfTile(PFH.webflow, 'Webflow', w ? String(w.pages.length) : '', 'pages on staging' + pfLines([['Staging project', w ? 'live' : 'off']])) + '</div>';
+      pfTile(PFH.webflow, 'Webflow', w ? String(w.sites.length) : '', 'projects · ' + (w ? w.sites.reduce(function (q, x) { return q + x.pages.length; }, 0) : 0) + ' pages' + pfLines([['All projects (read only)', w ? 'live' : 'off']])) + '</div>';
   }
   function viewPfGoogle() {
     var g = PF && PF.ga4, gk = g ? g.channels.reduce(function (q, c) { q.s += c.sessions; q.k += c.key; return q; }, { s: 0, k: 0 }) : null, t = GA ? tot(GA.camps) : null;
@@ -1277,22 +1277,55 @@
       pfNote('The organic LinkedIn posts are under Company Page.');
   }
 
-  /* ── Webflow (staging 6ab90fb0…) ── */
+  /* ── Webflow: every project in Credo's workspace (MH-91, operator 15 Oct: "allowed access to all the projects … access pages by
+     project in the webflow section"). The hub's start is Webflow's own dashboard: projects grouped, each with its preview, domain and
+     last publish; a project opens on its own page with Webflow's areas as tabs. Everything is read-only; staging is the only project
+     we may ever change (start and the older Credo project never, operator rule). ── */
   var WFT = { pages: 'Pages', cms: 'CMS', forms: 'Forms', assets: 'Assets', code: 'Custom code' };
-  var wfUrl = function (p) { return 'https://staging.credolegal.com' + (p.path || '/' + p.slug); };
+  var wfSites = function () { return PF && PF.webflow && PF.webflow.sites || []; };
+  var wfSite = function (key) { return wfSites().filter(function (x) { return x.key === key; })[0] || null; };
+  var wfHref = function (w, tab) { return '#/platforms/webflow/' + w.key + (tab && tab !== 'overview' ? '?tab=' + tab : ''); };
+  var wfBase = function (w) { return w.domains.length ? 'https://' + w.domains[0].url : w.webflowIo; };
+  var wfUrl = function (p, w) { return wfBase(w || wfSite('staging')) + (p.path || '/' + p.slug); };
+  var wfState = function (w) { return w.key === 'staging' ? '<span class="chip ok">we may change it</span>' : '<span class="chip">read only</span>'; };
+  function wfFindings(w) {
+    var img = w.assets.filter(function (a) { return /^image\//.test(a.type); }), noAlt = img.filter(function (a) { return !a.alt; }).length, pub = w.pages.filter(function (p) { return !p.draft; }), noDesc = pub.filter(function (p) { return !p.seoDesc; }).length;
+    var fl = [];
+    if (w.key === 'credo-landing-pages') fl.push({ sev: 'warn', title: 'No custom domain', text: 'This project has no custom domain (only ' + w.webflowIo + '); start.credolegal.com is served by “NEW Credo Legal Landing Pages”. It was last published ' + w.published.replace('T', ' ') + '.' });
+    if (!w.published) fl.push({ sev: '', title: 'Never published', text: 'The project has no publish date: it lives only in the Designer.' });
+    fl.push({ sev: noAlt ? 'warn' : '', title: noAlt + ' images without alt text', text: noAlt + ' of ' + img.length + ' image assets have no alt text in the asset library (an image placed on a page can still carry its own alt).' });
+    fl.push({ sev: noDesc ? 'warn' : '', title: noDesc + ' published pages without a meta description', text: noDesc + ' of ' + pub.length + ' pages have no SEO description; search engines then write their own snippet.' });
+    if (w.forms.length) fl.push({ sev: '', title: w.forms.length + ' form instances', text: 'Each page’s copy of a form is its own form in Webflow (' + w.forms.length + ' in all); submissions stay in Webflow (the hub never reads them).' });
+    fl.push({ sev: '', title: 'Publishing', text: w.domains.length ? w.domains.map(function (d) { return d.url + ' last published ' + (d.published || '–').replace('T', ' '); }).join('; ') + '; the project was last compiled ' + (w.published || '–').replace('T', ' ') + '.' : 'No custom domain; last publish ' + ((w.published || '–').replace('T', ' ')) + '.' });
+    return fl;
+  }
+  function wfTile(w) {
+    return '<a class="tile wfproj" href="' + esc(wfHref(w)) + '">' + (w.preview ? '<img class="wfprev" src="' + esc(w.preview) + '" alt="" loading="lazy" referrerpolicy="no-referrer">' : '<div class="wfprev empty"></div>') +
+      '<h3>' + esc(w.name) + '</h3><p>' + (w.domains.length ? esc(w.domains.map(function (d) { return d.url; }).join(', ')) : '<span class="sub">no custom domain</span>') + '</p>' +
+      '<p class="sub">' + w.pages.length + ' pages · ' + (w.published ? 'published ' + esc(w.published.slice(0, 10)) : 'never published') + '</p><p>' + wfState(w) + '</p></a>';
+  }
   function viewPfWebflow() {
-    var w = PF && PF.webflow; if (!w) return '<h1>Webflow</h1><p class="empty">The Webflow snapshot (data/platforms.js) is not loaded.</p>';
-    var s = w.site, noAlt = w.assets.filter(function (a) { return !a.alt && /^image\//.test(a.type); }).length, noDesc = w.pages.filter(function (p) { return !p.draft && !p.seoDesc; }).length;
-    var fl = [{ sev: noAlt ? 'warn' : '', title: noAlt + ' images without alt text', text: noAlt + ' of ' + w.assets.filter(function (a) { return /^image\//.test(a.type); }).length + ' image assets have no alt text in the asset library (an image placed on a page can still carry its own alt).' },
-      { sev: noDesc ? 'warn' : '', title: noDesc + ' published pages without a meta description', text: noDesc + ' of ' + w.pages.filter(function (p) { return !p.draft; }).length + ' pages have no SEO description; search engines then write their own snippet.' },
-      { sev: '', title: w.forms.length + ' form instances', text: 'Each page’s copy of the lead form is its own form in Webflow (' + w.forms.length + ' in all); submissions are read in Webflow, not here (the hub never reads them).' },
-      { sev: '', title: 'Publishing', text: 'The site was last fully compiled ' + s.published.replace('T', ' ') + '; staging.credolegal.com was last published ' + (s.domains[0] || {}).published.replace('T', ' ') + '.' }];
-    return '<div class="pagehead"><h1>Webflow</h1></div><p class="lead">The staging project “' + esc(s.name) + '” (' + esc(s.domains.map(function (d) { return d.url; }).join(', ')) + '), read-only. start.credolegal.com and enroll stay out of the hub’s reach.</p>' +
-      pfNote('Snapshot pulled ' + esc(w.pulled) + ' (Webflow Data API, read-only).') +
-      pfKpis([['Pages', String(w.pages.length), w.pages.filter(function (p) { return p.draft; }).length + ' draft'], ['CMS collections', String(w.collections.length), Object.keys(w.items).reduce(function (q, k) { return q + w.items[k].length; }, 0) + ' items'], ['Forms', String(w.forms.length), 'form instances'], ['Assets', String(w.assets.length), Math.round(w.assets.reduce(function (q, a) { return q + (a.size || 0); }, 0) / 1e6) + ' MB'], ['Registered scripts', String(w.scripts.length), 'hosted code'], ['Last published', esc((s.domains[0] || {}).published.slice(0, 10)), esc((s.domains[0] || {}).url)]]) +
-      '<h2>Areas</h2><div class="tiles links">' + pfTile('#/website', 'Microsites', String(sites.length), 'the default site and the cluster microsites, mirrored 1:1') + pfTile(LP_BASE, 'Landing pages', String(lpCount), 'by debt type') +
-      Object.keys(WFT).map(function (k) { return pfTile('#/platforms/webflow/' + k, WFT[k], String(k === 'pages' ? w.pages.length : k === 'cms' ? w.collections.length : k === 'forms' ? w.forms.length : k === 'assets' ? w.assets.length : w.scripts.length), { pages: 'titles, slugs, SEO and Open Graph', cms: 'collections and items', forms: 'one per page copy of the form', assets: 'images and files', code: 'registered scripts' }[k]); }).join('') + '</div>' +
-      '<h2>Findings</h2>' + pfFindings(fl, 'Webflow snapshot ' + w.pulled + '.');
+    var all = wfSites(); if (!all.length) return '<h1>Webflow</h1><p class="empty">The Webflow snapshot (data/platforms.js) is not loaded.</p>';
+    var groups = []; all.forEach(function (w) { var g = groups.filter(function (x) { return x.name === w.group; })[0]; if (!g) groups.push(g = { name: w.group, sites: [] }); g.sites.push(w); });
+    return '<div class="pagehead"><h1>Webflow</h1></div><p class="lead">Every project in Credo’s Webflow workspace, as on Webflow’s dashboard. Open a project for its pages, CMS, forms, assets and custom code. Read-only: only staging is ever changed, and never from the hub.</p>' +
+      pfNote('Snapshots pulled ' + esc(PF.webflow.pulled) + ' (Webflow Data API, read-only). Project previews are Webflow’s own screenshots.') +
+      groups.map(function (g) { return '<h2>' + esc(g.name) + ' <span class="cnt">' + g.sites.length + '</span></h2><div class="tiles links wfprojs">' + g.sites.map(wfTile).join('') + '</div>'; }).join('') +
+      '<h2>Built in the hub from staging</h2><div class="tiles links">' + pfTile('#/website', 'Microsites', String(sites.length), 'the default site and the cluster microsites, mirrored 1:1') + pfTile(LP_BASE, 'Landing pages', String(lpCount), 'by debt type') + '</div>';
+  }
+  function viewWfProject(w, tab) {
+    tab = WFT[tab] ? tab : 'overview';
+    var count = { pages: w.pages.length, cms: w.collections.length, forms: w.forms.length, assets: w.assets.length, code: w.scripts.length };
+    var h = '<div class="pagehead"><h1>' + esc(w.name) + '</h1>' + (w.domains.length || w.webflowIo ? '<a class="btn" href="' + esc(wfBase(w)) + '" target="_blank" rel="noopener">Open ' + esc((wfBase(w) || '').replace('https://', '')) + ' ↗</a>' : '') + '</div>' +
+      '<p class="lead">' + esc(w.role) + ' ' + wfState(w) + '</p>' + tabsBar(wfHref(w), [['overview', 'Overview']].concat(Object.keys(WFT).map(function (k) { return [k, WFT[k], count[k]]; })), TAB);
+    if (tab !== 'overview') return h + wfArea(w, tab);
+    var size = w.assets.reduce(function (q, a) { return q + (a.size || 0); }, 0);
+    return h + pfNote('Read-only snapshot pulled ' + esc(w.pulled) + '.') +
+      '<div class="wfover">' + (w.preview ? '<img class="wfprev big" src="' + esc(w.preview) + '" alt="' + esc(w.name) + ', home page preview" referrerpolicy="no-referrer">' : '') +
+      kv([['Project', esc(w.name)], ['Domains', w.domains.length ? w.domains.map(function (d) { return '<a href="https://' + esc(d.url) + '" target="_blank" rel="noopener">' + esc(d.url) + ' ↗</a> <span class="sub">published ' + esc((d.published || '–').replace('T', ' ')) + '</span>'; }).join('<br>') : '<span class="sub">none</span>'],
+        ['Webflow subdomain', esc(w.webflowIo)], ['Last compiled', esc((w.published || 'never').replace('T', ' '))], ['Last changed', esc((w.updated || '').replace('T', ' '))], ['Created', esc(w.created)], ['Time zone', esc(w.tz || '')], ['Site ID', esc(w.id)], ['Group', esc(w.group)]]) + '</div>' +
+      pfKpis([['Pages', String(w.pages.length), w.pages.filter(function (p) { return p.draft; }).length + ' draft'], ['CMS collections', String(w.collections.length), Object.keys(w.items).reduce(function (q, k) { return q + w.items[k].length; }, 0) + ' items'], ['Forms', String(w.forms.length), 'form instances'],
+        ['Assets', String(w.assets.length), Math.round(size / 1e6) + ' MB'], ['Registered scripts', String(w.scripts.length), 'hosted code'], ['Page designs', String(Object.keys(w.shots || {}).length + (w.key === 'staging' ? w.pages.filter(function (p) { return wfMirror(p.path || '/' + p.slug); }).length : 0)), w.key === 'staging' ? 'local copies and screenshots' : 'screenshots (top of page)']]) +
+      '<h2>Findings</h2>' + pfFindings(wfFindings(w), 'Webflow snapshot ' + w.pulled + '.');
   }
   /* MH-90 (operator 14 Oct): "pull the design of each page and show it in the drawer when I click on the page in the list".
      A page with a local 1:1 copy (microsites/, synced from staging by sync-staging + build-microsites) shows that copy live;
@@ -1317,32 +1350,35 @@
   document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-wfdev]'); if (b) { WFD.dev = b.getAttribute('data-wfdev'); wfdLayout(); return; }
     if (e.target.closest && e.target.closest('[data-dtab]')) setTimeout(wfdLayout, 0); });
   window.addEventListener('resize', function () { if (document.querySelector('#drawer-body .wfd')) wfdLayout(); });
-  function drawerWfPage(r) {
-    var path = wfNorm(r.path || '/' + r.slug), file = wfMirror(path), shots = (PF.webflow.shots || {})[path], live = !r.draft && !/^\/(404|401|page)$/.test(path);
+  function drawerWfPage(r, w) {
+    w = w || wfSite('staging');
+    var path = wfNorm(r.path || '/' + r.slug), file = w.key === 'staging' ? wfMirror(path) : null, shots = (w.shots || {})[path], sys = /^\/(404|401|page)$/.test(path) || /^\/detail_/.test(path), live = !r.draft && !sys && !!(w.domains.length || w.key === 'staging');
+    var where = w.domains.length ? w.domains[0].url : 'staging';
     var bar = function (src) { return '<div class="wfd-bar"><span class="seg"><button type="button" class="btn" data-wfdev="desktop">Desktop</button><button type="button" class="btn" data-wfdev="phone">Phone</button></span>' +
-      (live ? '<a class="btn" href="' + esc(wfUrl(r)) + '" target="_blank" rel="noopener">Open on staging ↗</a>' : '') + '<span class="sub">' + src + '</span></div>'; };
+      (live ? '<a class="btn" href="' + esc(wfUrl(r, w)) + '" target="_blank" rel="noopener">Open on ' + esc(where) + ' ↗</a>' : '') + '<span class="sub">' + src + '</span></div>'; };
+    var cropped = shots && (shots.desktop.cropped || shots.phone.cropped);
     var design = file ? bar('Local copy of the staging page (synced ' + esc((S.built || '').slice(0, 10) || '9 Oct') + '), live: scroll and click inside it.') + '<div class="wfd"><iframe src="' + esc(file) + '" title="' + esc(r.title) + ' (design)" loading="lazy"></iframe></div>'
-      : shots ? bar('Screenshot of staging, ' + esc(shots.at) + ' (no local copy of this page).') + '<div class="wfd wfd-shot" data-wfd-shots="' + esc(JSON.stringify({ desktop: shots.desktop, phone: shots.phone })) + '"><img alt="' + esc(r.title) + ', full page" src="' + esc(shots.desktop.file) + '"></div>'
-      : '<p class="empty">' + (r.draft ? 'A draft: it is not published on staging, so there is no design to pull. Open it in the Webflow Designer.' : path === '/page' ? 'The CMS template for the Site Pages collection: its design shows on each item (Thank you, Already submitted).' : 'A system page (' + esc(path) + '): Webflow shows it only on an error or a password prompt.') + '</p>';
-    openDrawer(r.title, [['Design', design], ['Basic info', kv([['Page', esc(r.title)], ['Address', r.draft ? esc(r.path || '/' + r.slug) + ' (draft)' : '<a href="' + esc(wfUrl(r)) + '" target="_blank" rel="noopener">' + esc(wfUrl(r)) + ' ↗</a>'], ['SEO title', esc(r.seoTitle) || '<span class="chip warn">none</span>'], ['Meta description', esc(r.seoDesc) || '<span class="chip warn">none</span>'], ['Open Graph title', esc(r.ogTitle)], ['Created', esc(r.created)], ['Updated', esc(r.updated)], ['Page ID', esc(r.id)], ['Design source', file ? 'local copy: ' + esc(file) : shots ? 'screenshots ' + esc(shots.at) : 'none']])]], 'x');
+      : shots ? bar('Screenshot of ' + esc(where) + ', ' + esc(shots.at) + (cropped ? ': the top of the page (open it for the rest).' : '.')) + '<div class="wfd wfd-shot" data-wfd-shots="' + esc(JSON.stringify({ desktop: shots.desktop, phone: shots.phone })) + '"><img alt="' + esc(r.title) + ', page design" src="' + esc(shots.desktop.file) + '"></div>'
+      : '<p class="empty">' + (r.draft ? 'A draft: it is not published, so there is no design to pull. Open it in the Webflow Designer.' : path === '/page' || /^\/detail_/.test(path) ? 'A CMS template: its design shows on each collection item.' : sys ? 'A system page (' + esc(path) + '): Webflow shows it only on an error or a password prompt.'
+        : !w.domains.length ? 'This project has no live domain, so no design was pulled (the hub never loads live pages, to keep analytics clean).' : 'No screenshot of this page yet: run shoot-webflow-pages.mjs --site ' + esc(w.key) + '.') + '</p>';
+    openDrawer(r.title, [['Design', design], ['Basic info', kv([['Project', esc(w.name)], ['Page', esc(r.title)], ['Address', r.draft || !w.domains.length && w.key !== 'staging' ? esc(r.path || '/' + r.slug) + (r.draft ? ' (draft)' : '') : '<a href="' + esc(wfUrl(r, w)) + '" target="_blank" rel="noopener">' + esc(wfUrl(r, w)) + ' ↗</a>'], ['SEO title', esc(r.seoTitle) || '<span class="chip warn">none</span>'], ['Meta description', esc(r.seoDesc) || '<span class="chip warn">none</span>'], ['Open Graph title', esc(r.ogTitle)], ['Created', esc(r.created)], ['Updated', esc(r.updated)], ['Page ID', esc(r.id)], ['Design source', file ? 'local copy: ' + esc(file) : shots ? 'screenshots ' + esc(shots.at) : 'none']])]], 'x');
     setTimeout(wfdLayout, 0);
   }
-  function viewWebflowArea(k) {
-    var w = PF && PF.webflow; if (!w) return '<h1>' + esc(WFT[k]) + '</h1><p class="empty">The Webflow snapshot is not loaded.</p>';
-    var h = '<h1>' + esc(WFT[k]) + '</h1>' + pfNote('Webflow staging, read-only snapshot ' + esc(w.pulled) + '. Click a row for its details.');
-    if (k === 'pages') return h + gtable('wfp', [['title', 'Page', 0, function (r) { return esc(r.title) + '<div class="sub">' + esc(r.path || '/' + r.slug) + '</div>'; }], ['state', 'Status', 0, function (r) { return r.draft ? '<span class="chip">draft</span>' : '<span class="chip ok">published</span>'; }, function (r) { return r.draft ? 1 : 0; }], ['seo', 'SEO', 0, function (r) { return (r.seoTitle ? 'title' : '<span class="chip warn">no title</span>') + ' · ' + (r.seoDesc ? 'description' : '<span class="chip warn">no description</span>'); }, function (r) { return (r.seoTitle ? 1 : 0) + (r.seoDesc ? 1 : 0); }], ['updated', 'Updated', 0, function (r) { return esc(r.updated); }]], w.pages,
+  function wfArea(w, k) {   /* one project's Pages / CMS / Forms / Assets / Custom code table (MH-91: per project) */
+    var h = pfNote(esc(w.name) + ', read-only snapshot ' + esc(w.pulled) + '. Click a row for its details.'), id = function (x) { return x + '-' + w.key; };
+    if (k === 'pages') return h + gtable(id('wfp'), [['title', 'Page', 0, function (r) { return esc(r.title) + '<div class="sub">' + esc(r.path || '/' + r.slug) + '</div>'; }], ['state', 'Status', 0, function (r) { return r.draft ? '<span class="chip">draft</span>' : '<span class="chip ok">published</span>'; }, function (r) { return r.draft ? 1 : 0; }], ['seo', 'SEO', 0, function (r) { return (r.seoTitle ? 'title' : '<span class="chip warn">no title</span>') + ' · ' + (r.seoDesc ? 'description' : '<span class="chip warn">no description</span>'); }, function (r) { return (r.seoTitle ? 1 : 0) + (r.seoDesc ? 1 : 0); }], ['updated', 'Updated', 0, function (r) { return esc(r.updated); }]], w.pages,
       { sort: ['updated', -1], find: function (r) { return r.title + ' ' + r.slug; }, findLabel: 'Find a page', filters: [['st', 'Status', [['', 'All pages'], ['pub', 'Published'], ['draft', 'Draft'], ['nodesc', 'No meta description']], function (r, v) { return v === 'pub' ? !r.draft : v === 'draft' ? r.draft : !r.seoDesc; }]],
-        click: function (r) { drawerWfPage(r); } });
+        click: function (r) { drawerWfPage(r, w); } });
     if (k === 'cms') return h + w.collections.map(function (c) { var it = w.items[c.id] || [];
-      return '<h2>' + esc(c.name) + ' <span class="cnt">' + it.length + '</span></h2>' + gtable('wfc' + c.id.slice(-4), [['name', 'Item', 0, function (r) { return esc(r.name) + '<div class="sub">/' + esc(c.slug + '/' + r.slug) + '</div>'; }], ['st', 'Status', 0, function (r) { return r.isDraft ? '<span class="chip">draft</span>' : '<span class="chip ok">published</span>'; }, function (r) { return r.isDraft ? 1 : 0; }], ['lastPublished', 'Last published', 0, function (r) { return esc((r.lastPublished || '').slice(0, 10)) || dash; }], ['lastUpdated', 'Updated', 0, function (r) { return esc((r.lastUpdated || '').slice(0, 10)); }]], it, { sort: ['lastUpdated', -1] }); }).join('');
-    if (k === 'forms') return h + gtable('wff', [['page', 'Page', 0, function (r) { return esc(r.page || '–') + '<div class="sub">' + esc(r.name) + '</div>'; }, function (r) { return (r.page || '') + r.name; }], ['fields', 'Fields', 1, function (r) { return String(r.fields.length); }, function (r) { return r.fields.length; }], ['updated', 'Updated', 0, function (r) { return esc(r.updated); }]], w.forms,
+      return '<h2>' + esc(c.name) + ' <span class="cnt">' + it.length + '</span></h2>' + gtable(id('wfc' + c.id.slice(-4)), [['name', 'Item', 0, function (r) { return esc(r.name) + '<div class="sub">/' + esc(c.slug + '/' + r.slug) + '</div>'; }], ['st', 'Status', 0, function (r) { return r.isDraft ? '<span class="chip">draft</span>' : '<span class="chip ok">published</span>'; }, function (r) { return r.isDraft ? 1 : 0; }], ['lastPublished', 'Last published', 0, function (r) { return esc((r.lastPublished || '').slice(0, 10)) || dash; }], ['lastUpdated', 'Updated', 0, function (r) { return esc((r.lastUpdated || '').slice(0, 10)); }]], it, { sort: ['lastUpdated', -1] }); }).join('');
+    if (k === 'forms') return h + gtable(id('wff'), [['page', 'Page', 0, function (r) { return esc(r.page || '–') + '<div class="sub">' + esc(r.name) + '</div>'; }, function (r) { return (r.page || '') + r.name; }], ['fields', 'Fields', 1, function (r) { return String(r.fields.length); }, function (r) { return r.fields.length; }], ['updated', 'Updated', 0, function (r) { return esc(r.updated); }]], w.forms,
       { sort: ['updated', -1], find: function (r) { return (r.page || '') + ' ' + r.name; }, findLabel: 'Find a form', click: pfRow(function (r) { return r.name + ' · ' + (r.page || ''); }, function (r) { return [['Form', esc(r.name)], ['Page', esc(r.page || '–')], ['Fields', esc(r.fields.join(' · '))], ['Updated', esc(r.updated)], ['Form ID', esc(r.id)]]; }) }) + pfNote('Form definitions only: the hub never reads submissions.');
-    if (k === 'assets') return h + gtable('wfa', [['name', 'Asset', 0, function (r) { return esc(r.name) + '<div class="sub">' + esc(r.type) + '</div>'; }], ['size', 'Size', 1, function (r) { return r.size >= 1e6 ? (r.size / 1e6).toFixed(1) + ' MB' : Math.round(r.size / 1e3) + ' KB'; }, function (r) { return r.size; }], ['alt', 'Alt text', 0, function (r) { return r.alt ? esc(r.alt) : '<span class="chip warn">none</span>'; }, function (r) { return r.alt ? 1 : 0; }], ['created', 'Added', 0, function (r) { return esc(r.created); }]], w.assets,
+    if (k === 'assets') return h + gtable(id('wfa'), [['name', 'Asset', 0, function (r) { return esc(r.name) + '<div class="sub">' + esc(r.type) + '</div>'; }], ['size', 'Size', 1, function (r) { return r.size >= 1e6 ? (r.size / 1e6).toFixed(1) + ' MB' : Math.round(r.size / 1e3) + ' KB'; }, function (r) { return r.size; }], ['alt', 'Alt text', 0, function (r) { return r.alt ? esc(r.alt) : '<span class="chip warn">none</span>'; }, function (r) { return r.alt ? 1 : 0; }], ['created', 'Added', 0, function (r) { return esc(r.created); }]], w.assets,
       { sort: ['size', -1], find: function (r) { return r.name; }, findLabel: 'Find an asset', filters: [['t', 'Type', [['', 'All types'], ['image/', 'Images'], ['video/', 'Video'], ['other', 'Other']], function (r, v) { return v === 'other' ? !/^(image|video)\//.test(r.type) : r.type.indexOf(v) === 0; }]],
         click: function (r) { openDrawer(r.name, [['Basic info', (/^image\//.test(r.type) ? '<img class="mthumb" src="' + esc(r.url) + '" alt="" loading="lazy">' : '') + kv([['Asset', esc(r.name)], ['Type', esc(r.type)], ['Size', n0(r.size) + ' bytes'], ['Alt text', esc(r.alt) || '<span class="chip warn">none</span>'], ['Added', esc(r.created)], ['File', '<a href="' + esc(r.url) + '" target="_blank" rel="noopener">open ↗</a>']])]]); } });
-    return h + gtable('wfs', [['name', 'Script', 0, function (r) { return esc(r.name) + '<div class="sub">' + esc(r.id) + '</div>'; }], ['version', 'Version', 0, function (r) { return esc(r.version); }], ['created', 'Registered', 0, function (r) { return esc(r.created); }]], w.scripts,
+    return h + gtable(id('wfs'), [['name', 'Script', 0, function (r) { return esc(r.name) + '<div class="sub">' + esc(r.id) + '</div>'; }], ['version', 'Version', 0, function (r) { return esc(r.version); }], ['created', 'Registered', 0, function (r) { return esc(r.created); }]], w.scripts,
       { sort: ['created', -1], click: pfRow(function (r) { return r.name; }, function (r) { return [['Script', esc(r.name)], ['Version', esc(r.version)], ['Registered', esc(r.created)], ['Hosted at', '<a href="' + esc(r.url) + '" target="_blank" rel="noopener">' + esc(r.url.replace(/^https:\/\/cdn\.prod\.website-files\.com\/[^%]+/, '…')) + ' ↗</a>']]; }) }) +
-      pfNote('The site-wide head and footer code (GTM, the phone table) is not listed here: the snapshot reads registered scripts only.');
+      pfNote('The site-wide head and footer code (GTM, the phone table) is not listed here: the snapshot reads registered scripts only.' + (w.scripts.length ? '' : ' This project has no registered scripts.'));
   }
   function routePlatforms(parts, crumbs) {   /* #/platforms/<platform>/<area> → html */
     crumbs.push(['Platforms', '#/platforms']); var k = parts[1], a = parts[2];
@@ -1352,7 +1388,11 @@
     if (k === 'google') { if (a === 'analytics') { area('Google Analytics'); return viewGA4(); } if (a === 'search-console') { area('Google Search Console'); return viewGSC(); } if (a === 'business') { area('Google Business'); return viewGBP(); } return viewPfGoogle(); }
     if (k === 'meta') { if (a === 'ads-manager') { area('Ads Manager'); return viewMetaAds(); } if (a === 'insights') { area('Insights'); return viewMetaInsights(); } if (a === 'events') { area('Events Manager'); return viewMetaEvents(); } return viewPfMeta(); }
     if (k === 'linkedin') { if (a === 'ads') { area('LinkedIn Ads'); return viewLinkedInAds(); } return viewPfLinkedIn(); }
-    if (k === 'webflow') { if (WFT[a]) { area(WFT[a]); return viewWebflowArea(a); } return viewPfWebflow(); }
+    if (k === 'webflow') {   /* MH-91: #/platforms/webflow/<project>[?tab=pages|cms|forms|assets|code]; the old #/platforms/webflow/<area> = staging */
+      if (WFT[a] && !wfSite(a)) { var oq = location.hash.split('?')[1]; location.replace('#/platforms/webflow/staging?tab=' + a + (oq ? '&' + oq : '')); return ''; }   /* old address → the staging project (drawer kept) */
+      var wp = wfSite(a); if (!wp) return viewPfWebflow();
+      crumbs.push([wp.name, wfHref(wp)]); var tb = TAB; if (WFT[tb]) crumbs.push([WFT[tb], wfHref(wp, tb)]);
+      return viewWfProject(wp, tb); }
     return viewPfNextdoor();
   }
   /* the menu: Platforms › Google | Meta Business Suite | Nextdoor | LinkedIn | Webflow (children are leaves, MH-86; deeper
@@ -1365,7 +1405,8 @@
       { label: 'Meta Business Suite', href: PFH.meta, count: m ? m.ads.length : null, children: [{ label: 'Ads Manager', href: '#/platforms/meta/ads-manager', count: m ? m.ads.length : null }, { label: 'Insights', href: '#/platforms/meta/insights' }, { label: 'Events Manager', href: '#/platforms/meta/events' }, oc('facebook'), oc('instagram'), md ? { label: 'Hand-off campaigns', href: md.href, count: md.count, children: md.children } : null].filter(Boolean) },
       { label: 'Nextdoor', href: PFH.nextdoor, children: [oc('nextdoor'), nd ? { label: 'Nextdoor Ads', href: nd.href, count: nd.count, children: nd.children } : null].filter(Boolean) },
       { label: 'LinkedIn', href: PFH.linkedin, children: [oc('linkedin'), { label: 'LinkedIn Ads', href: '#/platforms/linkedin/ads' }] },
-      { label: 'Webflow', href: PFH.webflow, count: w ? w.pages.length : null, children: [{ label: 'Microsites', href: '#/website', count: sites.length, children: web }, { label: 'Landing pages', href: LP_BASE, count: lpCount, children: lps }].concat(Object.keys(WFT).map(function (k) { return { label: WFT[k], href: '#/platforms/webflow/' + k }; })) }];
+      { label: 'Webflow', href: PFH.webflow, count: wfSites().length || null, children: wfSites().map(function (x) { return { label: x.name, href: wfHref(x), count: x.pages.length }; })
+          .concat([{ label: 'Microsites', href: '#/website', count: sites.length, children: web }, { label: 'Landing pages', href: LP_BASE, count: lpCount, children: lps }]) }];   /* MH-91: one entry per project */
   }
 
   /* ───────────── MH-84: Work › Streams ─────────────
