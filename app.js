@@ -1502,7 +1502,7 @@
     if (!X) return '<h1>Google Ads and Meta recommendations</h1><p class="empty">Stream 2’s data (data/stream2.js) is not loaded. Build it with node tools/marketing-hub/build-stream2.mjs.</p>';
     var I = X.input, G = X.ev.garnShare, gset = X.ev.metaGarn.sets.filter(function (x) { return / — Bold/.test(x.name); })[0] || {};
     var open = X.google.concat(X.meta, X.related).filter(function (r) { return r.status === 'open' || r.status === 'decision' || r.status === 'needs OK'; }).length;
-    return '<div id="s2page"><h1>' + esc(X.title) + '</h1><p class="lead">' + esc(I.decision) + ' ' + esc(I.rule) + '</p>' + (X.dataNote ? '<p class="note">' + esc(X.dataNote) + '</p>' : '') +
+    return '<div id="s2page"><h1>' + esc(X.title) + '</h1><p class="lead">' + esc(I.decision) + ' ' + esc(I.rule) + '</p>' + (X.dataNote ? '<p class="note">' + esc(X.dataNote) + (X.roles ? ' ' + esc(X.roles) : '') + '</p>' : '') +
       '<div class="tiles kpis"><div class="tile"><h3>Google Ads paused</h3><div class="big">' + Math.round(G.share.cost * 100) + '% of spend</div><p>' + Math.round(G.share.conv * 100) + '% of conversions, 30 days to 13 Oct</p></div>' +
       '<div class="tile"><h3>Meta paused</h3><div class="big">' + usd(gset.daily || 0) + ' a day</div><p>Garnishment — Bold Challenger: ' + n0(gset.leads || 0) + ' leads at ' + (gset.cpl ? usd(gset.cpl) : dash) + ' in 90 days</p></div>' +
       '<div class="tile"><h3>Steps</h3><div class="big">' + (X.google.length + X.meta.length) + '</div><p>' + X.google.length + ' Google Ads · ' + X.meta.length + ' Meta · ' + X.related.length + ' related</p></div>' +
