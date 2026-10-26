@@ -431,3 +431,20 @@ ol.abl li.abprev > .abt { outline:1px dashed #d9b44a; outline-offset:2px; border
 .hostep h3 { margin-top:0; }
 code.hocode { display:block; font:12px/1.5 ui-monospace,Menlo,monospace; word-break:break-all; background:#f6f8fa; padding:6px 8px; border-radius:4px; }
 .tbl td.hoval { white-space:pre-wrap; }
+/* MH-93: Stream 2 recommendations page */
+.s2toc { margin:4px 0 14px; font-size:13px; color:var(--mute); } .s2toc a { color:var(--accent); }
+.s2recs { display:grid; gap:12px; margin:8px 0 18px; }
+.s2rec { background:var(--card); border:1px solid var(--line); border-radius:6px; padding:12px 15px; min-width:0; }
+.s2rec h3 { margin:0 0 6px; font-size:14.5px; line-height:1.35; } .s2rec h3 .chip { vertical-align:2px; margin-left:4px; } .s2rec p { margin:4px 0 8px; max-width:900px; }
+.s2id { display:inline-block; min-width:26px; color:var(--mute); font-weight:600; font-variant-numeric:tabular-nums; }
+.s2rec details.state { margin-top:6px; }
+.tbl tr.s2off td { color:var(--mute); } .tbl tr.s2tot td { border-top:2px solid var(--line); }
+.s2neg { max-height:220px; columns:2; column-gap:28px; } @media (max-width:700px) { .s2neg { columns:1; } }
+.s2pts { margin:4px 0 8px; padding-left:18px; max-width:900px; } .s2pts li { margin:2px 0; }
+.s2next { background:var(--card); border:1px solid var(--line); border-radius:6px; padding:10px 15px; margin:0 0 12px; } .s2next h3 { margin:0 0 4px; font-size:14px; } .s2next ol { margin:0; padding-left:20px; } .s2next li { margin:2px 0; } .s2next a { color:var(--accent); }
+.s2lines td.s2new b { font-weight:650; } .s2lines td.s2new { background:#f2faf5; }
+@media (max-width:700px) {   /* G2 replacements: one card per line on phones */
+  .s2lines thead { display:none; } .s2lines, .s2lines tbody, .s2lines tr, .s2lines td { display:block; width:auto; }
+  .s2lines tr { border-bottom:1px solid var(--line); padding:6px 0; } .s2lines td { border:0; padding:3px 8px; }
+  .s2lines td::before { content:attr(data-l); display:block; font-size:10.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--mute); }
+}
