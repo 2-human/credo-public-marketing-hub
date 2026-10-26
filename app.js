@@ -1561,9 +1561,33 @@
   var s3Post = function (X, id) { return X.posts.filter(function (p) { return p.id === id; })[0]; };
   var s3Chip = function (c) { return c.status === 'answered' ? '<span class="chip ok">Answered</span>' : '<span class="chip ' + S3PRI[c.priority][1] + '">' + S3PRI[c.priority][0] + '</span>'; };
   var s3When = function (c) { return esc(c.date) + ' <span class="sub">(' + esc(c.ago) + ' ago)</span>'; };
+  /* MH-94 reply drafts: what goes into the comment box (an advertising reply already carries the nationwide disclaimer) */
+  function s3Draft(c, full) {
+    if (!c.paste) return c.replyNote ? '<p class="sub">' + esc(c.replyNote) + '</p>' : '';
+    var tag = c.advertising ? '<span class="chip warn">Advertising: attorney OK first</span>' : '<span class="chip">Not advertising</span>';
+    var body = full ? '<pre class="s3reply">' + esc(c.paste) + '</pre>' : '<div class="s3reply">' + esc(c.reply) + (c.advertising ? ' <span class="sub">+ disclaimer</span>' : '') + '</div>';
+    return '<div class="s3draft"><div class="s3dhead">' + tag + ' <button type="button" class="btn" data-s3copy="' + esc(c.id) + '">Copy reply</button> <span class="sub" data-s3msg="' + esc(c.id) + '"></span></div>' + body +
+      (c.replyNote ? '<p class="sub">' + esc(c.replyNote) + '</p>' : '') + '</div>';
+  }
+  function s3Copy(text, msg) {   /* copy inside the click itself (execCommand needs the user's gesture); the Clipboard API only if that fails */
+    var ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select();
+    var ok = false; try { ok = document.execCommand('copy'); } catch (x) {} ta.remove();
+    if (ok) msg.textContent = 'Copied.';
+    else if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function () { msg.textContent = 'Copied.'; }, function () { msg.textContent = 'Could not copy: select the text.'; });
+    else msg.textContent = 'Could not copy: select the text.';
+  }
+  var S3COPY = false;   /* one delegated listener for the copy buttons, on the page and in the drawer */
+  function wireS3Copy() {
+    if (S3COPY) return; S3COPY = true;
+    document.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-s3copy]'); if (!b) return; e.stopPropagation(); e.preventDefault();
+      var X = S3(), id = b.getAttribute('data-s3copy'), c = X && X.comments.filter(function (x) { return x.id === id; })[0]; if (!c) return;
+      s3Copy(c.paste, b.parentNode.querySelector('[data-s3msg]'));
+    }, true);
+  }
   function drawerS3(X, c) {
     var p = s3Post(X, c.post), same = X.comments.filter(function (x) { return x.author === c.author && x.id !== c.id; });
-    openDrawer(c.author, [['Comment', '<p class="s3text">' + esc(c.text) + '</p>' + kv([['Priority', s3Chip(c) + ' ' + esc(S3KIND[c.kind] || c.kind)], ['Why', esc(c.why)], ['What to do', '<b>' + esc(c.action) + '</b>'],
+    openDrawer(c.author, [['Comment', '<p class="s3text">' + esc(c.text) + '</p>' + (c.paste || c.replyNote ? '<h3>Reply draft</h3>' + s3Draft(c, true) : '') + kv([['Priority', s3Chip(c) + ' ' + esc(S3KIND[c.kind] || c.kind)], ['Why', esc(c.why)], ['What to do', '<b>' + esc(c.action) + '</b>'],
         ['Written', s3When(c)], ['Platform', esc(S3PF[c.platform])], ['Thread', link(p.url, 'Open in Business Suite')]]) +
       (same.length ? '<h3>Other comments by ' + esc(c.author) + '</h3><ul class="notes">' + same.map(function (x) { return '<li>' + s3Chip(x) + ' ' + esc(x.ago) + ' · ' + esc(s3Post(X, x.post).ad) + ': ' + esc(x.text.slice(0, 140)) + (x.text.length > 140 ? '…' : '') + '</li>'; }).join('') + '</ul>' : '')],
       ['Post', '<p>' + esc(p.hook) + '</p>' + kv([['Kind', esc(p.type === 'ad' ? 'Ad' : p.type === 'review' ? 'Page reviews' : 'Organic post')], ['Ad or post', esc(p.ad)], ['Ad set', p.adset ? esc(p.adset) : dash], ['Campaign', p.campaign ? esc(p.campaign) : dash],
@@ -1577,7 +1601,7 @@
       rows.slice(0, lim).map(function (c) { var p = s3Post(X, c.post);   /* the comment comes first: the drawer's permalink is named after its first cell (the author) */
         return '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); drawerS3(X, c); }) + '><td data-l="Comment"><b>' + esc(c.author) + '</b> <span class="sub">' + esc(c.ago) + ' · ' + esc(S3PF[c.platform]) + '</span><div class="s3text">' + esc(c.text.length > 260 ? c.text.slice(0, 260) + '…' : c.text) + '</div></td>' +
           '<td data-l="Priority">' + s3Chip(c) + '<div class="sub">' + esc(S3KIND[c.kind] || c.kind) + '</div></td>' +
-          '<td data-l="What to do">' + esc(c.action) + '<div class="sub">' + esc(c.why) + '</div></td>' +
+          '<td data-l="What to do">' + esc(c.action) + '<div class="sub">' + esc(c.why) + '</div>' + (c.status === 'open' ? s3Draft(c, false) : '') + '</td>' +
           '<td data-l="Post"><a href="' + esc(p.url) + '" target="_blank" rel="noopener" class="s3post">' + esc(p.ad) + '</a><div class="sub">' + esc(p.hook.length > 70 ? p.hook.slice(0, 70) + '…' : p.hook) + '</div></td></tr>'; }).join('') + '</tbody></table></div>';
   }
   function s3Bar(X) {
@@ -1595,8 +1619,9 @@
     var T = X.totals, tile = function (h, n, p) { return '<div class="tile"><h3>' + esc(h) + '</h3><div class="big">' + n + '</div><p>' + esc(p) + '</p></div>'; };
     return '<div id="s3page"><h1>Comments to answer</h1><p class="lead">Every comment on Credo’s Facebook posts, ads and page reviews, by priority for an answer, with the post it belongs to. Read ' + esc(X.asOf) + ' from the Business Suite inbox; nothing was answered, hidden or changed.</p>' +
       '<div class="tiles kpis">' + tile('High: answer today', T.high, 'Recent requests for help, former clients, reviews, something broken.') + tile('Medium: this week', T.medium, 'Older requests, case-type questions, doubts a fact settles.') +
-        tile('Low: no answer', T.low, 'Insults, spam, off-topic, commenters talking to each other.') + tile('Answered', T.answered, 'Already answered by Credo on Facebook.') + '</div>' +
+        tile('Low: no answer', T.low, 'Insults, spam, off-topic, commenters talking to each other.') + tile('Reply drafts', T.drafts, T.advertising + ' are advertising: the responsible attorney approves them first.') + tile('Answered', T.answered, 'Already answered by Credo on Facebook.') + '</div>' +
       '<div class="s2next"><h3>Before answering</h3><ol>' + X.notes.map(function (n) { return '<li>' + esc(n) + '</li>'; }).join('') + '</ol></div>' +
+      '<details class="state"><summary>How the reply drafts are written</summary><ul class="notes">' + X.replyRules.map(function (n) { return '<li>' + esc(n) + '</li>'; }).join('') + '</ul></details>' +
       s3Bar(X) + '<div id="s3list">' + s3List(X) + '</div>' +
       '<h2>By post</h2><div class="scroll"><table class="tbl"><thead><tr><th>Post</th><th>Kind</th><th class="num">High</th><th class="num">Medium</th><th class="num">Low</th><th class="num">Answered</th><th></th></tr></thead><tbody>' +
       X.posts.slice().sort(function (a, b) { return b.n.high - a.n.high || b.n.medium - a.n.medium || b.n.total - a.n.total; }).map(function (p) {
@@ -1606,6 +1631,7 @@
   }
   function wireS3() {
     var X = S3(), root = $('s3page'); if (!X || !root) return;   /* the listeners live on the page's own element, so a re-render never stacks them */
+    wireS3Copy();
     var save = function () { try { localStorage.setItem('mh-s3f', JSON.stringify(S3F)); } catch (e) {} };
     var redraw = function (bar) { save(); if (bar) root.querySelector('.s3bar').outerHTML = s3Bar(X); $('s3list').innerHTML = s3List(X); };
     root.addEventListener('click', function (e) {

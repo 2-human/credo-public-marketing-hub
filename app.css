@@ -458,3 +458,5 @@ code.hocode { display:block; font:12px/1.5 ui-monospace,Menlo,monospace; word-br
   .s3tbl tr { border-bottom:1px solid var(--line); padding:6px 0; } .s3tbl td { border:0; padding:3px 8px; }
   .s3tbl td::before { content:attr(data-l); display:block; font-size:10.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--mute); }
 }
+.s3draft { margin-top:8px; padding:8px 10px; border:1px solid var(--line); border-radius:6px; background:#f7f9fc; } .s3dhead { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-bottom:6px; }
+.s3dhead .btn { padding:2px 9px; font-size:12px; } .s3reply { white-space:pre-wrap; font:inherit; font-size:13px; margin:0; max-width:640px; } pre.s3reply { background:transparent; border:0; padding:0; }
