@@ -1428,9 +1428,15 @@
     { key: 'garnishment-pause', n: 2, name: 'Garnishment Pause', short: 'Credo stops garnishment and post-judgment work: what changes in Google Ads and Meta.',
       about: 'Credo pauses all garnishment campaigns (26 Oct). What that means for the Google Ads and Meta accounts, the landing pages and the organic calendar, from the client’s answers and the account data.',
       items: [{ seg: 'garnishment-pause', label: 'Google Ads and Meta recommendations', href: '#/ads/garnishment-pause', what: 'What to pause, rewrite, exclude and move in Google Ads and Meta, with the evidence for each step and a reply for the ads manager.',
-        count: function () { var X = S2(); return X ? X.google.length + X.meta.length : 0; } }] }];
+        count: function () { var X = S2(); return X ? X.google.length + X.meta.length : 0; } }] },
+    /* MH-94, operator 26 Oct: "Create a Stream 3 for social media comments … segment them as high, medium and low priority for answers" */
+    { key: 'social-comments', n: 3, name: 'Social Media Comments', short: 'Every comment on Credo’s posts and ads, by priority for an answer, filterable by platform and post.',
+      about: 'Every comment on Credo’s Facebook posts, ads and page reviews, sorted into high, medium and low priority for an answer, with the post it belongs to, why it has that priority and what to do. Read from the Business Suite inbox; Instagram, LinkedIn and Nextdoor join as their comments are read.',
+      items: [{ seg: 'social-comments', label: 'Comments to answer', href: '#/ads/social-comments', what: 'The comments by priority (high: today, medium: this week, low: no answer), filterable by platform, post, type and status, each with its post and a link to the thread in Business Suite.',
+        count: function () { var X = S3(); return X ? X.totals.open : 0; } }] }];
   var HO = function () { return window.HUB_HANDOFF || null; };
   var S2 = function () { return window.HUB_STREAM2 || null; };   /* MH-93: data/stream2.js, from tools/marketing-hub/build-stream2.mjs */
+  var S3 = function () { return window.HUB_STREAM3 || null; };   /* MH-94: data/stream3.js, from tools/marketing-hub/build-stream3.mjs */
   var streamTitle = function (s) { return 'Stream ' + s.n + ': ' + s.name; };
   var streamHref = function (s) { return '#/work/streams/' + s.key; };
   var STREAM_OF = {}, ITEM_OF = {}; STREAMS.forEach(function (s) { s.items.forEach(function (i) { STREAM_OF[i.seg] = s; (i.sub || []).forEach(function (u) { STREAM_OF[u.seg] = s; ITEM_OF[u.seg] = i; }); }); });   /* ITEM_OF: a sub-item's parent tool */
@@ -1534,6 +1540,80 @@
       else if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function () { msg.textContent = 'Copied.'; }, function () { msg.textContent = 'Could not copy: select the text above.'; });
       else msg.textContent = 'Could not copy: select the text above.';
     });
+  }
+  /* ───────────── MH-94: Stream 3, social media comments ─────────────
+     Every comment, by priority for an answer (high: today, medium: this week, low: none), with its post. Filters: platform,
+     priority or status, post, type and a text search; they live in S3F (kept per browser) and re-render only the list. */
+  var S3PRI = { high: ['High', 'red'], medium: ['Medium', 'warn'], low: ['Low', ''] }, S3RANK = { high: 0, medium: 1, low: 2 };
+  var S3PF = { facebook: 'Facebook', instagram: 'Instagram', linkedin: 'LinkedIn', nextdoor: 'Nextdoor' };
+  var S3KIND = { lead: 'Asks for help', question: 'Question', complaint: 'Complaint', review: 'Page review', issue: 'Something broken', critic: 'Doubter', peer: 'Between commenters', troll: 'Insult', spam: 'Spam', other: 'Other' };
+  var S3F = (function () { var d = { pf: 'all', pri: 'open', post: '', kind: '', q: '' }; try { return Object.assign(d, JSON.parse(localStorage.getItem('mh-s3f') || '{}')); } catch (e) { return d; } })();
+  function s3Shown(X) {
+    var q = S3F.q.trim().toLowerCase();
+    return X.comments.filter(function (c) {
+      if (S3F.pf !== 'all' && c.platform !== S3F.pf) return false;
+      if (S3F.pri === 'answered' ? c.status !== 'answered' : S3F.pri !== 'all' && (c.status !== 'open' || (S3F.pri !== 'open' && c.priority !== S3F.pri))) return false;
+      if (S3F.post && c.post !== S3F.post) return false;
+      if (S3F.kind && c.kind !== S3F.kind) return false;
+      return !q || (c.author + ' ' + c.text).toLowerCase().indexOf(q) >= 0;
+    }).sort(function (a, b) { return (a.status === 'answered') - (b.status === 'answered') || S3RANK[a.priority] - S3RANK[b.priority] || (a.date < b.date ? 1 : a.date > b.date ? -1 : 0); });
+  }
+  var s3Post = function (X, id) { return X.posts.filter(function (p) { return p.id === id; })[0]; };
+  var s3Chip = function (c) { return c.status === 'answered' ? '<span class="chip ok">Answered</span>' : '<span class="chip ' + S3PRI[c.priority][1] + '">' + S3PRI[c.priority][0] + '</span>'; };
+  var s3When = function (c) { return esc(c.date) + ' <span class="sub">(' + esc(c.ago) + ' ago)</span>'; };
+  function drawerS3(X, c) {
+    var p = s3Post(X, c.post), same = X.comments.filter(function (x) { return x.author === c.author && x.id !== c.id; });
+    openDrawer(c.author, [['Comment', '<p class="s3text">' + esc(c.text) + '</p>' + kv([['Priority', s3Chip(c) + ' ' + esc(S3KIND[c.kind] || c.kind)], ['Why', esc(c.why)], ['What to do', '<b>' + esc(c.action) + '</b>'],
+        ['Written', s3When(c)], ['Platform', esc(S3PF[c.platform])], ['Thread', link(p.url, 'Open in Business Suite')]]) +
+      (same.length ? '<h3>Other comments by ' + esc(c.author) + '</h3><ul class="notes">' + same.map(function (x) { return '<li>' + s3Chip(x) + ' ' + esc(x.ago) + ' · ' + esc(s3Post(X, x.post).ad) + ': ' + esc(x.text.slice(0, 140)) + (x.text.length > 140 ? '…' : '') + '</li>'; }).join('') + '</ul>' : '')],
+      ['Post', '<p>' + esc(p.hook) + '</p>' + kv([['Kind', esc(p.type === 'ad' ? 'Ad' : p.type === 'review' ? 'Page reviews' : 'Organic post')], ['Ad or post', esc(p.ad)], ['Ad set', p.adset ? esc(p.adset) : dash], ['Campaign', p.campaign ? esc(p.campaign) : dash],
+        ['Reactions · comments', p.reactions != null ? n0(p.reactions) + ' · ' + n0(p.comments) : dash], ['Comments here', p.n.high + ' high · ' + p.n.medium + ' medium · ' + p.n.low + ' low · ' + p.n.answered + ' answered'],
+        ['Thread', link(p.url, 'Open in Business Suite')]]) + (p.paused ? '<p class="note">Garnishment ad: Credo paused garnishment and post-judgment work on 26 Oct (Stream 2).</p>' : '')]]);
+  }
+  function s3List(X) {
+    var rows = s3Shown(X), lim = 200;
+    if (!rows.length) return '<p class="empty">No comments match these filters.</p>';
+    return '<p class="sub">' + rows.length + ' comment' + (rows.length > 1 ? 's' : '') + '</p><div class="scroll"><table class="tbl s3tbl"><thead><tr><th>Comment</th><th>Priority</th><th>What to do</th><th>Post</th></tr></thead><tbody>' +
+      rows.slice(0, lim).map(function (c) { var p = s3Post(X, c.post);   /* the comment comes first: the drawer's permalink is named after its first cell (the author) */
+        return '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); drawerS3(X, c); }) + '><td data-l="Comment"><b>' + esc(c.author) + '</b> <span class="sub">' + esc(c.ago) + ' · ' + esc(S3PF[c.platform]) + '</span><div class="s3text">' + esc(c.text.length > 260 ? c.text.slice(0, 260) + '…' : c.text) + '</div></td>' +
+          '<td data-l="Priority">' + s3Chip(c) + '<div class="sub">' + esc(S3KIND[c.kind] || c.kind) + '</div></td>' +
+          '<td data-l="What to do">' + esc(c.action) + '<div class="sub">' + esc(c.why) + '</div></td>' +
+          '<td data-l="Post"><a href="' + esc(p.url) + '" target="_blank" rel="noopener" class="s3post">' + esc(p.ad) + '</a><div class="sub">' + esc(p.hook.length > 70 ? p.hook.slice(0, 70) + '…' : p.hook) + '</div></td></tr>'; }).join('') + '</tbody></table></div>';
+  }
+  function s3Bar(X) {
+    var T = X.totals, seg = function (key, opts) { return '<span class="seg">' + opts.map(function (o) { return '<button type="button" class="btn' + (S3F[key] === o[0] ? ' on' : '') + '" data-s3' + key + '="' + o[0] + '"' + (o[2] === 0 ? ' disabled' : '') + '>' + esc(o[1]) + (o[2] != null ? ' <span class="sub">' + o[2] + '</span>' : '') + '</button>'; }).join('') + '</span>'; };
+    var posts = X.posts.filter(function (p) { return S3F.pf === 'all' || p.platform === S3F.pf; });
+    return '<div class="wfd-bar s3bar">' + seg('pf', [['all', 'All platforms', X.comments.length]].concat(X.platforms.map(function (f) { return [f.key, S3PF[f.key], f.comments]; }))) +
+      seg('pri', [['open', 'Open', T.open], ['high', 'High', T.high], ['medium', 'Medium', T.medium], ['low', 'Low', T.low], ['answered', 'Answered', T.answered], ['all', 'All']]) +
+      '<select data-s3sel="post" aria-label="Post"><option value="">All posts</option>' + posts.map(function (p) { return '<option value="' + esc(p.id) + '"' + (S3F.post === p.id ? ' selected' : '') + '>' + esc(p.ad) + ' (' + p.n.total + ')</option>'; }).join('') + '</select>' +
+      '<select data-s3sel="kind" aria-label="Type"><option value="">All types</option>' + Object.keys(S3KIND).map(function (k) { return '<option value="' + k + '"' + (S3F.kind === k ? ' selected' : '') + '>' + esc(S3KIND[k]) + '</option>'; }).join('') + '</select>' +
+      '<input type="search" data-s3q placeholder="Search name or text" value="' + esc(S3F.q) + '" aria-label="Search comments"></div>';
+  }
+  function viewS3() {
+    var X = S3();
+    if (!X) return '<h1>Comments to answer</h1><p class="empty">Stream 3’s data (data/stream3.js) is not loaded. Build it with node tools/marketing-hub/build-stream3.mjs.</p>';
+    var T = X.totals, tile = function (h, n, p) { return '<div class="tile"><h3>' + esc(h) + '</h3><div class="big">' + n + '</div><p>' + esc(p) + '</p></div>'; };
+    return '<div id="s3page"><h1>Comments to answer</h1><p class="lead">Every comment on Credo’s Facebook posts, ads and page reviews, by priority for an answer, with the post it belongs to. Read ' + esc(X.asOf) + ' from the Business Suite inbox; nothing was answered, hidden or changed.</p>' +
+      '<div class="tiles kpis">' + tile('High: answer today', T.high, 'Recent requests for help, former clients, reviews, something broken.') + tile('Medium: this week', T.medium, 'Older requests, case-type questions, doubts a fact settles.') +
+        tile('Low: no answer', T.low, 'Insults, spam, off-topic, commenters talking to each other.') + tile('Answered', T.answered, 'Already answered by Credo on Facebook.') + '</div>' +
+      '<div class="s2next"><h3>Before answering</h3><ol>' + X.notes.map(function (n) { return '<li>' + esc(n) + '</li>'; }).join('') + '</ol></div>' +
+      s3Bar(X) + '<div id="s3list">' + s3List(X) + '</div>' +
+      '<h2>By post</h2><div class="scroll"><table class="tbl"><thead><tr><th>Post</th><th>Kind</th><th class="num">High</th><th class="num">Medium</th><th class="num">Low</th><th class="num">Answered</th><th></th></tr></thead><tbody>' +
+      X.posts.slice().sort(function (a, b) { return b.n.high - a.n.high || b.n.medium - a.n.medium || b.n.total - a.n.total; }).map(function (p) {
+        return '<tr><td><a href="#s3page" data-s3post="' + esc(p.id) + '">' + esc(p.ad) + '</a><div class="sub">' + esc(p.hook) + '</div></td><td>' + esc(p.type === 'ad' ? 'Ad' : p.type === 'review' ? 'Reviews' : 'Organic') + (p.paused ? ' <span class="chip">paused</span>' : '') + '</td>' +
+          ['high', 'medium', 'low', 'answered'].map(function (k) { return '<td class="num">' + (p.n[k] || dash) + '</td>'; }).join('') + '<td>' + link(p.url, 'Thread') + '</td></tr>'; }).join('') + '</tbody></table></div>' +
+      '<details class="state"><summary>Priority rules, sources and gaps</summary>' + kv([['High', esc(X.rules.high)], ['Medium', esc(X.rules.medium)], ['Low', esc(X.rules.low)]]) + '<p>' + esc(X.source) + '</p><ul class="notes">' + X.gaps.map(function (g) { return '<li>' + esc(g) + '</li>'; }).join('') + '</ul><p class="sub">Built ' + esc(X.built) + ' by tools/marketing-hub/build-stream3.mjs from content/campaigns/stream-3/comments.json.</p></details></div>';
+  }
+  function wireS3() {
+    var X = S3(), root = $('s3page'); if (!X || !root) return;   /* the listeners live on the page's own element, so a re-render never stacks them */
+    var save = function () { try { localStorage.setItem('mh-s3f', JSON.stringify(S3F)); } catch (e) {} };
+    var redraw = function (bar) { save(); if (bar) root.querySelector('.s3bar').outerHTML = s3Bar(X); $('s3list').innerHTML = s3List(X); };
+    root.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-s3pf],[data-s3pri]'); if (b) { var k = b.hasAttribute('data-s3pf') ? 'pf' : 'pri'; S3F[k] = b.getAttribute('data-s3' + k); if (k === 'pf') S3F.post = ''; redraw(true); return; }
+      var a = e.target.closest('[data-s3post]'); if (a) { e.preventDefault(); S3F.post = a.getAttribute('data-s3post'); S3F.pri = 'all'; S3F.kind = ''; S3F.q = ''; redraw(true); root.querySelector('.s3bar').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    });
+    root.addEventListener('change', function (e) { var s = e.target.closest('[data-s3sel]'); if (s) { S3F[s.getAttribute('data-s3sel')] = s.value; redraw(false); } });
+    root.addEventListener('input', function (e) { if (e.target.hasAttribute('data-s3q')) { S3F.q = e.target.value; redraw(false); } });
   }
   function viewAdTestBuilder() {   /* MH-85: Current ad groups (the second ad, B) and New ad groups */
     var it = STREAMS[0].items.filter(function (i) { return i.seg === 'ad-test-builder'; })[0];
@@ -3537,6 +3617,7 @@
         html = viewNewClusters(); if (nc) after = function () { if (/^page-/.test(TAB || '')) NC_PAGE = TAB.slice(5); drawerNC(nc, /^page-/.test(TAB || '') ? 'Pages' : null); }; }   /* MH-75: …/<key> opens the ad group's drawer (?tab=page-<ad>: on that ad's page) */
       else if (parts[1] === 'handoff') { crumbs.push(['Handoff', '#/ads/handoff']); html = viewHandoff(); }   /* MH-92 */
       else if (parts[1] === 'garnishment-pause') { crumbs.push(['Google Ads and Meta recommendations', hash]); html = viewS2(); after = wireS2; }   /* MH-93 */
+      else if (parts[1] === 'social-comments') { crumbs.push(['Comments to answer', hash]); html = viewS3(); after = wireS3; }   /* MH-94 */
       else if (parts[1] === 'ab-tests' && STG() && cluDoc()) { crumbs.push(['Current ad groups', '#/ads/ab-tests']); html = viewABPlan(); }
       else if (parts[1] === 'clusters' && STG() && cluDoc()) { crumbs.push(['Search-term clusters', '#/ads/clusters']); AFTER = null;
         /* #/ads/clusters/<intent>/<cluster>; an older #/ads/clusters/<cluster> link means the debt-lawyer intent */
