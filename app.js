@@ -2310,7 +2310,7 @@
     h += sec('Schedule', kv([['Platform', chChip(p.channel)], ['Date', esc(fmtDay(p.date) + ' ' + p.date.slice(0, 4))], ['Time', p.time ? esc(fmtTime(p.time) + ' ET') + (local ? ' <span class="sub">(' + esc(local) + ' your time)</span>' : '') : ''],
       ['Exact', p.scheduledAt ? '<code>' + esc(p.scheduledAt) + '</code>' : ''], ['Slot rule', esc(slotRule)], ['Posted', p.postedAt ? esc(p.postedAt.replace('T', ' ').slice(0, 16) + ' UTC') : ''],
       ['Campaign', p.campaign === 'v2' ? esc('Organic v2 · week ' + p.week + ' · ' + (wk ? wk.theme + ' (' + wk.cluster + ')' : '')) : 'Nextdoor, first campaign (Aug–Sep)']]));
-    h += sec('Content', kv([['Kind', esc(p.kind) + '<div class="sub">' + esc(p.type === 'ad' ? 'Offers a free case review and links to a landing page.' : 'Explains a right, a warning or a process; no offer, no landing page.') + '</div>'],
+    h += sec('Content', kv([['Kind', esc(p.kind) + '<div class="sub">' + esc(p.type === 'ad' ? (p.link ? 'Offers a free case review and links to a landing page.' : 'Offers a free case review by message or comment; no link (Facebook, operator 26 Oct).') : 'Explains a right, a warning or a process; no offer, no landing page.') + '</div>'],
       ['Topic', esc(p.title || '')], ['Voice', OC && OC.voice[p.channel] ? esc(OC.voice[p.channel].role + ' · ' + OC.voice[p.channel].length) : ''], ['Words', p.words ? String(p.words) + ' (copy only)' : ''],
       ['Length', p.full ? '<span class="od-bar"><i style="width:' + pct + '%"></i></span> ' + esc(p.full.length + ' of ' + (p.limit || '–') + ' characters, with disclaimer') : ''],
       ['Hashtags', p.hashtags && p.hashtags.length ? esc(p.hashtags.join(' ')) : ''], ['On the image', im ? esc(im.baked) : '']]));
@@ -2320,7 +2320,7 @@
           tr.shortener === 'short.io' ? link(sh.url) + (sh.planned ? ' <span class="chip warn">created on approval</span>' : '') + (sh.asOf ? ' · <b>' + n0(sh.clicks) + '</b> clicks as of ' + esc(sh.asOf) : '') + '<div class="sub">short.io (credolegal.s.gy): Nextdoor is not a Buffer channel.</div>' :
           'Instagram captions cannot link. The tracked URL goes on the profile link (Buffer Start Page) while this post is current.'],
         ['Where', esc(tr.placement)]]));
-    else if (p.campaign === 'v2') h += sec('Link and tracking', '<p class="note">No link: education posts carry no offer and no landing page.</p>');
+    else if (p.campaign === 'v2') h += sec('Link and tracking', '<p class="note">' + (p.type === 'ad' ? 'No link: Facebook posts keep readers on Facebook for now (operator 26 Oct); the free case review is offered by message or a "REVIEW" comment.' : 'No link: education posts carry no offer and no landing page.') + '</p>');
     if (im) h += sec('Image', '<div class="od-img"><img src="' + esc(imgUrl(p)) + '" alt=""><div>' + kv([['File', link(imgUrl(p), im.file)], ['Format', esc(im.ratio + ' · ' + im.size + ' px · JPEG')],
       ['Style', esc(im.style === 'bold' ? 'Bold: red ground, one hand gesture, baked headline (the Nextdoor Bold look)' : 'Documentary photo')], ['Concept', esc(p.imgNote || '')], ['Headline', esc(im.baked)],
       ['Source', esc(im.model)], ['Base image', '<code>' + esc(im.base) + '</code>']]) + '</div></div>');
