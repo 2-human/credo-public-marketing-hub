@@ -460,3 +460,11 @@ code.hocode { display:block; font:12px/1.5 ui-monospace,Menlo,monospace; word-br
 }
 .s3draft { margin-top:8px; padding:8px 10px; border:1px solid var(--line); border-radius:6px; background:#f7f9fc; } .s3dhead { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-bottom:6px; }
 .s3dhead .btn { padding:2px 9px; font-size:12px; } .s3reply { white-space:pre-wrap; font:inherit; font-size:13px; margin:0; max-width:640px; } pre.s3reply { background:transparent; border:0; padding:0; }
+/* MH-95: Reference › Disclaimers */
+.dsc-tbl td { vertical-align:top; } .dsc-tbl td:first-child { min-width:180px; } .dsc-cell { max-width:420px; font-size:12.5px; }
+.dsc-ex { border:1px solid var(--line); border-radius:6px; padding:10px 12px; margin:0 0 14px; background:var(--card); }
+.dsc-exhead { margin-bottom:8px; } .dsc-text { white-space:pre-wrap; font-size:13.5px; line-height:1.5; }
+.dsc-text mark { background:#fff1b8; padding:1px 2px; border-radius:2px; box-shadow:0 0 0 1px #ecc98a; }
+.dsc-media { display:block; max-width:100%; width:360px; margin:10px 0 4px; border-radius:6px; border:1px solid var(--line); }
+.dsc-copy { white-space:pre-wrap; }
+@media (max-width:700px) { .dsc-tbl td:nth-child(3) { display:none; } .dsc-tbl th:nth-child(3) { display:none; } }

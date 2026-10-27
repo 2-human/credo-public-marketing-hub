@@ -307,7 +307,7 @@
     var lps = lpTypes.map(function (g) { return { label: g.label, href: lpHref(g), count: g.pages.length,
       children: g.pages.map(function (x) { return { label: x.p.label, href: lpHref(g, x), dot: x.p.running ? 'on' : null }; }) }; });
     return [{ sec: 'Overview', label: 'All sections', href: '#/overview' }].concat(platformNav(ads, web, lps), [   /* MH-68; MH-88: Websites and Ads → Platforms */
-            { sec: 'Organic' }].concat(organicNav(), [{ sec: 'Work' }, streamNav()], work, [{ sec: 'Reference' }, { label: 'Statutes', href: '#/reference/statutes', count: ST ? ST.statutes.length : 0 }], [{ sec: 'More' }], more));
+            { sec: 'Organic' }].concat(organicNav(), [{ sec: 'Work' }, streamNav()], work, [{ sec: 'Reference' }, { label: 'Disclaimers', href: '#/reference/disclaimers', count: DSC() ? DSC().disclaimers.length : 0 }, { label: 'Statutes', href: '#/reference/statutes', count: ST ? ST.statutes.length : 0 }], [{ sec: 'More' }], more));
   }
   function adLabel(p, a) { return p.key === 'google' ? (a.headlines[0] || a.name) : p.key === 'meta' ? (a.version + ' · ' + a.name.split('-').slice(0, -1).join('-').replace(/^DD_/, '')) : a.name; }
   function renderTree() {
@@ -431,6 +431,36 @@
     var rows = Object.keys(st.pages).map(function (sl) { var hr = pageHref(sl);
       return '<tr><td>' + (hr ? '<a href="' + hr + '?tab=statutes">' + esc(sl) + '</a>' : link(STAGING + sl, sl)) + '</td><td class="sub">' + esc(st.pages[sl].join(' · ')) + '</td></tr>'; }).join('');
     openDrawer(st.key, [['Basic info', kv([['Statute', esc(st.key)], ['Citations', String(st.uses)], ['Pages', String(Object.keys(st.pages).length)]])], ['Pages', '<table class="tbl"><thead><tr><th>Page</th><th>Cited as</th></tr></thead><tbody>' + rows + '</tbody></table>']], true);
+  }
+  /* ───────────── MH-95: Reference › Disclaimers ─────────────
+     Every disclaimer in use or drafted, by purpose (data/disclaimers.js from tools/marketing-hub/build-disclaimers.mjs). A row opens
+     the drawer on a real asset that carries it, with the disclaimer highlighted where it sits in the text. */
+  var DSC = function () { return window.HUB_DISCLAIMERS || null; };
+  var DSC_ST = { 'in use': 'ok', gap: 'red', draft: 'warn', proposed: 'warn' };
+  function dscMarked(text, mark) {   /* the asset's text with this disclaimer highlighted */
+    var i = mark ? text.indexOf(mark) : -1;
+    return '<div class="dsc-text">' + (i < 0 ? esc(text) : esc(text.slice(0, i)) + '<mark>' + esc(mark) + '</mark>' + esc(text.slice(i + mark.length))) + '</div>';
+  }
+  function dscExample(e) {
+    var media = !e.media ? '' : e.media.type === 'video' ? '<video class="dsc-media" src="' + esc(e.media.url) + '" controls muted playsinline preload="metadata"></video>' : '<img class="dsc-media" src="' + esc(e.media.url) + '" alt="" loading="lazy">';
+    return '<div class="dsc-ex"><div class="dsc-exhead"><b>' + esc(e.title) + '</b> <span class="chip">' + esc(e.status) + '</span><div class="sub">' + esc(e.platform) + (e.when ? ' · ' + esc(e.when) : '') + '</div></div>' +
+      (e.context ? '<p class="sub">Replying to ' + esc(e.context) + '</p>' : '') + dscMarked(e.text, e.mark) + media + (e.mediaNote ? '<p class="sub">' + esc(e.mediaNote) + '</p>' : '') +
+      (e.burned ? '<p class="note"><b>Burned into the video:</b> ' + esc(e.burned) + '</p>' : '') + (e.note ? '<p class="note">' + esc(e.note) + '</p>' : '') +
+      '<p class="sub">Source: ' + esc(e.source) + (e.link ? ' · ' + link(e.link, 'open') : '') + '</p></div>';
+  }
+  function drawerDisclaimer(d) {
+    openDrawer(d.name, [['Example', d.examples.map(dscExample).join('')],
+      ['Disclaimer', '<pre class="hopre dsc-copy">' + esc(d.text) + '</pre>' + kv([['Status', '<span class="chip ' + (DSC_ST[d.status] || '') + '">' + esc(d.status) + '</span>'], ['When', esc(d.when)], ['Rule', esc(d.rule)],
+        ['Used on', '<ul class="notes">' + d.usedOn.map(function (u) { return '<li>' + esc(u) + '</li>'; }).join('') + '</ul>']])]], true);
+  }
+  function viewDisclaimers() {
+    var X = DSC(); if (!X) return '<h1>Disclaimers</h1><p class="empty">The disclaimer data (data/disclaimers.js) is not loaded. Build it with node tools/marketing-hub/build-disclaimers.mjs.</p>';
+    return '<h1>Disclaimers</h1><p class="lead">' + esc(X.intro) + '</p>' + X.groups.map(function (g) {
+      var ds = X.disclaimers.filter(function (d) { return d.group === g.key; }); if (!ds.length) return '';
+      return '<h2>' + esc(g.label) + '</h2><div class="scroll"><table class="tbl dsc-tbl"><thead><tr><th>Disclaimer</th><th>Text</th><th>When</th><th>Status</th></tr></thead><tbody>' + ds.map(function (d) {
+        return '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); drawerDisclaimer(d); }) + '><td><b>' + esc(d.name) + '</b><div class="sub">' + d.examples.length + ' example' + (d.examples.length > 1 ? 's' : '') + '</div></td><td class="dsc-cell">' + esc(d.text) + '</td><td class="sub">' + esc(d.when) + '</td>' +
+          '<td><span class="chip ' + (DSC_ST[d.status] || '') + '">' + esc(d.status) + '</span></td></tr>'; }).join('') + '</tbody></table></div>'; }).join('') +
+      '<p class="sub">Built ' + esc(X.built) + ' by tools/marketing-hub/build-disclaimers.mjs from content/reference/disclaimers.json; the rules are in brand/ny-attorney-advertising-disclaimer.md and brand/us-attorney-advertising-disclaimer.md.</p>';
   }
   function viewStatutes() {
     if (!ST) return '<p class="empty">No statute data.</p>';
@@ -3662,6 +3692,8 @@
       AFTER = null; html = routePlatforms(parts, crumbs); after = AFTER;
     } else if (parts[0] === 'organic' && O) {
       html = organicHtml(); crumbs = crumbs.concat(ORG.crumbs);
+    } else if (parts[0] === 'reference' && parts[1] === 'disclaimers') {   /* MH-95 */
+      crumbs.push(['Reference', '#/reference/disclaimers'], ['Disclaimers', '#/reference/disclaimers']); html = viewDisclaimers();
     } else if (parts[0] === 'reference') {
       crumbs.push(['Reference', '#/reference/statutes'], ['Statutes', '#/reference/statutes']); html = viewStatutes();
     } else if (parts[0] === 'work' && parts[1] === 'streams') {   /* MH-84 */
