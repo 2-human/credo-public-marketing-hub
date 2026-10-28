@@ -2583,7 +2583,10 @@
     var s = stOf(p);
     if (s === 'published') return 'Published. Metrics are refreshed from the platform.';
     if (s === 'scheduled') return p.channel === 'nextdoor' ? 'In the Nextdoor feed calendar; the daily task publishes it at ' + fmtTime(p.time) + ' ET.' : 'Queued in Buffer for ' + fmtTime(p.time) + ' ET.';
-    if (s === 'approved') return p.channel === 'nextdoor' ? 'Approved. The next sync ' + (p.short ? 'creates the short link, then ' : '') + 'puts it in the Nextdoor feed calendar for the daily task.' : 'Approved. The next sync queues it in Buffer (once Credo’s Buffer account is connected).';
+    if (s === 'approved') return p.channel === 'nextdoor' ? 'Approved. The next sync ' + (p.short ? 'creates the short link, then ' : '') + 'puts it in the Nextdoor feed calendar for the daily task.' : (function () { var BC = window.HUB_ORGANIC && window.HUB_ORGANIC.bufferChannels, cn = { facebook: 'Facebook', instagram: 'Instagram', linkedin: 'LinkedIn' }[p.channel] || p.channel;
+      if (!BC) return 'Approved. The next sync queues it in Buffer.';
+      return BC.services.indexOf(p.channel) >= 0 ? 'Approved. The next sync queues it in Buffer (' + cn + ' is connected there).'
+        : 'Approved, not queued: ' + cn + ' is not connected in Buffer (Buffer has ' + (BC.services.map(function (x) { return { facebook: 'Facebook', instagram: 'Instagram', linkedin: 'LinkedIn' }[x] || x; }).join(', ') || 'no channel') + ', read ' + BC.pulled + '). It goes out once ' + cn + ' is added to Buffer, or is published directly.'; })();
     if (s === 'changes') return 'Changes requested. The post is revised and returns as a draft.';
     return p.type === 'ad' ? 'Draft. Needs approval, including the responsible attorney’s pre-approval (attorney advertising).' : 'Draft. Needs approval.';
   }
