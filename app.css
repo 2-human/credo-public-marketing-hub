@@ -470,3 +470,9 @@ code.hocode { display:block; font:12px/1.5 ui-monospace,Menlo,monospace; word-br
 .dsc-media { display:block; max-width:100%; width:360px; margin:10px 0 4px; border-radius:6px; border:1px solid var(--line); }
 .dsc-copy { white-space:pre-wrap; }
 @media (max-width:700px) { .dsc-tbl td:nth-child(3) { display:none; } .dsc-tbl th:nth-child(3) { display:none; } }
+
+/* Stream 4 brief: label / text pairs */
+.s4kv { display:grid; grid-template-columns:minmax(140px, 220px) 1fr; gap:6px 16px; margin:8px 0 16px; }
+.s4kv dt { font-weight:600; }
+.s4kv dd { margin:0; }
+@media (max-width: 640px) { .s4kv { grid-template-columns:1fr; } .s4kv dd { margin-bottom:8px; } }

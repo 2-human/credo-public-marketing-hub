@@ -1463,10 +1463,17 @@
     { key: 'social-comments', n: 3, name: 'Social Media Comments', short: 'Every comment on Credo’s posts and ads, by priority for an answer, filterable by platform and post.',
       about: 'Every comment on Credo’s Facebook posts, ads and page reviews, sorted into high, medium and low priority for an answer, with the post it belongs to, why it has that priority and what to do. Read from the Business Suite inbox; Instagram, LinkedIn and Nextdoor join as their comments are read.',
       items: [{ seg: 'social-comments', label: 'Comments to answer', href: '#/ads/social-comments', what: 'The comments by priority (high: today, medium: this week, low: no answer), filterable by platform, post, type and status, each with its post and a link to the thread in Business Suite.',
-        count: function () { var X = S3(); return X ? X.totals.open : 0; } }] }];
+        count: function () { var X = S3(); return X ? X.totals.open : 0; } }] },
+    /* Stream 4, operator 28 Oct: "open a new work stream with a brief for what we have to do regarding the new topic around credit card
+       settlement and interest rates, in terms of google ads strategy, keywords, ads, meta ads and creatives and landing pages" */
+    { key: 'credit-card-validation', n: 4, name: 'Credit Card Validation', short: 'Validation clients: credit card debt at high interest, paying the minimum, not yet sued. The brief for Google Ads, Meta and the pages.',
+      about: 'After the garnishment pause Credo wants more validation files: people with credit card debt who are not in litigation, still paying the minimum on cards at 24–30% interest. The brief covers the guardrails, Google Ads strategy and keywords (with search volumes), ad lines, Meta ads and creatives, landing pages and how to judge the test.',
+      items: [{ seg: 'credit-card-validation', label: 'Brief (v1, for iteration)', href: '#/ads/credit-card-validation', what: 'What we heard on 28 Oct, the guardrails to settle first, the plan per channel, the keywords with search volumes, the open questions and who does what.',
+        count: function () { var X = S4(); return X ? X.questions.length : 0; } }] }];
   var HO = function () { return window.HUB_HANDOFF || null; };
   var S2 = function () { return window.HUB_STREAM2 || null; };   /* MH-93: data/stream2.js, from tools/marketing-hub/build-stream2.mjs */
   var S3 = function () { return window.HUB_STREAM3 || null; };   /* MH-94: data/stream3.js, from tools/marketing-hub/build-stream3.mjs */
+  var S4 = function () { return window.HUB_STREAM4 || null; };   /* Stream 4: data/stream4.js, from tools/marketing-hub/build-stream4.mjs */
   var streamTitle = function (s) { return 'Stream ' + s.n + ': ' + s.name; };
   var streamHref = function (s) { return '#/work/streams/' + s.key; };
   var STREAM_OF = {}, ITEM_OF = {}; STREAMS.forEach(function (s) { s.items.forEach(function (i) { STREAM_OF[i.seg] = s; (i.sub || []).forEach(function (u) { STREAM_OF[u.seg] = s; ITEM_OF[u.seg] = i; }); }); });   /* ITEM_OF: a sub-item's parent tool */
@@ -1600,6 +1607,34 @@
     else if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function () { say('Copied.'); }, function () { say('Could not copy: select the text above.'); });
     else say('Could not copy: select the text above.');
   });
+  /* ───────────── Stream 4: credit card validation clients (brief, 28 Oct) ─────────────
+     The brief from content/campaigns/stream-4/brief.json, section by section, with the Keyword Planner volumes and the search terms
+     the account already matched. A brief to iterate on: nothing here changes an account. */
+  function viewS4() {
+    var X = S4();
+    if (!X) return '<h1>Credit card validation: brief</h1><p class="empty">Stream 4’s data (data/stream4.js) is not loaded. Build it with node tools/marketing-hub/build-stream4.mjs.</p>';
+    var kv4 = function (items) { return '<dl class="s4kv">' + items.map(function (x) { return '<dt>' + esc(x[0]) + '</dt><dd>' + esc(x[1]) + '</dd>'; }).join('') + '</dl>'; };
+    var sec = function (s) {
+      var body = s.items ? kv4(s.items) : '';
+      if (s.lines) body += '<div class="scroll"><table class="tbl"><thead><tr><th>Line</th><th>Text</th><th class="num">Characters</th></tr></thead><tbody>' + s.lines.map(function (l) {
+        return '<tr><td class="sub">' + (l[0] === 'H' ? 'Headline' : 'Description') + '</td><td>' + esc(l[1]) + '</td><td class="num">' + l[1].length + '/' + (l[0] === 'H' ? 30 : 90) + '</td></tr>'; }).join('') + '</tbody></table></div>';
+      if (s.id === 'google') { var K = X.keywords, M = X.matched;
+        body += '<h3>Keywords: monthly searches in the US</h3><p class="sub">' + esc(K.source) + '</p><div class="scroll"><table class="tbl"><thead><tr>' + K.head.map(function (h, i) { return '<th' + (i && i < 5 && i !== 2 ? ' class="num"' : '') + '>' + esc(h) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+          K.rows.slice().sort(function (a, b) { return b[1] - a[1]; }).map(function (r) { return '<tr' + (/exclude/.test(r[5]) ? ' class="s2off"' : '') + '><td>' + esc(r[0]) + '</td><td class="num">' + n0(r[1]) + '</td><td class="sub">' + esc(r[2].toLowerCase()) + '</td><td class="num">' + (r[3] == null ? dash : usd(r[3])) + '</td><td class="num">' + (r[4] == null ? dash : usd(r[4])) + '</td><td class="sub">' + esc(r[5]) + '</td></tr>'; }).join('') + '</tbody></table></div>' +
+          '<ul class="notes">' + Object.keys(K.seasonality).map(function (k) { return '<li><b>' + esc(k) + ':</b> ' + esc(K.seasonality[k]) + '</li>'; }).join('') + '</ul>' +
+          '<h3>What the account already matched</h3><p class="sub">Search terms with settlement, negotiation, consolidation, interest, minimum-payment or hardship words, ' + esc(M.period) + ': ' + M.totals.terms + ' terms, ' + n0(M.totals.clicks) + ' clicks, ' + usd(M.totals.cost) + ', ' + n1(M.totals.conv) + ' conversions. None mention interest or minimum payments.</p>' +
+          '<div class="scroll"><table class="tbl"><thead><tr><th>Search term</th><th>Matched in</th><th class="num">Clicks</th><th class="num">Cost</th><th class="num">Conversions</th></tr></thead><tbody>' +
+          M.rows.filter(function (r) { return r.clicks; }).map(function (r) { return '<tr><td>' + esc(r.term) + '</td><td class="sub">' + esc(r.where) + '</td><td class="num">' + n0(r.clicks) + '</td><td class="num">' + usd(r.cost) + '</td><td class="num">' + n1(r.conv) + '</td></tr>'; }).join('') + '</tbody></table></div>'; }
+      return '<h2 id="s4-' + esc(s.id) + '">' + esc(s.h) + '</h2>' + (s.intro ? '<p class="sub">' + esc(s.intro) + '</p>' : '') + body;
+    };
+    return '<div id="s4page"><h1>' + esc(X.title) + '</h1><p class="lead">' + esc(X.summary) + '</p><p class="note">' + esc(X.version) + ' · built ' + esc(X.built) + ' from ' + esc(X.source) + '. A brief to iterate on: comment on any line in review mode.</p>' +
+      '<nav class="s2toc">' + X.sections.map(function (s) { return '<a href="#s4-' + esc(s.id) + '" onclick="event.preventDefault();document.getElementById(\'s4-' + esc(s.id) + '\').scrollIntoView({behavior:\'smooth\'})">' + esc(s.h) + '</a>'; }).join(' · ') +
+        ' · <a href="#s4-questions" onclick="event.preventDefault();document.getElementById(\'s4-questions\').scrollIntoView({behavior:\'smooth\'})">Questions</a></nav>' +
+      X.sections.map(sec).join('') +
+      '<h2 id="s4-questions">Questions for Credo</h2><ol class="notes">' + X.questions.map(function (q) { return '<li>' + esc(q) + '</li>'; }).join('') + '</ol>' +
+      '<h2>Next steps</h2>' + kv4(X.next) +
+      '<details class="state"><summary>Sources</summary><ul class="notes">' + X.sources.map(function (s) { return '<li>' + esc(s) + '</li>'; }).join('') + '</ul><p class="sub">Built by tools/marketing-hub/build-stream4.mjs from content/campaigns/stream-4/.</p></details></div>';
+  }
   /* ───────────── MH-94: Stream 3, social media comments ─────────────
      Every comment, by priority for an answer (high: today, medium: this week, low: none), with its post. Filters: platform,
      priority or status, post, type and a text search; they live in S3F (kept per browser) and re-render only the list. */
@@ -3703,6 +3738,7 @@
       else if (parts[1] === 'handoff') { crumbs.push(['Handoff', '#/ads/handoff']); html = viewHandoff(); }   /* MH-92 */
       else if (parts[1] === 'garnishment-pause') { crumbs.push(['Actions: Google Ads, Meta Ads, Website', hash]); html = viewS2(); after = wireS2; }   /* MH-93 */
       else if (parts[1] === 'social-comments') { crumbs.push(['Comments to answer', hash]); html = viewS3(); after = wireS3; }   /* MH-94 */
+      else if (parts[1] === 'credit-card-validation') { crumbs.push(['Brief (v1, for iteration)', hash]); html = viewS4(); }   /* Stream 4 */
       else if (parts[1] === 'ab-tests' && STG() && cluDoc()) { crumbs.push(['Current ad groups', '#/ads/ab-tests']); html = viewABPlan(); }
       else if (parts[1] === 'clusters' && STG() && cluDoc()) { crumbs.push(['Search-term clusters', '#/ads/clusters']); AFTER = null;
         /* #/ads/clusters/<intent>/<cluster>; an older #/ads/clusters/<cluster> link means the debt-lawyer intent */
