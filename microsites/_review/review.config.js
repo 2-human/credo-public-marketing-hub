@@ -2,7 +2,7 @@
  *
  * The widget is the plain-page composition of public/harassment-lp/ (pathname pages, not the hub's hash routes).
  * Source: tools/marketing-hub/microsites/_review/; build-microsites.mjs copies it to public/marketing-hub/microsites/_review/
- * and adds it to the main-site prototypes of About and Privacy only (microsites/default/), with the Firebase hosts added
+ * and adds it to the main-site prototypes of About, Privacy, Terms of Use and Cookie Policy only (microsites/default/), with the Firebase hosts added
  * to those pages' Content-Security-Policy. Comments go to the shared Credo database (credo-712c4 /comments).
  * pageKey keeps the comment key stable on any host (localhost or the GitHub Pages mirror): "credo-prototype:<file>",
  * so the same page in another microsite folder would share its comments.
