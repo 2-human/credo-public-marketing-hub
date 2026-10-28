@@ -214,15 +214,22 @@
     });
     others.forEach(function (x) {
       rowsH += '<tr class="lvl0"><td><b>' + esc(x.p.label) + '</b> · ' + esc(x.c.name) + ' › ' + esc(x.g.name) + ' › <a href="' + adHref(x.p, x.c, x.g, x.a) + '">' + esc(adLabel(x.p, x.a)) + '</a></td>' +
-        '<td><span class="chip ok">yes</span></td><td class="num" colspan="8"><span class="dim">' + (x.p.key === 'meta' ? 'no data: account not connected' : 'no data: not launched') + '</span></td></tr>';
+        '<td><span class="chip ok">yes</span></td><td class="num" colspan="8"><span class="dim">' + (x.p.key === 'meta' ? 'Meta results are in Ads › Meta (90 days); visits by Meta ad are not tracked here' : 'no data: not launched') + '</span></td></tr>';
     });
     return h + '<h3>Breakdown · platform › campaign › ad group › ad</h3><div class="scroll"><table class="tbl bd"><thead><tr><th>Item</th><th>Lands here</th><th class="num">Sessions</th>' +
       '<th class="num">Share of ad’s sessions</th><th class="num">Form starts</th><th class="num">Form sends</th><th class="num">Spend*</th><th class="num">Leads*</th><th class="num">Calls*</th><th class="num">Signed*</th></tr></thead><tbody>' +
       rowsH + '</tbody></table></div>';
   }
-  function notConnected(p) {
-    return '<p class="note">' + (p.key === 'meta' ? 'No metrics: Credo’s Meta account is not connected (kept as a placeholder, operator 3 Oct). The campaign is in the upload handoff, paused.' :
-      'No metrics: the Nextdoor campaigns are not launched (handoff only).') + '</p>';
+  /* Meta (28 Oct): 90-day results per ad from the live account snapshot (ads-metrics.js meta tier, Pipeboard, read-only) */
+  function metaAdSum(list) { var M = AM && AM.meta; if (!M) return null; var o = { spend: 0, impr: 0, clicks: 0, link: 0, lpv: 0, leads: 0, n: 0 };
+    (list || []).forEach(function (id) { var r = M.ads[id]; if (!r) return; o.n++; for (var k in o) if (k !== 'n') o[k] += r[k]; }); return o.n ? o : null; }
+  function notConnected(p, list) {
+    if (p.key === 'meta') { var M = AM && AM.meta, o = metaAdSum(list);
+      if (!M) return '<p class="note">Meta results are in the metrics tier (local only).</p>';
+      return '<p class="sub">Last 90 days, ' + esc(M.period) + ' (account snapshot ' + esc(M.pulled) + ', read-only). Daily detail: Platforms › Meta Business Suite › Ads Manager.</p>' +
+        (o ? kv([['Spend', usd(o.spend)], ['Impressions', n0(o.impr)], ['Clicks', n0(o.clicks) + ' (' + n0(o.link) + ' link clicks)'], ['Landing page views', n0(o.lpv)], ['Leads', n0(o.leads)], ['Cost per lead', o.leads ? usd(o.spend / o.leads) : dash], ['Ads with results', n0(o.n)]])
+          : '<p class="empty">No delivery in these 90 days (not launched, or no spend).</p>'); }
+    return '<p class="note">No metrics: the Nextdoor campaigns are not launched (handoff only).</p>';
   }
 
   /* ───────────── drawer ───────────── */
@@ -309,7 +316,7 @@
     return [{ sec: 'Overview', label: 'All sections', href: '#/overview' }].concat(platformNav(ads, web, lps), [   /* MH-68; MH-88: Websites and Ads → Platforms */
             { sec: 'Organic' }].concat(organicNav(), [{ sec: 'Work' }, streamNav()], work, [{ sec: 'Reference' }, { label: 'Disclaimers', href: '#/reference/disclaimers', count: DSC() ? DSC().disclaimers.length : 0 }, { label: 'Statutes', href: '#/reference/statutes', count: ST ? ST.statutes.length : 0 }], [{ sec: 'More' }], more));
   }
-  function adLabel(p, a) { return p.key === 'google' ? (a.headlines[0] || a.name) : p.key === 'meta' ? (a.version + ' · ' + a.name.split('-').slice(0, -1).join('-').replace(/^DD_/, '')) : a.name; }
+  function adLabel(p, a) { return p.key === 'google' ? (a.headlines[0] || a.name) : p.key === 'meta' ? (a.version ? a.version + ' · ' + a.name.split('-').slice(0, -1).join('-').replace(/^DD_/, '') : a.name) : a.name; }
   function renderTree() {
     var cur = (location.hash || '#/overview').split('?')[0];
     if (GA && /^#\/ads\/google\/[^/]+/.test(cur) && !GSECV[cur.split('/')[3]]) cur = gsHref('campaigns');   /* a campaign, ad group or ad page: its menu entry is Campaigns */
@@ -498,6 +505,7 @@
 
   /* ───────────── main views: ads ───────────── */
   function totalsCells(p, ids) {
+    if (p.key === 'meta') { var o = metaAdSum(ids); return '<td class="num">' + (o ? usd(o.spend) + '<div class="sub">90 days</div>' : dash) + '</td><td class="num">' + (o ? n0(o.leads) : dash) + '</td><td class="num">' + dash + '</td><td class="num">' + dash + '</td>'; }
     if (p.key !== 'google') return '<td class="num">' + dash + '</td><td class="num">' + dash + '</td><td class="num">' + dash + '</td><td class="num">' + dash + '</td>';
     var m = gPeriod(ids), a = gAll(ids);
     return '<td class="num">' + (m ? usd(m.cost) : dash) + '</td><td class="num">' + (m ? n1(m.form) : dash) + '</td><td class="num">' + (m ? n1(m.sa_signed) : dash) + '</td><td class="num">' + (a ? usd(a.cost) : dash) + '</td>';
@@ -505,7 +513,7 @@
   var totalsHead = '<th class="num">Spend (period)</th><th class="num">Form leads</th><th class="num">Signed</th><th class="num">Spend (all time)</th>';
   var ids = function (node) { return allAds(node).map(function (a) { return a.id; }); };
   function viewAds() {
-    var h = '<h1>Platforms</h1><p class="lead">The three ad platforms: Google (live account, read-only; organised like Google Ads), Meta (the one consolidated campaign, paused in the handoff) and Nextdoor ' +
+    var h = '<h1>Platforms</h1><p class="lead">The three ad platforms: Google (live account, read-only; organised like Google Ads), Meta (live account, read-only snapshot: Competitive v1 and Debt Defense v4, with 90-day results) and Nextdoor ' +
       '(handoff, not launched). Choose a platform on the left. Click a card here for details.</p><div class="tiles">';
     plats.forEach(function (p) {
       var m = p.key === 'google' ? gPeriod(ids(p)) : null, n = allAds(p).length, g = p.campaigns.reduce(function (t, c) { return t + c.groups.length; }, 0);
@@ -516,7 +524,7 @@
   }
   function drawerPlatform(p) {
     var h = kv([['Connection', esc(p.connection)], ['Source', esc(p.source)], ['Campaigns', String(p.campaigns.length)], ['Ads', String(allAds(p).length)]]);
-    openDrawer(p.label, [['Basic info', h + '<div class="toolbar">' + go(adHref(p), 'Open ' + p.label) + '</div>'], ['Metrics', p.key === 'google' ? gMetricsHtml(ids(p)) : notConnected(p)]]);
+    openDrawer(p.label, [['Basic info', h + '<div class="toolbar">' + go(adHref(p), 'Open ' + p.label) + '</div>'], ['Metrics', p.key === 'google' ? gMetricsHtml(ids(p)) : notConnected(p, ids(p))]]);
   }
   function viewPlatform(p) {
     var ho = p.handoff, mb = ho ? (ho.size >= 1e6 ? (ho.size / 1e6).toFixed(1) + ' MB' : Math.round(ho.size / 1e3) + ' KB') : '';
@@ -529,7 +537,7 @@
       '<div class="scroll"><table class="tbl"><thead><tr><th>Campaign</th><th>Type</th><th>Status</th><th class="num">' + (p.key === 'meta' ? 'Ad sets' : 'Ad groups') + '</th><th class="num">Ads</th>' + totalsHead + '</tr></thead><tbody>';
     p.campaigns.forEach(function (c) {
       h += '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); drawerCampaign(p, c); }) + '><td><a href="' + adHref(p, c) + '">' + esc(c.name) + '</a></td><td>' + esc(c.kind) + '</td><td>' +
-        (p.key === 'google' ? (c.servingNow ? '<span class="chip ok">serving</span>' : '<span class="chip">last ' + esc(c.lastServed || 'never') + '</span>') : '<span class="chip warn">not launched</span>') + '</td>' +
+        (p.key === 'google' ? (c.servingNow ? '<span class="chip ok">serving</span>' : '<span class="chip">last ' + esc(c.lastServed || 'never') + '</span>') : c.live ? '<span class="chip' + (c.servingNow ? ' ok">live' : '">' + esc(String(c.live.status).toLowerCase())) + '</span>' : '<span class="chip warn">not launched</span>') + '</td>' +
         '<td class="num">' + c.groups.length + '</td><td class="num">' + allAds(c).length + '</td>' + totalsCells(p, ids(c)) + '</tr>';
     });
     return h + '</tbody></table></div>';
@@ -537,7 +545,7 @@
   function infoKv(info) { return kv(Object.keys(info).map(function (k) { var v = info[k]; return [k, /^https?:/.test(String(v)) ? link(v) : esc(v)]; })); }
   function drawerCampaign(p, c) {
     var h = infoKv(c.info) + (c.notes ? '<h3>Notes</h3><ul class="notes">' + c.notes.map(function (n) { return '<li>' + esc(n) + '</li>'; }).join('') + '</ul>' : '');
-    openDrawer(c.name, [['Basic info', h + '<div class="toolbar">' + go(adHref(p, c), 'Open the campaign') + '</div>'], ['Metrics', p.key === 'google' ? gMetricsHtml(ids(c)) : notConnected(p)]]);
+    openDrawer(c.name, [['Basic info', h + '<div class="toolbar">' + go(adHref(p, c), 'Open the campaign') + '</div>'], ['Metrics', p.key === 'google' ? gMetricsHtml(ids(c)) : notConnected(p, ids(c))]]);
   }
   function viewCampaign(p, c) {
     var unit = p.key === 'meta' ? 'Ad sets' : 'Ad groups';
@@ -570,7 +578,7 @@
 
   function drawerGroup(p, c, g) {
     openDrawer(g.name, [['Basic info', infoKv(g.info) + '<div class="toolbar">' + go(adHref(p, c, g), 'Open the ' + (p.key === 'meta' ? 'ad set' : 'ad group')) + '</div>'],
-      ['Metrics', p.key === 'google' ? gMetricsHtml(ids(g)) : notConnected(p)], ['Comments', commentsTab('adset:' + g.key)]]);
+      ['Metrics', p.key === 'google' ? gMetricsHtml(ids(g)) : notConnected(p, ids(g))], ['Comments', commentsTab('adset:' + g.key)]]);
   }
   function viewGroup(p, c, g) {
     var h = '<h1>' + esc(g.name) + '</h1><p class="lead">' + (p.key === 'meta' ? 'Ad set' : 'Ad group') + ' in ' + esc(c.name) + '. Click a row for details and metrics; click an ad to see its variants.</p>' + infoKv(g.info);
@@ -1119,7 +1127,7 @@
   var PFH = { google: '#/platforms/google', meta: '#/platforms/meta', nextdoor: '#/platforms/nextdoor', linkedin: '#/platforms/linkedin', webflow: '#/platforms/webflow' };
   var PFL = { google: 'Google', meta: 'Meta Business Suite', nextdoor: 'Nextdoor', linkedin: 'LinkedIn', webflow: 'Webflow' };
   var CHPF = { nextdoor: ['nextdoor', 'Business Page'], facebook: ['meta', 'Facebook Page'], instagram: ['meta', 'Instagram'], linkedin: ['linkedin', 'Company Page'] };   /* organic channel → platform, page label */
-  var ADPF = { google: ['google', 'Google Ads'], meta: ['meta', 'Hand-off campaigns'], nextdoor: ['nextdoor', 'Nextdoor Ads'] };   /* ads-tree platform → platform, area label */
+  var ADPF = { google: ['google', 'Google Ads'], meta: ['meta', 'Campaigns'], nextdoor: ['nextdoor', 'Nextdoor Ads'] };   /* ads-tree platform → platform, area label */
   var pfCrumbs = function (k) { return [['Platforms', '#/platforms'], [PFL[k], PFH[k]]]; };
   var pfNote = function (src) { return '<p class="note">' + src + '</p>'; };
   var pfKpis = function (k) { return '<div class="tiles kpis">' + k.map(function (x) { return '<div class="tile static"><p>' + esc(x[0]) + '</p><div class="big">' + x[1] + '</div><p>' + (x[2] || '') + '</p></div>'; }).join('') + '</div>'; };
@@ -1244,7 +1252,7 @@
       '<h2>Areas</h2><div class="tiles links">' + pfTile('#/platforms/meta/ads-manager', 'Ads Manager', String(m.ads.length), 'ads in ' + m.campaigns.length + ' campaigns and ' + m.adsets.length + ' ad sets') +
       pfTile('#/platforms/meta/insights', 'Insights', usd(t.spend), 'per day, and Instagram account insights') + pfTile('#/platforms/meta/events', 'Events Manager', String(m.pixels.length), 'pixel · last fired ' + esc((m.pixels[0] || {}).lastFired ? m.pixels[0].lastFired.slice(0, 10) : '–')) +
       pfTile('#/organic/facebook', 'Facebook Page', O ? String(O.posts.filter(function (p) { return p.channel === 'facebook'; }).length) : '', 'planned posts · ' + m.fbPosts90 + ' published in 90 days') + pfTile('#/organic/instagram', 'Instagram', O ? String(O.posts.filter(function (p) { return p.channel === 'instagram'; }).length) : '', 'planned posts · @' + esc(m.ig.username)) +
-      (platBy.meta ? pfTile(adHref(platBy.meta), 'Hand-off campaigns', String(platBy.meta.campaigns.length), 'the repo’s campaign builds (Debt Defense v4, A1–A6 creatives)') : '') + '</div>' +
+      (platBy.meta ? pfTile(adHref(platBy.meta), 'Campaigns', String(platBy.meta.campaigns.length), 'the live campaigns (Competitive v1, Debt Defense v4) with status and 90-day results') : '') + '</div>' +
       '<h2>Findings</h2>' + pfFindings(fl, 'Meta snapshot ' + m.pulled + '.');
   }
   var MAT = [['campaigns', 'Campaigns'], ['adsets', 'Ad sets'], ['ads', 'Ads'], ['audiences', 'Audiences']];
@@ -1432,7 +1440,7 @@
     var oc = function (c) { var p = CHPF[c]; return { label: p[1], href: '#/organic/' + c, count: O ? O.posts.filter(function (x) { return x.channel === c; }).length : null }; };
     var m = PF && PF.meta, w = PF && PF.webflow, g = ad('google'), md = ad('meta'), nd = ad('nextdoor');
     return [{ sec: 'Platforms', label: 'Google', href: PFH.google, children: [g ? { label: 'Google Ads', href: g.href, children: g.children } : null, { label: 'Google Analytics', href: '#/platforms/google/analytics' }, { label: 'Google Search Console', href: '#/platforms/google/search-console' }, { label: 'Google Business', href: '#/platforms/google/business' }].filter(Boolean) },
-      { label: 'Meta Business Suite', href: PFH.meta, count: m ? m.ads.length : null, children: [{ label: 'Ads Manager', href: '#/platforms/meta/ads-manager', count: m ? m.ads.length : null }, { label: 'Insights', href: '#/platforms/meta/insights' }, { label: 'Events Manager', href: '#/platforms/meta/events' }, oc('facebook'), oc('instagram'), md ? { label: 'Hand-off campaigns', href: md.href, count: md.count, children: md.children } : null].filter(Boolean) },
+      { label: 'Meta Business Suite', href: PFH.meta, count: m ? m.ads.length : null, children: [{ label: 'Ads Manager', href: '#/platforms/meta/ads-manager', count: m ? m.ads.length : null }, { label: 'Insights', href: '#/platforms/meta/insights' }, { label: 'Events Manager', href: '#/platforms/meta/events' }, oc('facebook'), oc('instagram'), md ? { label: 'Campaigns', href: md.href, count: md.count, children: md.children } : null].filter(Boolean) },
       { label: 'Nextdoor', href: PFH.nextdoor, children: [oc('nextdoor'), nd ? { label: 'Nextdoor Ads', href: nd.href, count: nd.count, children: nd.children } : null].filter(Boolean) },
       { label: 'LinkedIn', href: PFH.linkedin, children: [oc('linkedin'), { label: 'LinkedIn Ads', href: '#/platforms/linkedin/ads' }] },
       { label: 'Webflow', href: PFH.webflow, count: wfSites().length || null, children: wfSites().map(function (x) { return { label: x.name, href: wfHref(x), count: x.pages.length }; })
@@ -2097,7 +2105,7 @@
     var site = landingSite(a); if (site) h += '<p class="note">This landing page is in the Website section: <a href="' + site + '">open it</a>.</p>';
     var kwTab = p.key === 'google' && AM && AM.google.kw ? keywordsTable((AM.google.kw[a.id] || []).map(function (k) { return { kw: k[0], match: k[1], impr: k[2], clicks: k[3], cost: k[4], conv: k[5], ads: [] }; }), false) : null;
     var cTab = ['Comments', commentsTab('ad:' + p.key + ':' + a.id)];
-    openDrawer(adLabel(p, a), [['Basic info', h + '<div class="toolbar">' + go(adHref(p, c, g, a), 'Show the ad variants') + '</div>'], ['Metrics', p.key === 'google' ? gMetricsHtml([a.id]) : notConnected(p)], kwTab ? ['Keywords', kwTab] : null, cTab], !!kwTab);
+    openDrawer(adLabel(p, a), [['Basic info', h + '<div class="toolbar">' + go(adHref(p, c, g, a), 'Show the ad variants') + '</div>'], ['Metrics', p.key === 'google' ? gMetricsHtml([a.id]) : notConnected(p, [a.id])], kwTab ? ['Keywords', kwTab] : null, cTab], !!kwTab);
   }
   function landingSite(a) {   /* the microsite page for an ad's landing page, if the Website section has it */
     if (!a.slug) return null; var hit = null;
@@ -3745,7 +3753,7 @@
         html = CLUS[parts[2]] ? viewClusters(parts[2], parts[3] || '') : viewClusters('debt_lawyer', parts[2] || ''); after = AFTER; }
       else if (parts[1] === 'new-pages' && STG()) { crumbs.push(['New pages', '#/ads/new-pages']); html = viewNewPages(); }
       else if (parts[1] === 'meta' && parts[3] === 'A1-A6' && findAd('meta', parts[2]).c) { var fo = findAd('meta', parts[2]);   /* MH-64: A1–A6 creatives overview */
-        crumbs.push.apply(crumbs, pfCrumbs('meta').concat([['Hand-off campaigns', adHref(fo.p)], [fo.c.name, adHref(fo.p, fo.c)], ['A1–A6 creatives', hash]])); html = viewMetaOverview(fo.p, fo.c);
+        crumbs.push.apply(crumbs, pfCrumbs('meta').concat([['Campaigns', adHref(fo.p)], [fo.c.name, adHref(fo.p, fo.c)], ['A1–A6 creatives', hash]])); html = viewMetaOverview(fo.p, fo.c);
         after = function () { [].forEach.call(main.querySelectorAll('.ovgrid video'), function (v) {   /* videos play while hovered */
           v.parentNode.addEventListener('mouseenter', function () { var q = v.play(); if (q && q.catch) q.catch(function () {}); }); v.parentNode.addEventListener('mouseleave', function () { v.pause(); }); }); }; }
       else {
