@@ -1520,6 +1520,11 @@
       t([['Lands on'], ['Ads', 1]], E.metaA.destinations.map(function (d) { return '<tr>' + td(link(d.url, d.url.replace('https://', ''))) + td(n0(d.ads), 1) + '</tr>'; }));
     if (key === 'boldCopy') return '<p class="sub">Primary texts in ' + esc(E.boldCopy.file) + ' that mention a judgment or garnishment. The build stops if a lawsuit text offers help after a judgment.</p>' +
       t([['Ad'], ['Primary text']], E.boldCopy.lines.map(function (l) { return '<tr' + (l.garnishment ? ' class="s2off"' : '') + '>' + td(l.garnishment ? 'Garnishment <span class="chip">paused</span>' : 'Lawsuit') + td(esc(l.text)) + '</tr>'; }));
+    if (key === 'extensions') { var XE = E.extensions; if (!XE) return '<p class="sub">Not read yet.</p>';
+      return '<p class="sub">Read ' + esc(XE.pulled) + ' through Ryze: ' + Object.keys(XE.counts).map(function (k) { return n0(XE.counts[k]) + ' ' + k + ' links'; }).join(', ') + '. Rows that mention garnishment, levies or judgments or link to a garnishment page; serving first.</p>' +
+        t([['Serving'], ['Kind'], ['Where'], ['Type'], ['Text or URL']], XE.rows.map(function (r) { return '<tr' + (r.serving ? '' : ' class="s2off"') + '>' + td(r.serving ? '<span class="chip warn">serving</span>' : '<span class="sub">paused</span>') + td(r.kind === 'garnishment' ? 'garnishment' : '<span class="sub">judgment: check</span>') +
+          td(esc(r.campaign + (r.group ? ' › ' + r.group : '')) + '<div class="sub">' + esc(r.level) + ' level</div>') + td(esc(String(r.field).toLowerCase().replace('_', ' ')) + (r.label ? '<div class="sub">' + esc(r.label) + '</div>' : '')) +
+          td(esc(r.hits.concat(r.urls).join(' · '))) + '</tr>'; })); }
     if (key === 'organic') return t([['Date'], ['Channel'], ['Post'], ['Status']], E.organic.posts.map(function (p) { return '<tr>' + td(esc(p.date)) + td(esc(p.channel)) + td(esc(p.title)) + td(esc(p.status)) + '</tr>'; }));
     return '';
   }
