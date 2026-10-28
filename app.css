@@ -475,4 +475,9 @@ code.hocode { display:block; font:12px/1.5 ui-monospace,Menlo,monospace; word-br
 .s4kv { display:grid; grid-template-columns:minmax(140px, 220px) 1fr; gap:6px 16px; margin:8px 0 16px; }
 .s4kv dt { font-weight:600; }
 .s4kv dd { margin:0; }
+.s4grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:12px; margin:8px 0 18px; }
+.s4card { display:flex; flex-direction:column; gap:4px; text-align:left; padding:8px; border:1px solid var(--line); border-radius:8px; background:var(--card, transparent); color:inherit; font:inherit; cursor:pointer; }
+.s4card:hover { border-color:var(--accent); } .s4card img { width:100%; aspect-ratio:4/5; object-fit:cover; border-radius:4px; }
+.s4cre { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; } .s4cre figure { margin:0; width:min(240px, 46%); } .s4cre img { width:100%; border-radius:4px; }
+code.wrap { word-break:break-all; white-space:normal; }
 @media (max-width: 640px) { .s4kv { grid-template-columns:1fr; } .s4kv dd { margin-bottom:8px; } }

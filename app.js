@@ -1477,7 +1477,11 @@
     { key: 'credit-card-validation', n: 4, name: 'Credit Card Validation', short: 'Validation clients: credit card debt at high interest, paying the minimum, not yet sued. The brief for Google Ads, Meta and the pages.',
       about: 'After the garnishment pause Credo wants more validation files: people with credit card debt who are not in litigation, still paying the minimum on cards at 24–30% interest. The brief covers the guardrails, Google Ads strategy and keywords (with search volumes), ad lines, Meta ads and creatives, landing pages and how to judge the test.',
       items: [{ seg: 'credit-card-validation', label: 'Brief (v1, for iteration)', href: '#/ads/credit-card-validation', what: 'What we heard on 28 Oct, the guardrails to settle first, the plan per channel, the keywords with search volumes, the open questions and who does what.',
-        count: function () { var X = S4(); return X ? X.questions.length : 0; } }] }];
+        count: function () { var X = S4(); return X ? X.questions.length : 0; } },
+        /* operator 28 Oct: "Produce one full campaign package in the same work stream. Google Ads Campaign … 2 ad groups with 3 ads
+           each … Create adequate extensions. Explain why you made the decisions in a brief. Then do the same for meta ads." */
+        { seg: 'credit-card-validation-package', label: 'Campaign package v1', href: '#/ads/credit-card-validation-package', what: 'The decisions and why, the Google campaign (settings, negatives, 2 ad groups × 3 ads, extensions), the Meta campaign (2 ad sets × 3 ads with creatives), the six landing pages and the tracked URLs.',
+          count: function () { var X = S4(); return X && X.package ? 12 : 0; } }] }];
   var HO = function () { return window.HUB_HANDOFF || null; };
   var S2 = function () { return window.HUB_STREAM2 || null; };   /* MH-93: data/stream2.js, from tools/marketing-hub/build-stream2.mjs */
   var S3 = function () { return window.HUB_STREAM3 || null; };   /* MH-94: data/stream3.js, from tools/marketing-hub/build-stream3.mjs */
@@ -1642,6 +1646,60 @@
       '<h2 id="s4-questions">Questions for Credo</h2><ol class="notes">' + X.questions.map(function (q) { return '<li>' + esc(q) + '</li>'; }).join('') + '</ol>' +
       '<h2>Next steps</h2>' + kv4(X.next) +
       '<details class="state"><summary>Sources</summary><ul class="notes">' + X.sources.map(function (s) { return '<li>' + esc(s) + '</li>'; }).join('') + '</ul><p class="sub">Built by tools/marketing-hub/build-stream4.mjs from content/campaigns/stream-4/.</p></details></div>';
+  }
+  /* Stream 4 campaign package (content/campaigns/stream-4/package.json, 28 Oct): Google and Meta side by side, every ad on the
+     page that answers its message; an ad opens a drawer with all its lines, the tracked URL and its match on the other platform. */
+  function viewS4P() {
+    var X = S4(), P = X && X.package;
+    if (!P) return '<h1>Credit card validation: campaign package</h1><p class="empty">No package in data/stream4.js. Build it with node tools/marketing-hub/build-stream4.mjs (reads content/campaigns/stream-4/package.json).</p>';
+    var kv4 = function (o) { return '<dl class="s4kv">' + Object.keys(o).filter(function (k) { return typeof o[k] === 'string'; }).map(function (k) { return '<dt>' + esc(k.replace(/([A-Z])/g, ' $1').replace(/^./, function (c) { return c.toUpperCase(); })) + '</dt><dd>' + esc(o[k]) + '</dd>'; }).join('') + '</dl>'; };
+    var START = 'https://start.credolegal.com/', pageOf = {}; P.pages.forEach(function (pg) { pageOf[pg.slug] = pg; });
+    var gAds = {}, mAds = {}; P.google.adGroups.forEach(function (g) { g.ads.forEach(function (a) { gAds[a.key] = [a, g]; }); }); P.meta.adSets.forEach(function (s) { s.ads.forEach(function (a) { mAds[a.key] = [a, s]; if (a.matches) gAds[a.matches] && (gAds[a.matches][0].meta = a.key); }); });
+    var pageLink = function (slug) { return '<a href="' + START + esc(slug) + '" target="_blank" rel="noopener">/' + esc(slug) + '</a>'; };
+    var lines = function (arr, max, pins) { return '<table class="tbl"><tbody>' + arr.map(function (t, i) { var pin = pins && pins.HEADLINE_1 && pins.HEADLINE_1.indexOf(t) >= 0;
+      return '<tr><td class="num sub">' + (i + 1) + '</td><td>' + esc(t) + (pin ? ' <span class="chip">pinned to position 1</span>' : '') + '</td><td class="num sub">' + t.length + '/' + max + '</td></tr>'; }).join('') + '</tbody></table>'; };
+    var pageTab = function (slug) { var pg = pageOf[slug]; if (!pg) return '';
+      return '<p><b>' + pageLink(slug) + '</b></p><dl class="s4kv"><dt>H1</dt><dd>' + esc(pg.h1) + ' <span class="sub">(accent: ' + esc(pg.accent) + ')</span></dd><dt>Hero</dt><dd>' + esc(pg.hero) + '</dd><dt>What we do</dt><dd>' + esc(pg.whatWeDo) + '</dd><dt>Message</dt><dd>' + esc(pg.message) + '</dd><dt>Built from</dt><dd>' + esc(pg.based) + '</dd><dt>Used by</dt><dd>' + esc(pg.usedBy.join(', ')) + '</dd></dl>' +
+        '<h3>FAQ (topical questions first)</h3><ol class="notes">' + pg.faq.map(function (q) { return '<li>' + esc(q) + '</li>'; }).join('') + '</ol>'; };
+    var drawerG = function (key) { var a = gAds[key][0], g = gAds[key][1], m = a.meta && mAds[a.meta][0];
+      openDrawer('Google ' + key + ': ' + a.angle, [
+        ['Ad', '<p class="sub">Responsive search ad in ' + esc(g.name) + '. ' + a.headlines.length + ' headlines, ' + a.descriptions.length + ' descriptions.</p><h3>Headlines</h3>' + lines(a.headlines, 30, a.pins) + '<h3>Descriptions</h3>' + lines(a.descriptions, 90) +
+          '<h3>Final URL</h3><p><code>' + esc(a.finalUrl) + '</code></p><p class="sub">With the campaign’s final URL suffix a click lands on:</p><p><code class="wrap">' + esc(a.trackedExample) + '</code></p>' +
+          (m ? '<h3>Same page on Meta</h3><p>' + esc(a.meta) + ': “' + esc(m.headline) + '” (' + esc(mAds[a.meta][1].name) + ')</p>' : '')],
+        ['Landing page', pageTab(a.page)]], true); };
+    var drawerM = function (key) { var a = mAds[key][0], s = mAds[key][1], g = a.matches && gAds[a.matches][0];
+      openDrawer('Meta ' + key + ': ' + a.headline, [
+        ['Ad', (a.creatives.length ? '<div class="s4cre">' + a.creatives.map(function (c) { return '<figure><img src="' + esc(c) + '" alt="' + esc(a.headline) + '" loading="lazy"><figcaption class="sub">' + esc(c.replace(/^.*-(\w+)\.jpg$/, '$1').replace('x', ':')) + '</figcaption></figure>'; }).join('') + '</div>' : '') +
+          '<dl class="s4kv"><dt>Ad set</dt><dd>' + esc(s.name) + '</dd><dt>Primary text</dt><dd style="white-space:pre-line">' + esc(a.primary) + '</dd><dt>Headline</dt><dd>' + esc(a.headline) + '</dd><dt>Description</dt><dd>' + esc(a.description) + '</dd><dt>Button</dt><dd>' + esc(a.cta) + '</dd>' +
+          '<dt>Website URL</dt><dd><code>' + esc(a.websiteUrl) + '</code></dd><dt>URL parameters</dt><dd><code class="wrap">' + esc(a.urlParameters) + '</code></dd><dt>Disclaimer</dt><dd class="sub">' + esc(P.meta.disclaimer) + '</dd></dl>' +
+          (g ? '<h3>Same page on Google</h3><p>' + esc(a.matches) + ': ' + esc(g.angle) + '</p>' : '')],
+        ['Creative brief', '<dl class="s4kv"><dt>Concept</dt><dd>' + esc(a.concept) + '</dd><dt>Image prompt</dt><dd class="sub">' + esc(a.prompt) + '</dd><dt>Made with</dt><dd>Higgsfield (gpt_image), text baked by scripts/organic/bake-stream4.py</dd></dl>'],
+        ['Landing page', pageTab(a.page)]], true); };
+    var adRows = function (g) { return '<div class="scroll"><table class="tbl"><thead><tr><th>Ad</th><th>Angle</th><th>First headlines</th><th>Landing page</th><th>Meta match</th></tr></thead><tbody>' + g.ads.map(function (a) {
+      return '<tr class="click"' + dr(function () { drawerG(a.key); }) + '><td><b>' + esc(a.key) + '</b></td><td>' + esc(a.angle) + '</td><td class="sub">' + esc(a.headlines.slice(0, 3).join(' | ')) + '</td><td class="sub">/' + esc(a.page) + '</td><td>' + esc(a.meta || '') + '</td></tr>'; }).join('') + '</tbody></table></div>'; };
+    var G = P.google, E = G.extensions, M = P.meta;
+    return '<div id="s4page"><h1>' + esc(P.title) + '</h1><p class="lead">Two ad groups with three ads each on Google, two ad sets with three ads each on Meta, six landing pages: every Meta ad shares the page of the Google ad with the same message.</p><p class="note">' + esc(P.version) + ' · ' + esc(P.status) + '. Nothing here changes an account.</p>' +
+      '<nav class="s2toc"><a href="#/ads/credit-card-validation">← Brief</a> · ' + [['s4p-why', 'Why'], ['s4p-google', 'Google campaign'], ['s4p-groups', 'Ad groups'], ['s4p-ext', 'Extensions'], ['s4p-meta', 'Meta campaign'], ['s4p-pages', 'Landing pages'], ['s4p-q', 'Questions']].map(function (x) {
+        return '<a href="#' + x[0] + '" onclick="event.preventDefault();document.getElementById(\'' + x[0] + '\').scrollIntoView({behavior:\'smooth\'})">' + x[1] + '</a>'; }).join(' · ') + '</nav>' +
+      '<h2 id="s4p-why">Why: the decisions</h2><dl class="s4kv">' + P.decisions.map(function (d) { return '<dt>' + esc(d[0]) + '</dt><dd>' + esc(d[1]) + '</dd>'; }).join('') + '</dl>' +
+      '<h2 id="s4p-google">Google Ads: ' + esc(G.campaign.name) + '</h2>' + kv4(G.campaign) + '<dl class="s4kv"><dt>Shared negative lists</dt><dd>' + esc(G.campaign.sharedNegatives.join(', ')) + '</dd><dt>Final URL suffix</dt><dd><code class="wrap">' + esc(G.suffix) + '</code></dd></dl>' +
+      '<h3>Campaign negatives (phrase)</h3><p class="sub">' + esc(G.campaignNegatives.why) + '</p><p>' + G.campaignNegatives.phrase.map(function (n) { return '<span class="chip">' + esc(n) + '</span>'; }).join(' ') + '</p>' +
+      '<h2 id="s4p-groups">Ad groups</h2>' + G.adGroups.map(function (g) {
+        return '<h3>' + esc(g.name) + ' <span class="sub">utm_term=' + esc(g.utmTerm) + '</span></h3><p>' + esc(g.intent) + '</p>' +
+          '<div class="scroll"><table class="tbl"><thead><tr><th>Keyword</th><th>Match</th><th class="num">Searches/mo</th><th>Competition</th><th class="num">Top-of-page bid</th></tr></thead><tbody>' + g.keywords.map(function (k) {
+            return '<tr><td>' + esc(k.text) + '</td><td class="sub">' + esc(k.match) + '</td><td class="num">' + (k.vol == null ? dash : n0(k.vol)) + '</td><td class="sub">' + (k.comp ? esc(String(k.comp).toLowerCase()) : dash) + '</td><td class="num">' + (k.bid && k.bid[0] != null ? usd(k.bid[0]) + '–' + usd(k.bid[1]) : dash) + '</td></tr>'; }).join('') + '</tbody></table></div>' +
+          '<p class="sub"><b>Ad group negatives:</b> ' + esc(g.negatives.join(', ')) + '</p>' + adRows(g); }).join('') +
+      '<h2 id="s4p-ext">Extensions</h2><p class="sub">' + esc(E.why) + '</p>' +
+      '<div class="scroll"><table class="tbl"><thead><tr><th>Sitelink</th><th>Line 1</th><th>Line 2</th><th>Page</th></tr></thead><tbody>' + E.sitelinks.map(function (l) { return '<tr><td><b>' + esc(l[0]) + '</b> <span class="sub">' + l[0].length + '/25</span></td><td>' + esc(l[1]) + '</td><td>' + esc(l[2]) + '</td><td class="sub">' + pageLink(l[3]) + '</td></tr>'; }).join('') + '</tbody></table></div>' +
+      '<dl class="s4kv"><dt>Callouts</dt><dd>' + E.callouts.map(function (c) { return '<span class="chip">' + esc(c) + '</span>'; }).join(' ') + '</dd>' + E.snippets.map(function (sn) { return '<dt>Snippet: ' + esc(sn[0]) + '</dt><dd>' + esc(sn[1].join(', ')) + '</dd>'; }).join('') + '<dt>Call</dt><dd>' + esc(E.call) + '</dd><dt>Image</dt><dd>' + esc(E.image) + '</dd></dl>' +
+      '<h2 id="s4p-meta">Meta: ' + esc(M.campaign.name) + '</h2>' + kv4(M.campaign) + '<dl class="s4kv"><dt>Disclaimer (in every primary text)</dt><dd class="sub">' + esc(M.disclaimer) + '</dd></dl>' +
+      M.adSets.map(function (s) { return '<h3>' + esc(s.name) + '</h3><div class="s4grid">' + s.ads.map(function (a) {
+        return '<button class="s4card"' + dr(function () { drawerM(a.key); }) + '>' + (a.creatives[0] ? '<img src="' + esc(a.creatives[0]) + '" alt="' + esc(a.headline) + '" loading="lazy">' : '') + '<span><b>' + esc(a.key) + '</b> ' + esc(a.headline) + '</span><span class="sub">/' + esc(a.page) + (a.matches ? ' · same page as Google ' + esc(a.matches) : '') + '</span></button>'; }).join('') + '</div>'; }).join('') +
+      '<h2 id="s4p-pages">Landing pages</h2><p class="sub">' + esc(P.pageRules) + '</p><div class="scroll"><table class="tbl"><thead><tr><th>Page</th><th>H1</th><th>Used by</th></tr></thead><tbody>' + P.pages.map(function (pg) {
+        return '<tr class="click"' + dr(function () { openDrawer('/' + pg.slug, [['Landing page', pageTab(pg.slug)]], true); }) + '><td class="sub">/' + esc(pg.slug) + '</td><td>' + esc(pg.h1) + '</td><td class="sub">' + esc(pg.usedBy.join(', ')) + '</td></tr>'; }).join('') + '</tbody></table></div>' +
+      '<p class="sub">The pages are specs: they are not built yet on staging or start.</p>' +
+      '<h2 id="s4p-q">Questions</h2><ol class="notes">' + P.questions.map(function (q) { return '<li>' + esc(q) + '</li>'; }).join('') + '</ol>' +
+      '<details class="state"><summary>Sources</summary><p class="sub">content/campaigns/stream-4/package.json, Keyword Planner volumes from ' + esc(X.keywords.source) + ', creatives in public/marketing-hub/assets/stream-4/ (bases in content/campaigns/stream-4/creatives/base/). Built by tools/marketing-hub/build-stream4.mjs.</p></details></div>';
   }
   /* ───────────── MH-94: Stream 3, social media comments ─────────────
      Every comment, by priority for an answer (high: today, medium: this week, low: none), with its post. Filters: platform,
@@ -3750,6 +3808,7 @@
       else if (parts[1] === 'garnishment-pause') { crumbs.push(['Actions: Google Ads, Meta Ads, Website', hash]); html = viewS2(); after = wireS2; }   /* MH-93 */
       else if (parts[1] === 'social-comments') { crumbs.push(['Comments to answer', hash]); html = viewS3(); after = wireS3; }   /* MH-94 */
       else if (parts[1] === 'credit-card-validation') { crumbs.push(['Brief (v1, for iteration)', hash]); html = viewS4(); }   /* Stream 4 */
+      else if (parts[1] === 'credit-card-validation-package') { crumbs.push(['Campaign package v1', hash]); html = viewS4P(); }   /* Stream 4 */
       else if (parts[1] === 'ab-tests' && STG() && cluDoc()) { crumbs.push(['Current ad groups', '#/ads/ab-tests']); html = viewABPlan(); }
       else if (parts[1] === 'clusters' && STG() && cluDoc()) { crumbs.push(['Search-term clusters', '#/ads/clusters']); AFTER = null;
         /* #/ads/clusters/<intent>/<cluster>; an older #/ads/clusters/<cluster> link means the debt-lawyer intent */
