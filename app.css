@@ -437,6 +437,8 @@ code.hocode { display:block; font:12px/1.5 ui-monospace,Menlo,monospace; word-br
 .s2rec { background:var(--card); border:1px solid var(--line); border-radius:6px; padding:12px 15px; min-width:0; }
 .s2rec h3 { margin:0 0 6px; font-size:14.5px; line-height:1.35; } .s2rec h3 .chip { vertical-align:2px; margin-left:4px; } .s2rec p { margin:4px 0 8px; max-width:900px; }
 .s2id { display:inline-block; min-width:26px; color:var(--mute); font-weight:600; font-variant-numeric:tabular-nums; }
+.s2acts tr.s2na td { color:var(--mute); }   /* checked, nothing to change */
+.s2acts td:first-child { min-width:260px; }
 .s2rec details.state { margin-top:6px; }
 .tbl tr.s2off td { color:var(--mute); } .tbl tr.s2tot td { border-top:2px solid var(--line); }
 .s2neg { max-height:220px; columns:2; column-gap:28px; } @media (max-width:700px) { .s2neg { columns:1; } }

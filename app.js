@@ -1455,10 +1455,10 @@
             kids: function () { return NCL().map(function (c) { return { label: c.label, href: '#/ads/new-clusters/' + enc(c.key) }; }); } },
           { seg: 'handoff', label: 'Handoff', href: '#/ads/handoff', what: 'Everything needed to apply each new ad (B) and its landing page in Google Ads and Webflow: the ad group, the ad, the page, and a prompt that applies them.', count: function () { return HO() ? HO().groups.length : 0; } }] }] },   /* MH-92 */
     /* MH-93, operator 26 Oct: "Please create a Stream 2 in Work in the hub, and produce a page with recommendations for google ads and meta ads, based on the input" */
-    { key: 'garnishment-pause', n: 2, name: 'Garnishment Pause', short: 'Credo stops garnishment and post-judgment work: what changes in Google Ads and Meta.',
+    { key: 'garnishment-pause', n: 2, name: 'Garnishment Pause', short: 'Credo stops garnishment and post-judgment work: the actions in Google Ads, Meta Ads and the websites.',
       about: 'Credo pauses all garnishment campaigns (26 Oct). What that means for the Google Ads and Meta accounts, the landing pages and the organic calendar, from the client’s answers and the account data.',
-      items: [{ seg: 'garnishment-pause', label: 'Google Ads and Meta recommendations', href: '#/ads/garnishment-pause', what: 'What to pause, rewrite, exclude and move in Google Ads and Meta, with the evidence for each step and a reply for the ads manager.',
-        count: function () { var X = S2(); return X ? X.google.length + X.meta.length : 0; } }] },
+      items: [{ seg: 'garnishment-pause', label: 'Actions: Google Ads, Meta Ads, Website', href: '#/ads/garnishment-pause', what: 'Every action in Google Ads, Meta Ads and on the websites, each with its evidence, a hand-over file and a prompt that applies it through Ryze, Pipeboard or Webflow.',
+        count: function () { var X = S2(); return X && X.actions ? s2All(X).filter(function (a) { return !a.noAction && a.status !== 'done'; }).length : 0; } }] },
     /* MH-94, operator 26 Oct: "Create a Stream 3 for social media comments … segment them as high, medium and low priority for answers" */
     { key: 'social-comments', n: 3, name: 'Social Media Comments', short: 'Every comment on Credo’s posts and ads, by priority for an answer, filterable by platform and post.',
       about: 'Every comment on Credo’s Facebook posts, ads and page reviews, sorted into high, medium and low priority for an answer, with the post it belongs to, why it has that priority and what to do. Read from the Business Suite inbox; Instagram, LinkedIn and Nextdoor join as their comments are read.',
@@ -1513,7 +1513,7 @@
     if (key === 'judgLines') return '<p class="sub">Lines with “judgment” in the lawsuit and Debt Collector ads (assets of ' + esc(E.judgLines.pulled) + '):</p>' + t([['Ad group'], ['Line'], ['Impressions', 1]],
       E.judgLines.rows.map(function (r) { return '<tr>' + td(esc(r.campaign + ' › ' + r.group) + '<div class="sub">' + esc(r.kind) + ' · ad ' + esc(r.ad) + '</div>') + td(esc(r.text)) + td(n0(r.impr), 1) + '</tr>'; }));
     var setT = function (sets) { return t([['Ad set'], ['Daily budget', 1], ['Spend, 90 days', 1], ['Leads', 1], ['Cost per lead', 1], ['Ads']],
-      sets.map(function (x) { return '<tr' + (/^Garnishment/.test(x.name) ? ' class="s2off"' : '') + '>' + td(esc(x.name) + ' <span class="sub">' + esc(String(x.status).toLowerCase()) + ' on 14 Oct</span>') + td(x.daily ? usd(x.daily) : dash, 1) + td(usd(x.spend), 1) + td(n0(x.leads), 1) + td(x.cpl ? usd(x.cpl) : dash, 1) + td('<span class="sub">' + esc(x.ads.join(' · ')) + '</span>') + '</tr>'; })); };
+      sets.map(function (x) { return '<tr' + (/^Garnishment/.test(x.name) ? ' class="s2off"' : '') + '>' + td(esc(x.name) + ' <span class="sub">' + esc(String(x.status).toLowerCase()) + ' on ' + esc(X.metaPulled || '') + '</span>') + td(x.daily ? usd(x.daily) : dash, 1) + td(usd(x.spend), 1) + td(n0(x.leads), 1) + td(x.cpl ? usd(x.cpl) : dash, 1) + td('<span class="sub">' + esc(x.ads.join(' · ')) + '</span>') + '</tr>'; })); };
     if (key === 'metaGarn') return setT(E.metaGarn.sets);
     if (key === 'metaBudget') return '<p class="sub">Meta, ' + esc(E.metaBudget.period) + ' (website leads).</p>' + setT(E.metaBudget.sets);
     if (key === 'metaA') return '<p class="sub">Copy files checked: ' + esc(E.metaA.files.map(function (f) { return f.file + ' (' + f.hits + ' matches)'; }).join(', ')) + '.</p>' +
@@ -1523,54 +1523,78 @@
     if (key === 'organic') return t([['Date'], ['Channel'], ['Post'], ['Status']], E.organic.posts.map(function (p) { return '<tr>' + td(esc(p.date)) + td(esc(p.channel)) + td(esc(p.title)) + td(esc(p.status)) + '</tr>'; }));
     return '';
   }
-  function s2Recs(X, list) {
-    return '<div class="s2recs">' + list.map(function (r) {
-      var lines = r.lines ? '<div class="scroll"><table class="tbl s2lines"><thead><tr><th>Ad</th><th>Now</th><th>Replace with</th></tr></thead><tbody>' + r.lines.map(function (l) {   /* stacked cards on phones (app.css) */
-          return '<tr><td data-l="Ad">' + esc(l.ad) + '<div class="sub">' + esc(l.kind) + ' · ' + n0(l.impr) + ' impr.</div></td><td class="sub s2now" data-l="Now">' + esc(l.now) + '</td><td class="s2new" data-l="Replace with"><b>' + esc(l.new) + '</b> <span class="sub">' + l.new.length + '/' + (l.kind === 'headline' ? 30 : 90) + '</span></td></tr>'; }).join('') + '</tbody></table></div>' : '';
-      var pts = r.points ? '<ul class="s2pts">' + r.points.map(function (x) { return '<li><b>' + esc(x[0]) + ':</b> ' + esc(x[1]) + '</li>'; }).join('') + '</ul>' : '';
-      var negs = r.negatives ? '<p class="sub">' + esc(r.negatives.note) + '</p><pre class="hopre s2neg">' + esc(r.negatives.phrase.map(function (k) { return '"' + k + '"'; }).join('\n')) + '</pre>' +
-        '<div class="hobtns"><button type="button" class="btn" data-s2copy="neg">Copy the negatives</button> <span class="sub" data-s2msg="neg"></span></div>' : '';
-      return '<section class="s2rec" id="s2-' + esc(r.id) + '"><h3><span class="s2id">' + esc(r.id) + '</span> ' + esc(r.title) + ' <span class="chip ' + (S2ST[r.status] || '') + '">' + esc(r.status) + '</span>' + (r.owner ? ' <span class="sub">' + esc(r.owner) + '</span>' : '') + '</h3>' +
-        '<p>' + esc(r.what) + '</p>' + pts + lines + negs + (r.evidence ? '<details class="state"' + (r.lines || r.negatives ? '' : ' open') + '><summary>Evidence</summary>' + s2Ev(X, r.evidence) + '</details>' : '') + '</section>'; }).join('') + '</div>';
+  /* 28 Oct (operator): "a clear list of actions … across Google Ads, Meta Ads, Website. Each action should open a drawer with a
+     handover file and an option to apply the recommendations via connectors". One table per platform; a row opens the action's
+     drawer: What and why (the step, its targets' evidence), Hand-over (the file for the person applying it) and Apply via
+     <connector> (a prompt for a Claude session with Ryze, Pipeboard or Webflow that reads first and asks before any change). */
+  var S2PF = [['google', 'Google Ads'], ['meta', 'Meta Ads'], ['website', 'Website']];
+  function s2All(X) { return X.actions.google.concat(X.actions.meta, X.actions.website); }
+  function s2Find(id) { var X = S2(); return X ? s2All(X).filter(function (a) { return a.id === id; })[0] || null : null; }
+  function s2Btns(a, kind) { var f = 'stream2-' + a.id.toLowerCase() + (kind === 'prompt' ? '-apply-' + a.connector : '-handover') + '.md';
+    return '<div class="hobtns"><button type="button" class="btn" data-s2c="' + esc(a.id + '|' + kind) + '">Copy</button> <button type="button" class="btn" data-s2d="' + esc(a.id + '|' + kind) + '" data-f="' + esc(f) + '">' + esc(f) + '</button> <span class="sub" data-s2msg></span></div>'; }
+  function s2What(X, r) {
+    var lines = r.lines ? '<div class="scroll"><table class="tbl s2lines"><thead><tr><th>Ad</th><th>Now</th><th>Replace with</th></tr></thead><tbody>' + r.lines.map(function (l) {   /* stacked cards on phones (app.css) */
+        return '<tr><td data-l="Ad">' + esc(l.ad) + '<div class="sub">' + esc(l.kind) + ' · ' + (l.applied ? 'done' : n0(l.impr) + ' impr.') + '</div></td><td class="sub s2now" data-l="Now">' + esc(l.now) + '</td><td class="s2new" data-l="Replace with"><b>' + esc(l.new) + '</b> <span class="sub">' + l.new.length + '/' + (l.kind === 'headline' ? 30 : 90) + '</span></td></tr>'; }).join('') + '</tbody></table></div>' : '';
+    var pts = r.points ? '<ul class="s2pts">' + r.points.map(function (x) { return '<li><b>' + esc(x[0]) + ':</b> ' + esc(x[1]) + '</li>'; }).join('') + '</ul>' : '';
+    var negs = r.negatives ? '<p class="sub">' + esc(r.negatives.note) + '</p><pre class="hopre s2neg">' + esc(r.negatives.phrase.map(function (k) { return '"' + k + '"'; }).join('\n')) + '</pre>' +
+      '<div class="hobtns"><button type="button" class="btn" data-s2c="' + esc(r.id) + '|neg">Copy the negatives</button> <span class="sub" data-s2msg></span></div>' : '';
+    var list = function (h, xs, ol) { return xs && xs.length ? '<h3>' + h + '</h3><' + (ol ? 'ol' : 'ul') + ' class="notes">' + xs.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</' + (ol ? 'ol' : 'ul') + '>' : ''; };
+    return '<p><span class="chip ' + (S2ST[r.status] || '') + '">' + esc(r.status) + '</span>' + (r.owner ? ' <span class="sub">' + esc(r.owner) + '</span>' : '') + '</p>' + (r.checked ? '<p class="note">' + esc(r.checked) + '</p>' : '') +
+      '<p>' + esc(r.what) + '</p>' + pts + lines + negs + list('Steps', r.steps, true) + list('Done when', r.check) +
+      (r.evidence ? '<h3>Evidence</h3>' + s2Ev(X, r.evidence) : '');
+  }
+  function drawerS2(a) {
+    var X = S2(), how = { ryze: 'a Claude Code session with the Ryze connector (Google Ads, Credo Legal 9399506772)', pipeboard: 'a Claude Code session with the Pipeboard Meta Ads connector', webflow: 'a Claude Code session with the Webflow connector', repo: 'a Claude Code session in the credo repo' }[a.connector];
+    var mode = (a.apply || {}).mode;
+    openDrawer(a.id + ' · ' + a.title, [['What and why', s2What(X, a)],
+      ['Hand-over', '<p class="sub">For the person who applies it (' + esc(a.owner || 'Miloš · Milan') + '): what, where, the exact targets, the steps and when it is done.</p><pre class="hopre">' + esc(a.handover) + '</pre>' + s2Btns(a, 'handover')],
+      a.prompt ? ['Apply via ' + a.connectorLabel, '<p class="sub">Paste into ' + esc(how) + '. ' + (mode === 'read' ? 'It only reads and reports.' : mode === 'decision' ? 'It waits for the decision (' + esc(a.apply.needs) + ') and changes nothing before it.' : 'It reads the current state first and asks for a clear yes before every change.') +
+        ' Nothing is applied from the hub itself.</p><pre class="hopre">' + esc(a.prompt) + '</pre>' + s2Btns(a, 'prompt')] : null], 'wide');
+  }
+  function s2Table(X, list) {
+    return '<div class="scroll"><table class="tbl s2acts"><thead><tr><th>Action</th><th>Status</th><th>Who</th><th>Apply via</th></tr></thead><tbody>' + list.map(function (a) {
+      return '<tr class="clk' + (a.noAction ? ' s2na' : '') + '"' + dr(function (el) { el.classList.add('sel'); drawerS2(a); }) + '><td><span class="s2id">' + esc(a.id) + '</span> ' + esc(a.title) + (a.checked ? '<div class="sub">' + esc(a.checked) + '</div>' : '') + '</td>' +
+        '<td><span class="chip ' + (S2ST[a.status] || '') + '">' + esc(a.status) + '</span></td><td class="sub">' + esc(a.owner || '–') + '</td><td class="sub">' + (a.prompt ? esc(a.connectorLabel) + (a.apply.mode === 'read' ? ' · read-only' : a.apply.mode === 'decision' ? ' · after the decision' : '') : '–') + '</td></tr>'; }).join('') + '</tbody></table></div>';
   }
   function viewS2() {
     var X = S2();
-    if (!X) return '<h1>Google Ads and Meta recommendations</h1><p class="empty">Stream 2’s data (data/stream2.js) is not loaded. Build it with node tools/marketing-hub/build-stream2.mjs.</p>';
-    var I = X.input, G = X.ev.garnShare, gset = X.ev.metaGarn.sets.filter(function (x) { return / — Bold/.test(x.name); })[0] || {};
-    var open = X.google.concat(X.meta, X.related).filter(function (r) { return r.status === 'open' || r.status === 'decision' || r.status === 'needs OK'; }).length;
-    return '<div id="s2page"><h1>' + esc(X.title) + '</h1><p class="lead">' + esc(I.decision) + ' ' + esc(I.rule) + '</p>' + (X.dataNote ? '<p class="note">' + esc(X.dataNote) + (X.roles ? ' ' + esc(X.roles) : '') + '</p>' : '') +
-      '<div class="tiles kpis"><div class="tile"><h3>Google Ads paused</h3><div class="big">' + Math.round(G.share.cost * 100) + '% of spend</div><p>' + Math.round(G.share.conv * 100) + '% of conversions, 30 days to 13 Oct</p></div>' +
-      '<div class="tile"><h3>Meta paused</h3><div class="big">' + usd(gset.daily || 0) + ' a day</div><p>Garnishment — Bold Challenger: ' + n0(gset.leads || 0) + ' leads at ' + (gset.cpl ? usd(gset.cpl) : dash) + ' in 90 days</p></div>' +
-      '<div class="tile"><h3>Steps</h3><div class="big">' + (X.google.length + X.meta.length) + '</div><p>' + X.google.length + ' Google Ads · ' + X.meta.length + ' Meta · ' + X.related.length + ' related</p></div>' +
-      '<div class="tile"><h3>Open or to decide</h3><div class="big">' + open + '</div><p>' + X.questions.length + ' questions for Credo</p></div></div>' +
-      '<div class="s2next"><h3>Next steps</h3><ol>' + X.google.concat(X.meta).filter(function (r) { return r.status === 'open' || r.status === 'decision'; }).sort(function (a, b) { return (a.status === 'decision') - (b.status === 'decision'); })
-        .map(function (r) { return '<li><a href="#s2-' + esc(r.id) + '" data-s2jump>' + esc(r.id + ' · ' + r.title) + '</a> <span class="sub">' + esc(r.owner || '') + (r.status === 'decision' ? ' · to decide' : '') + '</span></li>'; }).join('') + '</ol></div>' +
-      '<nav class="s2toc"><a href="#s2-input" data-s2jump>The input</a> · <a href="#s2-google" data-s2jump>Google Ads</a> · <a href="#s2-meta" data-s2jump>Meta</a> · <a href="#s2-related" data-s2jump>Related</a> · <a href="#s2-questions" data-s2jump>Questions</a> · <a href="#s2-reply" data-s2jump>Reply to Milan</a></nav>' +
-      '<h2 id="s2-input">The input</h2><p class="sub">' + esc(I.source) + '. Answers by ' + esc(I.by) + '.</p>' +
-      '<div class="scroll"><table class="tbl"><thead><tr><th class="num">#</th><th>Question (Milan Gajić)</th><th>Answer</th></tr></thead><tbody>' + I.answers.map(function (a, k) { return '<tr><td class="num">' + (k + 1) + '</td><td>' + esc(a.q) + '</td><td><b>' + esc(a.a) + '</b></td></tr>'; }).join('') + '</tbody></table></div>' +
-      '<ul class="notes">' + I.asks.map(function (a) { return '<li>' + esc(a) + '</li>'; }).join('') + '</ul>' +
-      '<h2 id="s2-google">Google Ads</h2>' + s2Recs(X, X.google) +
-      '<h2 id="s2-meta">Meta</h2>' + s2Recs(X, X.meta) +
-      '<h2 id="s2-related">Related, outside the ad platforms</h2><p class="sub">These decide whether the pause holds: the ads stop, but the pages, the form and the organic posts would still bring garnishment leads.</p>' + s2Recs(X, X.related) +
-      '<h2 id="s2-questions">To confirm with Credo</h2><ol class="notes">' + X.questions.map(function (q) { return '<li>' + esc(q) + '</li>'; }).join('') + '</ol>' +
-      '<h2 id="s2-reply">Reply to Milan</h2><pre class="hopre">' + esc(X.reply) + '</pre><div class="hobtns"><button type="button" class="btn" data-s2copy="reply">Copy the reply</button> <span class="sub" data-s2msg="reply"></span></div>' +
-      '<details class="state"><summary>Sources</summary><ul class="notes">' + X.sources.map(function (s) { return '<li>' + esc(s) + '</li>'; }).join('') + '</ul><p class="sub">Built ' + esc(X.built) + ' by tools/marketing-hub/build-stream2.mjs from content/campaigns/stream-2/garnishment-pause.json. Read-only: nothing was changed in Google Ads, Meta or Webflow.</p></details></div>';
+    if (!X || !X.actions) return '<h1>Garnishment pause: actions</h1><p class="empty">Stream 2’s data (data/stream2.js) is not loaded. Build it with node tools/marketing-hub/build-stream2.mjs.</p>';
+    var I = X.input, G = X.ev.garnShare, gset = X.ev.metaGarn.sets.filter(function (x) { return / — Bold/.test(x.name); })[0] || {}, all = s2All(X);
+    var todo = function (a) { return !a.noAction && a.status !== 'done' && a.status !== 'no change' && a.status !== 'answer'; };
+    return '<div id="s2page"><h1>Garnishment pause: actions</h1><p class="lead">' + esc(I.decision) + ' ' + esc(I.rule) + '</p>' + (X.roles ? '<p class="note">' + esc(X.roles) + ' Click an action for its hand-over file and the prompt that applies it through Ryze, Pipeboard or Webflow.</p>' : '') +
+      '<div class="tiles kpis">' + S2PF.map(function (p) { var L = X.actions[p[0]], open = L.filter(todo);
+        return '<a class="tile" href="#s2-' + p[0] + '" data-s2jump><h3>' + p[1] + '</h3><div class="big">' + open.length + ' to do</div><p>' + L.filter(function (a) { return a.status === 'done'; }).length + ' done · ' + L.filter(function (a) { return a.noAction; }).length + ' no change' +
+          (L.some(function (a) { return a.status === 'decision'; }) ? ' · ' + L.filter(function (a) { return a.status === 'decision'; }).length + ' to decide' : '') + '</p></a>'; }).join('') +
+      '<div class="tile"><h3>What is paused</h3><div class="big">' + Math.round(G.share.cost * 100) + '% of Google spend</div><p>' + Math.round(G.share.conv * 100) + '% of conversions (' + esc(G.period) + '); Meta: ' + usd(gset.daily || 0) + ' a day</p></div></div>' +
+      S2PF.map(function (p) { var L = X.actions[p[0]];
+        return '<h2 id="s2-' + p[0] + '">' + p[1] + ' <span class="sub">' + L.filter(todo).length + ' of ' + L.length + ' to do</span></h2>' + s2Table(X, L); }).join('') +
+      (X.organic ? '<p class="sub"><b>Organic:</b> ' + esc(X.organic.title) + ' (' + esc(X.organic.status) + ').</p>' : '') +
+      '<details class="state"><summary>The input: Credo’s decision and answers</summary><p class="sub">' + esc(I.source) + '. Answers by ' + esc(I.by) + '.</p>' +
+        '<div class="scroll"><table class="tbl"><thead><tr><th class="num">#</th><th>Question (Milan Gajić)</th><th>Answer</th></tr></thead><tbody>' + I.answers.map(function (a, k) { return '<tr><td class="num">' + (k + 1) + '</td><td>' + esc(a.q) + '</td><td><b>' + esc(a.a) + '</b></td></tr>'; }).join('') + '</tbody></table></div>' +
+        '<ul class="notes">' + I.asks.map(function (a) { return '<li>' + esc(a) + '</li>'; }).join('') + '</ul></details>' +
+      '<details class="state"><summary>To confirm with Credo (' + X.questions.length + ')</summary><ol class="notes">' + X.questions.map(function (q) { return '<li>' + esc(q) + '</li>'; }).join('') + '</ol></details>' +
+      '<details class="state"><summary>Reply to Milan</summary><pre class="hopre">' + esc(X.reply) + '</pre><div class="hobtns"><button type="button" class="btn" data-s2c="reply|reply">Copy the reply</button> <span class="sub" data-s2msg></span></div></details>' +
+      '<details class="state"><summary>Sources</summary><ul class="notes">' + X.sources.map(function (s) { return '<li>' + esc(s) + '</li>'; }).join('') + '</ul><p class="sub">Built ' + esc(X.built) + ' by tools/marketing-hub/build-stream2.mjs from content/campaigns/stream-2/garnishment-pause.json. Read-only: the hub changes nothing in Google Ads, Meta or Webflow.</p></details></div>';
   }
   function wireS2() {
-    var X = S2(), root = $('s2page'); if (!X || !root) return;   /* the listener lives on the page's own element, so a re-render never stacks it */
-    root.addEventListener('click', function (e) {
-      var j = e.target.closest('[data-s2jump]'); if (j) { e.preventDefault(); var el = document.getElementById(j.getAttribute('href').slice(1)); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
-      var b = e.target.closest('[data-s2copy]'); if (!b) return;
-      var k = b.getAttribute('data-s2copy'), msg = root.querySelector('[data-s2msg="' + k + '"]');
-      var text = k === 'reply' ? X.reply : X.google.filter(function (r) { return r.negatives; })[0].negatives.phrase.map(function (w) { return '"' + w + '"'; }).join('\n');
-      /* copy inside the click itself (execCommand needs the user's gesture); the Clipboard API only if that fails */
-      var ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select();
-      var ok = false; try { ok = document.execCommand('copy'); } catch (x) {} ta.remove();
-      if (ok) msg.textContent = 'Copied.';
-      else if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function () { msg.textContent = 'Copied.'; }, function () { msg.textContent = 'Could not copy: select the text above.'; });
-      else msg.textContent = 'Could not copy: select the text above.';
-    });
+    var root = $('s2page'); if (!root) return;   /* the listener lives on the page's own element, so a re-render never stacks it */
+    root.addEventListener('click', function (e) { var j = e.target.closest('[data-s2jump]'); if (!j) return; e.preventDefault(); var el = document.getElementById(j.getAttribute('href').slice(1)); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
   }
+  /* copy and download for Stream 2's texts, in the page and in the drawer: one listener for the document, set once */
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-s2c], [data-s2d]'); if (!b || !S2()) return;
+    var k = (b.getAttribute('data-s2c') || b.getAttribute('data-s2d')).split('|'), a = s2Find(k[0]), msg = b.parentNode.querySelector('[data-s2msg]');
+    var text = k[1] === 'reply' ? S2().reply : !a ? '' : k[1] === 'neg' ? a.negatives.phrase.map(function (w) { return '"' + w + '"'; }).join('\n') : k[1] === 'prompt' ? a.prompt : a.handover;
+    if (!text) return;
+    if (b.hasAttribute('data-s2d')) { var u = URL.createObjectURL(new Blob([text], { type: 'text/markdown' })), l = document.createElement('a'); l.href = u; l.download = b.getAttribute('data-f'); document.body.appendChild(l); l.click(); l.remove(); setTimeout(function () { URL.revokeObjectURL(u); }, 1000); if (msg) msg.textContent = 'Downloaded.'; return; }
+    /* copy inside the click itself (execCommand needs the user's gesture); the Clipboard API only if that fails */
+    var ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select();
+    var ok = false; try { ok = document.execCommand('copy'); } catch (x) {} ta.remove();
+    var say = function (t) { if (msg) msg.textContent = t; };
+    if (ok) say('Copied.');
+    else if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function () { say('Copied.'); }, function () { say('Could not copy: select the text above.'); });
+    else say('Could not copy: select the text above.');
+  });
   /* ───────────── MH-94: Stream 3, social media comments ─────────────
      Every comment, by priority for an answer (high: today, medium: this week, low: none), with its post. Filters: platform,
      priority or status, post, type and a text search; they live in S3F (kept per browser) and re-render only the list. */
@@ -3672,7 +3696,7 @@
       else if (parts[1] === 'new-clusters') { crumbs.push(['New ad groups', '#/ads/new-clusters']); var nc = NCL().filter(function (c) { return c.key === parts[2]; })[0]; if (nc) crumbs.push([nc.label, hash]);   /* MH-74, MH-85 */
         html = viewNewClusters(); if (nc) after = function () { if (/^page-/.test(TAB || '')) NC_PAGE = TAB.slice(5); drawerNC(nc, /^page-/.test(TAB || '') ? 'Pages' : null); }; }   /* MH-75: …/<key> opens the ad group's drawer (?tab=page-<ad>: on that ad's page) */
       else if (parts[1] === 'handoff') { crumbs.push(['Handoff', '#/ads/handoff']); html = viewHandoff(); }   /* MH-92 */
-      else if (parts[1] === 'garnishment-pause') { crumbs.push(['Google Ads and Meta recommendations', hash]); html = viewS2(); after = wireS2; }   /* MH-93 */
+      else if (parts[1] === 'garnishment-pause') { crumbs.push(['Actions: Google Ads, Meta Ads, Website', hash]); html = viewS2(); after = wireS2; }   /* MH-93 */
       else if (parts[1] === 'social-comments') { crumbs.push(['Comments to answer', hash]); html = viewS3(); after = wireS3; }   /* MH-94 */
       else if (parts[1] === 'ab-tests' && STG() && cluDoc()) { crumbs.push(['Current ad groups', '#/ads/ab-tests']); html = viewABPlan(); }
       else if (parts[1] === 'clusters' && STG() && cluDoc()) { crumbs.push(['Search-term clusters', '#/ads/clusters']); AFTER = null;
