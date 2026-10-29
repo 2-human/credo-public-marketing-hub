@@ -69,6 +69,14 @@
     return { angle: s.angle, home: s.home != null ? s.home : s.angle, label: s.label, homeCopy: s.homeCopy, pages: pages, types: s.types };   /* home: staging address of the home (PBI-43: '' for the default site) */
   });
   var siteBy = {}; sites.forEach(function (s) { siteBy[s.angle] = s; });
+  /* Stream 4's new credit card pages (operator 29 Oct: "Add the new credit card pages to the Landing Pages and Microsites
+     sections"): drafts built in the browser from their page-recs (data/stream4.js), listed under Credit Card in the
+     microsite their address names (debt-credit-card-<angle>-…); not on staging or start, not in the Services menu */
+  (function () { var P = window.HUB_STREAM4 && window.HUB_STREAM4.package; if (!P) return;
+    (P.pages || []).forEach(function (pg) { if (!(P.pageRecs || {})[pg.slug]) return;
+      var s = sites.filter(function (x) { return x.angle !== 'default' && pg.slug.indexOf('debt-credit-card-' + x.angle + '-') === 0; })[0], t = s && s.types.filter(function (x) { return x.type === 'credit-card'; })[0]; if (!t) return;
+      s.pages.push({ id: 'new/' + pg.slug, label: pg.slug, kind: 'service', debt: t.label, file: null, staging: null, live: null, liveSlug: null, inMenu: false, isNew: true, recKey: 's4|' + pg.slug, h1: pg.h1,
+        reason: 'new page (Stream 4 draft), not in the menu', running: false, hadAd: false, reg: null }); }); })();
   /* MH-66 (operator 12 Oct): Website › Landing pages — every landing page (each microsite's Services pages, the default site's
      Defense Services pages included) grouped by debt type, beside Website › Microsites */
   var LP_BASE = '#/website/landing-pages', lpTypes = [], lpTypeBy = {};
@@ -379,13 +387,15 @@
     return h + '</div>';
   }
   function viewLandingPages() {
-    var h = '<h1>Landing pages</h1><p class="lead">All ' + lpCount + ' landing pages of the website, grouped by debt type: each microsite’s Services pages and the default site’s Defense Services pages, mirrored 1:1 from staging.credolegal.com. ' +
+    var nNew = lpTypes.reduce(function (t, g) { return t + g.pages.filter(function (x) { return x.p.isNew; }).length; }, 0);
+    var h = '<h1>Landing pages</h1><p class="lead">All ' + lpCount + ' landing pages of the website, grouped by debt type: each microsite’s Services pages and the default site’s Defense Services pages, mirrored 1:1 from staging.credolegal.com' +
+      (nNew ? ', and ' + nNew + ' new credit card pages from Stream 4 (marked new: drafts built in the hub, not on staging yet)' : '') + '. ' +
       'Each card links to the debt type’s page (its pages with metrics) and to each landing page.</p><div class="tiles links">';
     var HX = HRO(); if (HX) h += '<div class="tile"><h3><a href="' + LP_BASE + '/hero-images">Alternative hero images</a> <span class="cnt">' + HX.pages.reduce(function (t, x) { return t + x.alts.length; }, 0) + '</span></h3>' +
       '<p>Two for each of the ' + HX.pages.length + ' prototype pages (landing pages, microsite homes and the new pages): why each one fits its page, and a link to see it there.</p></div>';
     lpTypes.forEach(function (g) {
       h += '<div class="tile"><h3><a href="' + lpHref(g) + '">' + esc(g.label) + '</a> <span class="cnt">' + g.pages.length + '</span></h3><ul class="lnks">' +
-        g.pages.map(function (x) { return '<li><a href="' + lpHref(g, x) + '">' + esc(tail(x.p.label, g.key)) + '</a>' + (x.p.running ? ' <span class="chip ok">running</span>' : '') + '</li>'; }).join('') + '</ul></div>';
+        g.pages.map(function (x) { return '<li><a href="' + lpHref(g, x) + '">' + esc(tail(x.p.label, g.key)) + '</a>' + (x.p.isNew ? ' <span class="chip warn">new</span>' : x.p.running ? ' <span class="chip ok">running</span>' : '') + '</li>'; }).join('') + '</ul></div>';
     });
     return h + '</div>';
   }
@@ -418,7 +428,8 @@
       return { href: '#/website/' + ang + '/index', label: s.label + ' › Home', file: s.pages[0].file }; }
     if (H.kind === 'landing page') { var hit = null; lpTypes.forEach(function (g) { g.pages.forEach(function (x) { if (!hit && x.p.label === H.id) hit = { href: lpHref(g, x), label: x.s.label + ' › ' + H.id, file: x.p.file }; }); }); return hit; }
     s4PageRecs(); var key = Object.keys(ADC.pageRecs || {}).filter(function (k) { var R = ADC.pageRecs[k]; return R.page && R.page.name === H.id; })[0]; if (!key) return null;
-    return /^s4\|/.test(key) ? { href: '#/ads/credit-card-validation-package', label: 'Credit card validation › package › /' + H.id, key: key } : { href: '#/ads/ab-tests', label: 'Current ad groups › ' + (H.page.adGroup || key).replace('|', ' › ') + ' (new page for ad B)', key: key }; }
+    var lp = null; lpTypes.forEach(function (g) { g.pages.forEach(function (x) { if (!lp && x.p.label === H.id) lp = { href: lpHref(g, x), label: 'Landing pages › ' + g.label + ' › ' + H.id + ' (new, Stream 4)', key: key }; }); });
+    return /^s4\|/.test(key) ? lp || { href: '#/ads/credit-card-validation-package', label: 'Credit card validation › package › /' + H.id, key: key } : { href: '#/ads/ab-tests', label: 'Current ad groups › ' + (H.page.adGroup || key).replace('|', ' › ') + ' (new page for ad B)', key: key }; }
   function viewHeroes() {
     var HX = HRO(); if (!HX) return '<h1>Alternative hero images</h1><p class="empty">No data/heroes.js. Build it with python3 tools/marketing-hub/bake-heroes.py.</p>';
     var n = HX.pages.reduce(function (t, x) { return t + x.alts.length; }, 0);
@@ -450,7 +461,7 @@
     g.pages.forEach(function (x) {
       var m = pageNums(x.p.liveSlug);
       h += '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); drawerPage(x.s, x.p); }) + '><td><a href="' + lpHref(g, x) + '">' + esc(x.p.label) + '</a></td>' +
-        '<td><a href="#/website/' + x.s.angle + '">' + esc(x.s.label) + '</a></td><td>' + (x.p.running ? '<span class="chip ok">running</span>' : x.p.hadAd ? '<span class="chip">had an ad</span>' : '') + '</td>' +
+        '<td><a href="#/website/' + x.s.angle + '">' + esc(x.s.label) + '</a></td><td>' + (x.p.isNew ? '<span class="chip warn">new · draft</span>' : x.p.running ? '<span class="chip ok">running</span>' : x.p.hadAd ? '<span class="chip">had an ad</span>' : '') + '</td>' +
         '<td class="num">' + (m ? usd(m.spend) : dash) + '</td><td class="num">' + (m ? n0(m.visits) : dash) + '</td><td class="num">' + (m ? n0(m.formSubmit) : dash) + '</td><td class="num">' + (m ? n1(m.sa_signed) : dash) + '</td></tr>';
     });
     return h + '</tbody></table></div><p class="note">Sessions and form sends are measured on each page. * Spend and signed clients are allocated to a page by the share of each ad’s sessions that landed there (estimate).</p>';
@@ -462,22 +473,28 @@
     s.pages.forEach(function (p) {
       var m = pageNums(p.liveSlug);
       h += '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); drawerPage(s, p); }) + '><td><a href="#/website/' + s.angle + '/' + enc(p.id) + '">' + esc(p.label) + '</a>' +
-        (p.debt ? '<div class="sub">' + esc(p.debt) + '</div>' : '') + '</td><td>' + esc(p.kind) + '</td><td>' + (p.kind !== 'service' ? '' : p.inMenu ? '<span class="chip ok">in menu</span>' : '<span class="chip">not in menu</span>') + '</td>' +
+        (p.debt ? '<div class="sub">' + esc(p.debt) + '</div>' : '') + '</td><td>' + (p.isNew ? 'new page <span class="chip warn">draft</span>' : esc(p.kind)) + '</td><td>' + (p.kind !== 'service' ? '' : p.inMenu ? '<span class="chip ok">in menu</span>' : '<span class="chip">not in menu</span>') + '</td>' +
         '<td class="num">' + (m ? usd(m.spend) : dash) + '</td><td class="num">' + (m ? n0(m.visits) : dash) + '</td><td class="num">' + (m ? n0(m.formSubmit) : dash) + '</td><td class="num">' + (m ? n1(m.sa_signed) : dash) + '</td></tr>';
     });
     return h + '</tbody></table></div><p class="note">Sessions and form sends are measured on each page. * Spend and signed clients are allocated to a page by the share of each ad’s sessions that landed there (estimate).</p>';
   }
   var phoneView = (function () { try { return localStorage.getItem('mh-phone') === '1'; } catch (e) { return false; } })();
   function viewPage(s, p, base) {
+    if (p.isNew) return '<h1>' + esc(p.label) + '</h1><p class="lead">New credit card page (Stream 4): <b>' + esc(p.h1) + '</b>. Built in the hub from its copy; not on staging or start yet, and not in the Services menu. ' +
+      'Its ads and brief: <a href="#/ads/credit-card-validation-package">Campaign package</a>.</p>' + (s4ProtoTab(p.label) || '<p class="empty">No page-recs for this page in data/stream4.js.</p>');
     base = base || '#/website/' + s.angle + '/' + enc(p.id); var stp = ST && p.kind === 'service' ? (ST.pages[p.label] || []) : [], pads = adsForPage(p.liveSlug);
     var head = '<h1>' + esc(p.label) + '</h1>' + tabsBar(base, [['preview', 'Preview'], ['ads', 'Ads', pads.length], ['statutes', 'Statutes', stp.length]], TAB);
     if (TAB === 'ads') return head + pageAdsHtml(pads);
     if (TAB === 'statutes') return head + pageStatutesHtml(stp);
-    var h = head + '<div class="toolbar">' +
+    /* the hero switcher with the explanation above it (operator 29 Oct: "Apply the alt 1 and alt 2 images to all the pages we
+       have, in Landing Pages and Microsites") */
+    var hid = p.kind === 'service' ? p.label : p.id === 'index' ? (s.angle === 'default' ? 'home' : s.angle + '-home') : null, HP = hid ? heroOf(hid) : null, hi = HP ? heroCur(hid) : 0;
+    var h = head + (HP ? '<div data-hero-scope="' + esc(hid) + '"><div class="hwhy" data-hero-box>' + heroBox(HP, hi) + '</div><div class="abpgctl">' + heroBtns(HP, hi) + '</div>' : '') + '<div class="toolbar">' +
       '<button class="btn" id="vw-desk" aria-pressed="' + !phoneView + '">Desktop</button><button class="btn" id="vw-phone" aria-pressed="' + phoneView + '">Phone (390 px)</button>' +
-      '<button class="btn"' + dr(function () { drawerPage(s, p); }) + '>Details and metrics</button>' + link(p.file, 'Open in a new tab ↗') + link(p.staging, 'Staging ↗') +
+      '<button class="btn"' + dr(function () { drawerPage(s, p); }) + '>Details and metrics</button>' +
+      (HP ? '<a data-hero-tab href="' + esc(p.file + '?hero=' + hi) + '" target="_blank" rel="noopener">Open in a new tab ↗</a>' : link(p.file, 'Open in a new tab ↗')) + link(p.staging, 'Staging ↗') +
       '<span class="frame-scale" id="frame-scale"></span></div>' +
-      '<div class="frame-wrap" id="frame-wrap"><div class="frame-hold" id="frame-hold"><iframe src="' + esc(p.file) + '" title="' + esc(p.label) + '"></iframe></div></div>';
+      '<div class="frame-wrap" id="frame-wrap"><div class="frame-hold" id="frame-hold"><iframe' + (HP ? ' data-hero-ctl' : '') + ' src="' + esc(p.file) + '" title="' + esc(p.label) + '"></iframe></div></div>' + (HP ? '</div>' : '');
     return h;
   }
   function pageAdsHtml(list) {
@@ -551,6 +568,9 @@
     fitFrame();
   }
   function drawerPage(s, p) {
+    if (p.isNew) { s4PageRecs(); var R = (ADC.pageRecs || {})[p.recKey];
+      openDrawer(p.label, [['Basic info', kv([['Microsite', esc(s.label)], ['Kind', 'new page (Stream 4 draft)'], ['Debt type', esc(p.debt)], ['Headline', esc(p.h1 || '')], ['Built on', esc(R && R.page ? R.page.base : '')],
+        ['Status', 'draft for attorney review; not on staging or start; not in the Services menu']]) + '<div class="toolbar">' + go('#/website/' + s.angle + '/' + enc(p.id), 'Open the page') + go('#/ads/credit-card-validation-package', 'Campaign package') + '</div>']], true); return; }
     var ph = p.reg ? Object.keys(p.reg.phones || {}).map(function (k) { return k + ' ' + p.reg.phones[k]; }).join(' · ') : '';
     var h = kv([['Microsite', esc(s.label)], ['Kind', esc(p.kind)], ['Debt type', esc(p.debt || '')], ['Services menu', p.kind === 'service' ? (p.inMenu ? 'yes · ' : 'no · ') + esc(p.reason || '') : ''],
       ['Staging', link(p.staging)], ['Live (start)', p.live ? link(p.live) : ''], ['Local file', link(p.file)], ['Tracking numbers', esc(ph)],
@@ -1430,7 +1450,7 @@
   var wfNorm = function (p) { return (p || '').replace(/\/$/, '') || '/'; };
   var WFMIRROR = null;
   function wfMirror(path) {
-    if (!WFMIRROR) { WFMIRROR = {}; sites.forEach(function (s) { s.pages.forEach(function (p) { var k = wfNorm('/' + p.staging.slice(STAGING.length)); if (!WFMIRROR[k]) WFMIRROR[k] = p.file; }); }); }
+    if (!WFMIRROR) { WFMIRROR = {}; sites.forEach(function (s) { s.pages.forEach(function (p) { if (!p.staging) return; var k = wfNorm('/' + p.staging.slice(STAGING.length)); if (!WFMIRROR[k]) WFMIRROR[k] = p.file; }); }); }
     return WFMIRROR[wfNorm(path)] || null;
   }
   var WFD = { dev: 'desktop' };
@@ -1546,6 +1566,8 @@
   var S3 = function () { return window.HUB_STREAM3 || null; };   /* MH-94: data/stream3.js, from tools/marketing-hub/build-stream3.mjs */
   var S4 = function () { return window.HUB_STREAM4 || null; };   /* Stream 4: data/stream4.js, from tools/marketing-hub/build-stream4.mjs */
   /* the Stream 4 pages in the page-recs format, beside the A/B new pages (key 's4|<slug>'), built in the browser like them */
+  function s4ProtoTab(slug) { s4PageRecs(); var R = (ADC.pageRecs || {})['s4|' + slug], t = R && abPageTab({ key: 's4|' + slug, rows: [] });
+    return t && t.replace(/The landing page for the new ad \(B\):[\s\S]*?nothing is changed on staging\./, 'The page <b>/' + esc(slug) + '</b> as a prototype: built on ' + esc(R.page.base) + ' (its design and form) with the Stream 4 copy, one FAQ with the topical questions first and the questions about Credo last. Draft for attorney review; the page is not on staging or start yet.'); }
   function s4PageRecs() { var X = S4(), P = X && X.package; ADC.pageRecs = ADC.pageRecs || {}; if (P) Object.keys(P.pageRecs || {}).forEach(function (k) { ADC.pageRecs['s4|' + k] = P.pageRecs[k]; }); }
   var streamTitle = function (s) { return 'Stream ' + s.n + ': ' + s.name; };
   var streamHref = function (s) { return '#/work/streams/' + s.key; };
@@ -1717,7 +1739,7 @@
     var pageOf = {}; P.pages.forEach(function (pg) { pageOf[pg.slug] = pg; });
     /* the pages as prototypes (operator 28 Oct): in the page-recs format, built in the browser like the A/B new pages */
     s4PageRecs();
-    var protoTab = function (slug) { var t = abPageTab({ key: 's4|' + slug, rows: [] }); return t && t.replace(/The landing page for the new ad \(B\):[\s\S]*?nothing is changed on staging\./, 'The page <b>/' + esc(slug) + '</b> as a prototype: built on ' + esc(P.pageRecs[slug].page.base) + ' (its design and form) with the Stream 4 copy, one FAQ with the topical questions first and the questions about Credo last. Draft for attorney review; the page is not on staging or start yet.'); };
+    var protoTab = s4ProtoTab;
     var drawerP = function (slug, tab) { var pg = pageOf[slug]; openDrawer('/' + slug, [['Prototype', protoTab(slug)], ['Page spec', pageTab(slug)]].sort(function (a, b) { return a[0] === tab ? -1 : b[0] === tab ? 1 : 0; }), 'x'); abPageLoad(); };
     var pageLink = function (slug) { return '<button type="button" class="linkbtn"' + dr(function () { drawerP(slug, 'Prototype'); }) + '>/' + esc(slug) + '</button>'; };
     var gAds = {}, mAds = {}; P.google.adGroups.forEach(function (g) { g.ads.forEach(function (a) { gAds[a.key] = [a, g]; }); }); P.meta.adSets.forEach(function (s) { s.ads.forEach(function (a) { mAds[a.key] = [a, s]; if (a.matches) gAds[a.matches] && (gAds[a.matches][0].meta = a.key); }); });
@@ -3864,12 +3886,12 @@
       else if (parts[1] === 'landing-pages') {   /* MH-66 */
         crumbs.push(['Landing pages', LP_BASE]); var lg = lpTypeBy[parts[2]], lx = lg && parts[3] ? lg.pages.filter(function (x) { return x.p.label === parts[3]; })[0] : null;
         if (lg) crumbs.push([lg.label, lpHref(lg)]);
-        if (lx) { crumbs.push([lx.p.label, hash]); html = viewPage(lx.s, lx.p, lpHref(lg, lx)); after = TAB ? null : wirePage; } else html = lg ? viewLpType(lg) : viewLandingPages(); }
+        if (lx) { crumbs.push([lx.p.label, hash]); html = viewPage(lx.s, lx.p, lpHref(lg, lx)); after = lx.p.isNew ? abPageLoad : TAB ? null : wirePage; } else html = lg ? viewLpType(lg) : viewLandingPages(); }
       else if (!s) html = viewWebsite();
       else {
         crumbs.push([s.label, '#/website/' + s.angle]);
         var pg = parts[2] ? s.pages.filter(function (x) { return x.id === parts.slice(2).join('/'); })[0] : null;
-        if (pg) { crumbs.push([pg.label, hash]); html = viewPage(s, pg); after = TAB ? null : wirePage; } else html = viewSite(s);
+        if (pg) { crumbs.push([pg.label, hash]); html = viewPage(s, pg); after = pg.isNew ? abPageLoad : TAB ? null : wirePage; } else html = viewSite(s);
       }
     } else if (parts[0] === 'ads') {
       if (STREAM_OF[parts[1]]) { var sx = STREAM_OF[parts[1]]; crumbs.push(['Work', '#/work'], ['Streams', '#/work/streams'], [streamTitle(sx), streamHref(sx)]); if (ITEM_OF[parts[1]]) crumbs.push([ITEM_OF[parts[1]].label, ITEM_OF[parts[1]].href]); }   /* MH-84, MH-85 */
