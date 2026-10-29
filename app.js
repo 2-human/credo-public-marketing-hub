@@ -2803,7 +2803,7 @@
     var p = O.posts.filter(function (x) { return x.id === f.getAttribute('data-chgf'); })[0], note = f.querySelector('textarea').value.trim(); if (!p || !note) return;
     postApprove(p, 'changes', note).then(function () { drawerPost(p); refreshOrganic(); });
   }, true);
-  function refreshOrganic() { if (location.hash.indexOf('#/organic') !== 0) return; var y = $('app-main').scrollTop; DR = []; $('app-main').innerHTML = organicHtml(); $('app-main').scrollTop = y; renderTree(); }
+  function refreshOrganic() { if (location.hash.indexOf('#/organic') !== 0) return; var y = $('app-main').scrollTop; DR = []; $('app-main').innerHTML = BC_HTML + organicHtml(); $('app-main').scrollTop = y; renderTree(); }
 
   /* calendar */
   function visible(p) { return chFilter.indexOf(p.channel) >= 0; }
@@ -2817,7 +2817,7 @@
   document.addEventListener('click', function (e) {
     var b = e.target.closest('[data-och]'); if (b) { var c = b.getAttribute('data-och'), i = chFilter.indexOf(c);
       if (i >= 0 && chFilter.length > 1) chFilter.splice(i, 1); else if (i < 0) chFilter.push(c);
-      try { localStorage.setItem('mh-org-ch', JSON.stringify(chFilter)); } catch (x) {} DR = []; $('app-main').innerHTML = organicHtml(); return; }
+      try { localStorage.setItem('mh-org-ch', JSON.stringify(chFilter)); } catch (x) {} DR = []; $('app-main').innerHTML = BC_HTML + organicHtml(); return; }
     var w = e.target.closest('[data-apprweek]'); if (w) { var ps = O.posts.filter(function (p) { return p.campaign === 'v2' && visible(p) && stOf(p) === 'draft' && p.date >= w.getAttribute('data-apprweek') && p.date <= addDays(w.getAttribute('data-apprweek'), 6); });
       if (!ps.length || !window.confirm('Approve ' + ps.length + ' draft post' + (ps.length > 1 ? 's' : '') + ' (' + chFilter.map(function (c) { return CH[c]; }).join(', ') + ') for this week?')) return;
       w.disabled = true; w.textContent = 'Saving…'; ps.reduce(function (pr, p) { return pr.then(function () { return postApprove(p, 'approved'); }); }, Promise.resolve()).then(refreshOrganic, refreshOrganic); }
@@ -3458,7 +3458,7 @@
     var bd = $('drawer-body'); if (!el) bd.scrollTop = 0; });
   /* MH-76: redraw the open new-cluster drawer in place (same tab and scroll), and the list behind it */
   function ncRedraw(focusSel) { if (!NC_OPEN || !$('app-drawer').classList.contains('open')) return;
-    if (/^#\/ads\/new-clusters/.test(location.hash)) { var m = $('app-main'), y = m.scrollTop; DR = []; m.innerHTML = viewNewClusters(); m.scrollTop = y; }
+    if (/^#\/ads\/new-clusters/.test(location.hash)) { var m = $('app-main'), y = m.scrollTop; DR = []; m.innerHTML = BC_HTML + viewNewClusters(); m.scrollTop = y; }
     var bd = $('drawer-body'), y2 = bd.scrollTop; drawerNC(NC_OPEN); bd.scrollTop = y2;
     var el = focusSel && bd.querySelector(focusSel); if (el) { el.focus({ preventScroll: true }); if (el.setSelectionRange) { el.setSelectionRange(el.value.length, el.value.length); var fm = el.closest('form'); if (fm && fm.scrollIntoView) fm.scrollIntoView({ block: 'nearest' }); } } }
   document.addEventListener('click', function (e) { if (!e.target.closest || !e.target.closest('#drawer-body') || !NC_OPEN) return;
@@ -3837,7 +3837,7 @@
     if (planChanged && old && old.top !== g.top) { var op = old.top.split('|');
       AB_FLASH = '<div class="abflash" role="status"><b>B now comes from ' + esc(g.topLabel) + '</b>: with the published edit, its copy covers more of this ad group’s impressions fully (' + Math.round((g.fullB || 0) * 100) + '%) than ' + esc(old.topLabel) +
         ', where the edited line is (<a href="#/ads/clusters/' + enc(op[0]) + '/' + enc(op[1]) + '">open that cluster</a>).</div>'; }
-    if (planChanged && /^#\/ads\/ab-tests/.test(location.hash)) { var m = $('app-main'), y = m.scrollTop; DR = []; m.innerHTML = viewABPlan(); m.scrollTop = y; }
+    if (planChanged && /^#\/ads\/ab-tests/.test(location.hash)) { var m = $('app-main'), y = m.scrollTop; DR = []; m.innerHTML = BC_HTML + viewABPlan(); m.scrollTop = y; }
     var b = $('drawer-body'), y2 = b.scrollTop; drawerAB(g); b.scrollTop = y2;
     var el = focusSel && b.querySelector(focusSel); if (el) { el.focus({ preventScroll: true }); if (el.setSelectionRange) { el.setSelectionRange(el.value.length, el.value.length); var fm = el.closest('form'); if (fm && fm.scrollIntoView) fm.scrollIntoView({ block: 'nearest' }); } } }
   document.addEventListener('click', function (e) { if (!e.target.closest || !e.target.closest('#drawer-body')) return;
@@ -3959,10 +3959,56 @@
     if (PQ.get('d')) setTimeout(function () { var el = drFind(PQ.get('d')); if (!el) { setHashParams({ d: null, dt: null }); return; }   /* MH-79: reopen the drawer of a permalink */
       if (PQ.get('dt')) lastTab = PQ.get('dt'); el.classList.add('sel'); if (el.scrollIntoView) el.scrollIntoView({ block: 'nearest' }); DR[+el.getAttribute('data-dr')](el);
       if (PQ.get('dt') && drTab() !== PQ.get('dt')) setHashParams({ dt: drTab() }); }, 0);
-    $('app-crumbs').innerHTML = crumbs.map(function (c, i) { return (i ? '<span class="sep">›</span>' : '') + '<a href="' + esc(c[1]) + '">' + esc(c[0]) + '</a>'; }).join('');
+    BC_HTML = crumbsHtml(crumbs); main.insertAdjacentHTML('afterbegin', BC_HTML);
     document.title = (crumbs.length ? crumbs[crumbs.length - 1][0] + ' · ' : '') + 'Marketing Hub · Crēdo Legal';
     renderTree(); $('app-nav').classList.remove('open'); $('app-menu').setAttribute('aria-expanded', 'false');
   }
+
+  /* ───────────── breadcrumb ───────────── */
+  /* operator 29 Oct: "Create a breadcrumb for each page in the hub, and the breadcrumb item should be a dropdown that allows
+     quickly switching to other items in the same folder / level". The trail sits at the top of every page; each item
+     links to its level and its ▾ lists the items beside it in the navigation tree (same parent; a first-level entry: its
+     section), the current one marked. Items the tree does not hold are plain links. */
+  var BC = [], BC_HTML = '';   /* BC_HTML: the current page's trail, put back by views that redraw the whole page */
+  /* the hub's sections, for a trail's first item (the sections are headings in the tree, not entries) */
+  var BC_TOP = [['Overview', '#/overview'], ['Platforms', '#/platforms'], ['Organic', '#/organic'], ['Work', '#/work'], ['Reference', '#/reference/disclaimers']];
+  function bcSiblings(href, label) {
+    var top = BC_TOP.filter(function (t) { return t[0] === label; })[0];
+    if (top) return BC_TOP.map(function (t) { return { label: t[0], href: t[1], cur: t[0] === label }; });
+    var key = String(href || '').split('?')[0], found = null, ns = nodes(), groups = [], g = null;
+    ns.forEach(function (n) { if (n.sec) { g = []; groups.push(g); if (n.href) g.push(n); } else { if (!g) { g = []; groups.push(g); } g.push(n); } });
+    var hit = function (n) { return n.href && n.href.split('?')[0] === key; };
+    (function walk(lists) { lists.some(function (list) { if (found) return true; if (list.some(hit)) { found = list; return true; }
+      return list.some(function (n) { return n.children && n.children.length && walk([n.children]); }); }); })(groups);
+    return found && found.length > 1 ? found.map(function (n) { return { label: n.label, href: n.href, count: n.count, cur: hit(n) }; }) : null; }
+  /* an item the tree does not list (a board item hidden from the menu, a stream's page): the entries under its parent */
+  function bcChildren(href) { var key = String(href || '').split('?')[0], out = null;
+    (function walk(list) { list.some(function (n) { if (out) return true; if (n.href && n.href.split('?')[0] === key) { out = n.children || null; return true; } return n.children && walk(n.children); }); })(nodes());
+    return out && out.length > 1 ? out.map(function (n) { return { label: n.label, href: n.href, count: n.count, cur: false }; }) : null; }
+  function crumbsHtml(crumbs) {
+    BC = crumbs.map(function (c, i) { return bcSiblings(c[1], i ? null : c[0]) || (i ? bcChildren(crumbs[i - 1][1]) : null); });
+    return '<nav class="app-crumbs" id="app-crumbs" aria-label="Location">' + crumbs.map(function (c, i) {
+      return (i ? '<span class="sep" aria-hidden="true">›</span>' : '') + '<span class="bc-item' + (i === crumbs.length - 1 ? ' last' : '') + '"><a href="' + esc(c[1]) + '"' + (i === crumbs.length - 1 ? ' aria-current="page"' : '') + '>' + esc(c[0]) + '</a>' +
+        (BC[i] ? '<button type="button" class="bc-dd" data-bc="' + i + '" aria-haspopup="true" aria-expanded="false" aria-label="Switch to another item beside ' + esc(c[0]) + ' (' + BC[i].length + ')"></button>' : '') + '</span>'; }).join('') + '</nav>'; }
+  function bcClose() { var m = document.querySelector('.bc-menu'); if (m) { var b = m.parentNode.querySelector('.bc-dd'); m.remove(); if (b) b.setAttribute('aria-expanded', 'false'); } }
+  function bcOpen(b) {
+    var list = BC[+b.getAttribute('data-bc')]; if (!list) return; bcClose();
+    var m = document.createElement('div'); m.className = 'bc-menu'; m.setAttribute('role', 'menu');
+    m.innerHTML = (list.length > 12 ? '<input type="search" class="bc-filter" placeholder="Filter ' + list.length + ' items" aria-label="Filter these items">' : '') + '<div class="bc-list">' +
+      list.map(function (x) { return '<a role="menuitem" href="' + esc(x.href) + '"' + (x.cur ? ' aria-current="true" class="cur"' : '') + '><span>' + esc(x.label) + '</span>' + (x.count != null ? '<span class="cnt">' + esc(String(x.count)) + '</span>' : '') + '</a>'; }).join('') + '</div>';
+    b.parentNode.appendChild(m); b.setAttribute('aria-expanded', 'true');
+    var r = m.getBoundingClientRect(); if (r.right > window.innerWidth - 8) m.style.left = Math.max(8 - b.parentNode.getBoundingClientRect().left, window.innerWidth - 8 - r.right) + 'px';
+    var cur = m.querySelector('.cur'); if (cur) cur.scrollIntoView({ block: 'nearest' });
+    (m.querySelector('.bc-filter') || cur || m.querySelector('a')).focus(); }
+  document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('.bc-dd');
+    if (b) { e.preventDefault(); if (b.getAttribute('aria-expanded') === 'true') bcClose(); else bcOpen(b); return; }
+    if (!(e.target.closest && e.target.closest('.bc-menu')) || e.target.closest('a')) bcClose(); });
+  document.addEventListener('input', function (e) { if (!e.target.classList || !e.target.classList.contains('bc-filter')) return; var q = e.target.value.trim().toLowerCase();
+    [].forEach.call(e.target.parentNode.querySelectorAll('.bc-list a'), function (a) { a.hidden = !!q && a.textContent.toLowerCase().indexOf(q) < 0; }); });
+  document.addEventListener('keydown', function (e) { var m = document.querySelector('.bc-menu'); if (!m) return;
+    if (e.key === 'Escape') { var b = m.parentNode.querySelector('.bc-dd'); bcClose(); if (b) b.focus(); e.preventDefault(); return; }
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return; var as = [].filter.call(m.querySelectorAll('.bc-list a'), function (a) { return !a.hidden; }); if (!as.length) return;
+    var i = as.indexOf(document.activeElement); e.preventDefault(); as[e.key === 'ArrowDown' ? Math.min(as.length - 1, i + 1) : Math.max(0, i - 1)].focus(); });
 
   /* ───────────── wiring ───────────── */
   function header() {
@@ -3994,5 +4040,5 @@
   $('app-filter').addEventListener('input', renderTree);
   $('app-menu').addEventListener('click', function () { var o = $('app-nav').classList.toggle('open'); $('app-menu').setAttribute('aria-expanded', String(o)); });
   window.addEventListener('hashchange', route);
-  header(); route(); loadComments().then(function () { CLU_VER++; if (CLU_REDRAW) CLU_REDRAW(); ncRedraw(); if (/^#\/ads\/new-clusters/.test(location.hash) && !$('app-drawer').classList.contains('open')) { DR = []; $('app-main').innerHTML = viewNewClusters(); } });   /* MH-76: new-cluster edits too */
+  header(); route(); loadComments().then(function () { CLU_VER++; if (CLU_REDRAW) CLU_REDRAW(); ncRedraw(); if (/^#\/ads\/new-clusters/.test(location.hash) && !$('app-drawer').classList.contains('open')) { DR = []; $('app-main').innerHTML = BC_HTML + viewNewClusters(); } });   /* MH-76: new-cluster edits too */
 })();
