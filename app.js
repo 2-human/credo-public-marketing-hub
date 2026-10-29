@@ -49,6 +49,9 @@
   var $ = function (id) { return document.getElementById(id); };
   var enc = encodeURIComponent, dec = decodeURIComponent;
   var STAGING = 'https://staging.credolegal.com/';
+  /* previews ask for the mirrored pages once per hub visit, so a rebuilt page (new hero images, header layer) never shows
+     from the browser's cache; their images and styles still cache */
+  var MV = 'v=' + Date.now().toString(36), mv = function (file) { return file + (file.indexOf('?') < 0 ? '?' : '&') + MV; };
 
   /* ───────────── model: website ───────────── */
   var SHARED = [['index', 'Home', 'home'], ['about', 'About', 'shared'], ['terms-of-use', 'Terms of use', 'legal'], ['privacy-policy', 'Privacy policy', 'legal'],
@@ -453,7 +456,7 @@
     var u = W.file + '?hero=' + a.n;
     openDrawer(H.page.h1 || H.id, [['Page with this image', where + '<div data-hero-scope="' + esc(H.id) + '"><div class="hwhy" data-hero-box>' + heroBox(H, a.n) + '</div>' +
       '<div class="abpgctl">' + heroBtns(H, a.n) + '</div><p><a data-hero-tab href="' + esc(u) + '" target="_blank" rel="noopener">Open the page in a new tab ↗</a></p>' +
-      '<div class="abpgwrap"><iframe class="abpgframe" data-hero-ctl src="' + esc(u) + '" title="' + esc(H.id) + '"></iframe></div></div>']], 'x');
+      '<div class="abpgwrap"><iframe class="abpgframe" data-hero-ctl src="' + esc(mv(u)) + '" title="' + esc(H.id) + '"></iframe></div></div>']], 'x');
   }
   function viewLpType(g) {
     var h = '<h1>' + esc(g.label) + '</h1><p class="lead">Landing pages for ' + esc(g.label.toLowerCase()) + ' · ' + g.pages.length + ' pages. Click a row for details and metrics; click a page name to open it.</p>' +
@@ -494,7 +497,7 @@
       '<button class="btn"' + dr(function () { drawerPage(s, p); }) + '>Details and metrics</button>' +
       (HP ? '<a data-hero-tab href="' + esc(p.file + '?hero=' + hi) + '" target="_blank" rel="noopener">Open in a new tab ↗</a>' : link(p.file, 'Open in a new tab ↗')) + link(p.staging, 'Staging ↗') +
       '<span class="frame-scale" id="frame-scale"></span></div>' +
-      '<div class="frame-wrap" id="frame-wrap"><div class="frame-hold" id="frame-hold"><iframe' + (HP ? ' data-hero-ctl' : '') + ' src="' + esc(p.file) + '" title="' + esc(p.label) + '"></iframe></div></div>' + (HP ? '</div>' : '');
+      '<div class="frame-wrap" id="frame-wrap"><div class="frame-hold" id="frame-hold"><iframe' + (HP ? ' data-hero-ctl' : '') + ' src="' + esc(mv(p.file)) + '" title="' + esc(p.label) + '"></iframe></div></div>' + (HP ? '</div>' : '');
     return h;
   }
   function pageAdsHtml(list) {
@@ -3823,7 +3826,7 @@
   function abPageLoad() { var box = $('abpg'); if (!box) return; var R = (ADC.pageRecs || {})[box.getAttribute('data-group')], file = pageFile(R.page.base), fr = box.querySelector('iframe'), stt = box.querySelector('.abpgstat');
     if (!file) { stt.textContent = 'No mirror of ' + R.page.base + ' in the hub.'; return; }
     stt.textContent = 'Building the page…';
-    fetch(file).then(function (r) { return r.text(); }).then(function (html) { var out = pageRecApply(html, R, file, AB_PV); fr.srcdoc = out.html;
+    fetch(file, { cache: 'no-cache' }).then(function (r) { return r.text(); }).then(function (html) { var out = pageRecApply(html, R, file, AB_PV); fr.srcdoc = out.html;
       stt.textContent = 'New page' + (AB_PV && (R.page.variants || {})[AB_PV] ? ' (' + R.page.variants[AB_PV].label.toLowerCase() + ')' : '') + ': ' + out.report.blocks + ' texts written for the ad, FAQ with ' + out.report.items + ' topical questions then ' + out.report.faq + ' about Credo' + (out.report.missing.length ? '; not placed: ' + out.report.missing.join(' | ') : '') + '.'; })
       .catch(function () { stt.textContent = 'Could not build the page.'; }); }
   var AB_LISTS = [], LD_FROM = null, AB_KEY = null, AB_EDIT = null, AB_CTX = null, AB_FLASH = null;
