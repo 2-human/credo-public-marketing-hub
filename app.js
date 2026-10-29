@@ -381,11 +381,50 @@
   function viewLandingPages() {
     var h = '<h1>Landing pages</h1><p class="lead">All ' + lpCount + ' landing pages of the website, grouped by debt type: each microsite’s Services pages and the default site’s Defense Services pages, mirrored 1:1 from staging.credolegal.com. ' +
       'Each card links to the debt type’s page (its pages with metrics) and to each landing page.</p><div class="tiles links">';
+    var HX = HRO(); if (HX) h += '<div class="tile"><h3><a href="' + LP_BASE + '/hero-images">Alternative hero images</a> <span class="cnt">' + HX.pages.reduce(function (t, x) { return t + x.alts.length; }, 0) + '</span></h3>' +
+      '<p>Two for each of the ' + HX.pages.length + ' prototype pages (landing pages, microsite homes and the new pages): why each one fits its page, and a link to see it there.</p></div>';
     lpTypes.forEach(function (g) {
       h += '<div class="tile"><h3><a href="' + lpHref(g) + '">' + esc(g.label) + '</a> <span class="cnt">' + g.pages.length + '</span></h3><ul class="lnks">' +
         g.pages.map(function (x) { return '<li><a href="' + lpHref(g, x) + '">' + esc(tail(x.p.label, g.key)) + '</a>' + (x.p.running ? ' <span class="chip ok">running</span>' : '') + '</li>'; }).join('') + '</ul></div>';
     });
     return h + '</div>';
+  }
+  /* Alternative hero images (operator 29 Oct): every alternative the prototype pages offer (two per page), with the reason
+     to use it on its page; a card opens the page with that image. data/heroes.js from tools/marketing-hub/bake-heroes.py
+     (content/campaigns/heroes/heroes.json). The page's own switcher (Current · Alt 1 · Alt 2) keeps the choice per page in
+     this browser, so the card sets it before the page loads. */
+  var HRO = function () { return window.HUB_HEROES || null; };
+  var HERO_GROUPS = [['microsite home', 'Microsite home pages'], ['landing page', 'Landing pages'], ['new page (A/B test)', 'New pages for the A/B test (ad B)'], ['new page (Stream 4, credit card validation)', 'New pages: Stream 4, credit card validation']];
+  /* where a hero's page lives in the hub: a mirrored page (its file) or a new page built in the browser (its page-recs key) */
+  function heroWhere(H) {
+    if (H.kind === 'microsite home') { var ang = H.id === 'home' ? 'default' : H.id.replace(/-home$/, ''), s = siteBy[ang]; if (!s) return null;
+      return { href: '#/website/' + ang + '/index', label: s.label + ' › Home', file: s.pages[0].file }; }
+    if (H.kind === 'landing page') { var hit = null; lpTypes.forEach(function (g) { g.pages.forEach(function (x) { if (!hit && x.p.label === H.id) hit = { href: lpHref(g, x), label: x.s.label + ' › ' + H.id, file: x.p.file }; }); }); return hit; }
+    s4PageRecs(); var key = Object.keys(ADC.pageRecs || {}).filter(function (k) { var R = ADC.pageRecs[k]; return R.page && R.page.name === H.id; })[0]; if (!key) return null;
+    return /^s4\|/.test(key) ? { href: '#/ads/credit-card-validation-package', label: 'Credit card validation › package › /' + H.id, key: key } : { href: '#/ads/ab-tests', label: 'Current ad groups › ' + (H.page.adGroup || key).replace('|', ' › ') + ' (new page for ad B)', key: key }; }
+  function viewHeroes() {
+    var HX = HRO(); if (!HX) return '<h1>Alternative hero images</h1><p class="empty">No data/heroes.js. Build it with python3 tools/marketing-hub/bake-heroes.py.</p>';
+    var n = HX.pages.reduce(function (t, x) { return t + x.alts.length; }, 0);
+    var h = '<h1>Alternative hero images</h1><p class="lead">' + n + ' images, two for each of the ' + HX.pages.length + ' prototype pages: in each pair, as a rule, one shows the reader’s situation and the other the help the page offers, in the style of the staging photo. ' +
+      'Each card says why the image fits its page; click it to see the page with that image. On every prototype page the switcher at the bottom left (Current · Alt 1 · Alt 2) compares them with the current photo. Nothing changes on staging: a chosen image still has to be placed in Webflow.</p>' +
+      '<div class="toolbar">' + HERO_GROUPS.map(function (G, i) { var k = HX.pages.filter(function (x) { return x.kind === G[0]; }).length; return k ? '<button type="button" class="btn" data-herojump="' + i + '">' + esc(G[1]) + ' <span class="sub">' + k + '</span></button>' : ''; }).join('') + '</div>';
+    HERO_GROUPS.forEach(function (G, i) { var ps = HX.pages.filter(function (x) { return x.kind === G[0]; }); if (!ps.length) return;
+      h += '<h2 id="hero-g' + i + '">' + esc(G[1]) + ' <span class="cnt">' + ps.length + '</span></h2>';
+      ps.forEach(function (H) { var W = heroWhere(H);
+        h += '<section class="hpg"><h3>' + esc(H.page.h1 || H.id) + '</h3><p class="sub">' + (W ? 'Page: <a href="' + esc(W.href) + '">' + esc(W.label) + '</a>' : esc(H.id)) + (H.page.lede ? ' · ' + esc(H.page.lede) : '') + '</p><div class="hgrid">' +
+          H.alts.map(function (a) { return '<div class="hcard"' + dr(function (el) { el.classList.add('sel'); drawerHero(H, a); }) + '><img src="assets/heroes/' + esc(a.file) + '" alt="' + esc(a.alt) + '" loading="lazy" width="120" height="160">' +
+            '<div><b>Alt ' + a.n + ': ' + esc(a.concept) + '</b><p>' + esc(a.why || '') + '</p><p class="sub">Shows: ' + esc(a.alt) + '</p>' +
+            '<p class="hact"><span class="linkbtn">See it on the page</span>' + (W && W.file ? ' · ' + link(W.file + '?hero=' + a.n, 'Open the page with it ↗') : '') + '</p></div></div>'; }).join('') + '</div></section>'; }); });
+    return h;
+  }
+  document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-herojump]'); if (!b) return; var t = $('hero-g' + b.getAttribute('data-herojump')); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+  function drawerHero(H, a) {
+    var W = heroWhere(H); if (!W) return; try { localStorage.setItem('credo-hero:' + H.id, String(a.n)); } catch (e) {}
+    var head = '<div class="hwhy"><img src="assets/heroes/' + esc(a.file) + '" alt="' + esc(a.alt) + '" width="90" height="120"><div><b>Alt ' + a.n + ': ' + esc(a.concept) + '</b><p>' + esc(a.why || '') + '</p>' +
+      '<p class="sub">Page: <a href="' + esc(W.href) + '">' + esc(W.label) + '</a>. The switcher at the bottom left of the page compares it with the current photo and the other alternative.</p></div></div>';
+    if (W.key) { var t = abPageTab({ key: W.key, rows: [] }); openDrawer(H.page.h1 || H.id, [['Page with this image', head + (t || '').replace(/<p class="note">The landing page for the new ad \(B\):[\s\S]*?<\/p>/, '')]], 'x'); abPageLoad(); return; }
+    var u = W.file + '?hero=' + a.n;
+    openDrawer(H.page.h1 || H.id, [['Page with this image', head + '<div class="toolbar">' + link(u, 'Open the page in a new tab ↗') + '</div><div class="abpgwrap"><iframe class="abpgframe" src="' + esc(u) + '" title="' + esc(H.id + ' with alternative ' + a.n) + '"></iframe></div>']], 'x');
   }
   function viewLpType(g) {
     var h = '<h1>' + esc(g.label) + '</h1><p class="lead">Landing pages for ' + esc(g.label.toLowerCase()) + ' · ' + g.pages.length + ' pages. Click a row for details and metrics; click a page name to open it.</p>' +
@@ -1488,6 +1527,8 @@
   var S2 = function () { return window.HUB_STREAM2 || null; };   /* MH-93: data/stream2.js, from tools/marketing-hub/build-stream2.mjs */
   var S3 = function () { return window.HUB_STREAM3 || null; };   /* MH-94: data/stream3.js, from tools/marketing-hub/build-stream3.mjs */
   var S4 = function () { return window.HUB_STREAM4 || null; };   /* Stream 4: data/stream4.js, from tools/marketing-hub/build-stream4.mjs */
+  /* the Stream 4 pages in the page-recs format, beside the A/B new pages (key 's4|<slug>'), built in the browser like them */
+  function s4PageRecs() { var X = S4(), P = X && X.package; ADC.pageRecs = ADC.pageRecs || {}; if (P) Object.keys(P.pageRecs || {}).forEach(function (k) { ADC.pageRecs['s4|' + k] = P.pageRecs[k]; }); }
   var streamTitle = function (s) { return 'Stream ' + s.n + ': ' + s.name; };
   var streamHref = function (s) { return '#/work/streams/' + s.key; };
   var STREAM_OF = {}, ITEM_OF = {}; STREAMS.forEach(function (s) { s.items.forEach(function (i) { STREAM_OF[i.seg] = s; (i.sub || []).forEach(function (u) { STREAM_OF[u.seg] = s; ITEM_OF[u.seg] = i; }); }); });   /* ITEM_OF: a sub-item's parent tool */
@@ -1657,7 +1698,7 @@
     var kv4 = function (o) { return '<dl class="s4kv">' + Object.keys(o).filter(function (k) { return typeof o[k] === 'string'; }).map(function (k) { return '<dt>' + esc(k.replace(/([A-Z])/g, ' $1').replace(/^./, function (c) { return c.toUpperCase(); })) + '</dt><dd>' + esc(o[k]) + '</dd>'; }).join('') + '</dl>'; };
     var pageOf = {}; P.pages.forEach(function (pg) { pageOf[pg.slug] = pg; });
     /* the pages as prototypes (operator 28 Oct): in the page-recs format, built in the browser like the A/B new pages */
-    ADC.pageRecs = ADC.pageRecs || {}; Object.keys(P.pageRecs || {}).forEach(function (k) { ADC.pageRecs['s4|' + k] = P.pageRecs[k]; });
+    s4PageRecs();
     var protoTab = function (slug) { var t = abPageTab({ key: 's4|' + slug, rows: [] }); return t && t.replace(/The landing page for the new ad \(B\):[\s\S]*?nothing is changed on staging\./, 'The page <b>/' + esc(slug) + '</b> as a prototype: built on ' + esc(P.pageRecs[slug].page.base) + ' (its design and form) with the Stream 4 copy, one FAQ with the topical questions first and the questions about Credo last. Draft for attorney review; the page is not on staging or start yet.'); };
     var drawerP = function (slug, tab) { var pg = pageOf[slug]; openDrawer('/' + slug, [['Prototype', protoTab(slug)], ['Page spec', pageTab(slug)]].sort(function (a, b) { return a[0] === tab ? -1 : b[0] === tab ? 1 : 0; }), 'x'); abPageLoad(); };
     var pageLink = function (slug) { return '<button type="button" class="linkbtn"' + dr(function () { drawerP(slug, 'Prototype'); }) + '>/' + esc(slug) + '</button>'; };
@@ -3799,7 +3840,8 @@
     if (parts[0] === 'website') {
       crumbs.push(['Platforms', '#/platforms'], ['Webflow', PFH.webflow]); if (parts[1] !== 'landing-pages') crumbs.push(['Microsites', '#/website']);   /* MH-88 */
       var s = siteBy[parts[1]];
-      if (parts[1] === 'landing-pages') {   /* MH-66 */
+      if (parts[1] === 'landing-pages' && parts[2] === 'hero-images') { crumbs.push(['Landing pages', LP_BASE], ['Alternative hero images', hash]); html = viewHeroes(); }
+      else if (parts[1] === 'landing-pages') {   /* MH-66 */
         crumbs.push(['Landing pages', LP_BASE]); var lg = lpTypeBy[parts[2]], lx = lg && parts[3] ? lg.pages.filter(function (x) { return x.p.label === parts[3]; })[0] : null;
         if (lg) crumbs.push([lg.label, lpHref(lg)]);
         if (lx) { crumbs.push([lx.p.label, hash]); html = viewPage(lx.s, lx.p, lpHref(lg, lx)); after = TAB ? null : wirePage; } else html = lg ? viewLpType(lg) : viewLandingPages(); }

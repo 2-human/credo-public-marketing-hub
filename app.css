@@ -369,6 +369,15 @@ ol.abl li.abprev > .abt { outline:1px dashed #d9b44a; outline-offset:2px; border
 .abpgbtn[aria-pressed="true"] { background:var(--ink); color:#fff; border-color:var(--ink); }
 .abpgwrap { border:1px solid var(--line); border-radius:6px; overflow:hidden; margin:6px 0 12px; }
 .abpgframe { display:block; width:100%; height:78vh; border:0; background:#fff; }
+/* Alternative hero images: a page's two alternatives side by side, each with its reason */
+.hpg { margin:0 0 18px; } .hpg h3 { margin:0 0 2px; font-size:14.5px; } .hpg > .sub { margin:0 0 8px; }
+.hgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:10px; }
+.hcard { display:flex; gap:12px; align-items:flex-start; background:var(--card); border:1px solid var(--line); border-radius:6px; padding:10px; cursor:pointer; }
+.hcard:hover { border-color:#c7ced8; box-shadow:0 1px 3px rgba(0,0,0,.05); } .hcard.sel { border-color:#8fa9d6; background:#f5f8fd; }
+.hcard img { flex:0 0 auto; width:120px; height:160px; object-fit:cover; border-radius:4px; background:#eee; }
+.hcard p { margin:4px 0 0; font-size:12.5px; line-height:1.45; } .hcard .hact { margin-top:6px; }
+.hwhy { display:flex; gap:12px; align-items:flex-start; margin:0 0 10px; } .hwhy img { flex:0 0 auto; width:90px; height:120px; object-fit:cover; border-radius:4px; } .hwhy p { margin:4px 0 0; }
+@media (max-width:520px) { .hgrid { grid-template-columns:1fr; } .hcard img { width:90px; height:120px; } }
 .abpgstat { margin:0; padding:6px 10px; border-top:1px solid var(--line); background:#fafbfc; }
 .mh-key { font-size:11px; padding:1px 6px; border-radius:3px; }
 .mh-key-c { outline:2px solid #e0a800; background:rgba(253,230,138,.45); } .mh-key-n { outline:2px dashed #2e9d4b; background:rgba(205,236,207,.35); }
