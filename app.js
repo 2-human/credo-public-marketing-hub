@@ -394,6 +394,23 @@
      (content/campaigns/heroes/heroes.json). The page's own switcher (Current · Alt 1 · Alt 2) keeps the choice per page in
      this browser, so the card sets it before the page loads. */
   var HRO = function () { return window.HUB_HEROES || null; };
+  /* a page's hero options: 0 = the current staging photo, 1 and 2 = its alternatives, each with the reason it fits */
+  function heroOf(id) { var HX = HRO(); return HX ? HX.pages.filter(function (x) { return x.id === id; })[0] || null : null; }
+  function heroCur(id) { try { return +(localStorage.getItem('credo-hero:' + id) || 0) || 0; } catch (e) { return 0; } }
+  function heroOpt(H, i) { var a = i ? H.alts[i - 1] : null, c = (HRO() || {}).current || {};
+    return a ? { label: 'Alt ' + i, concept: a.concept, why: a.why, src: 'assets/heroes/' + a.file, alt: a.alt } : { label: 'Current', concept: c.concept || 'the staging photo', why: H.currentWhy || '', src: c.thumb || c.src || '', alt: c.alt || '' }; }
+  function heroBox(H, i) { var o = heroOpt(H, i);
+    return (o.src ? '<img src="' + esc(o.src) + '" alt="' + esc(o.alt) + '" width="90" height="120">' : '') + '<div><b>' + esc(o.label + ': ' + o.concept) + '</b><p>' + esc(o.why) + '</p></div>'; }
+  function heroBtns(H, i) { return '<span class="sub">Hero image</span> ' + ['Current', 'Alt 1', 'Alt 2'].slice(0, H.alts.length + 1).map(function (l, k) { return '<button type="button" class="abpgbtn" data-herosel="' + k + '" aria-pressed="' + (k === i) + '">' + l + '</button>'; }).join(''); }
+  /* the hub's switcher (operator 29 Oct: "Place the switcher in this header, so that I can see the hero image switch and the
+     explanation above switch with it"): it drives the page in the frame (hero-switch.js, its own control hidden there) */
+  document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-herosel]'); if (!b) return;
+    var sc = b.closest('[data-hero-scope]'), H = sc && heroOf(sc.getAttribute('data-hero-scope')), i = +b.getAttribute('data-herosel'); if (!H) return;
+    try { localStorage.setItem('credo-hero:' + H.id, String(i)); } catch (x) {}
+    [].forEach.call(sc.querySelectorAll('[data-herosel]'), function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+    var box = sc.querySelector('[data-hero-box]'); if (box) box.innerHTML = heroBox(H, i);
+    var fr = sc.querySelector('iframe[data-hero-ctl]'); try { fr.contentWindow.CREDO_HERO.show(i); } catch (x) {}
+    var tab = sc.querySelector('[data-hero-tab]'); if (tab) tab.href = tab.href.replace(/([?&]hero=)\d/, '$1' + i); });
   var HERO_GROUPS = [['microsite home', 'Microsite home pages'], ['landing page', 'Landing pages'], ['new page (A/B test)', 'New pages for the A/B test (ad B)'], ['new page (Stream 4, credit card validation)', 'New pages: Stream 4, credit card validation']];
   /* where a hero's page lives in the hub: a mirrored page (its file) or a new page built in the browser (its page-recs key) */
   function heroWhere(H) {
@@ -420,11 +437,12 @@
   document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-herojump]'); if (!b) return; var t = $('hero-g' + b.getAttribute('data-herojump')); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
   function drawerHero(H, a) {
     var W = heroWhere(H); if (!W) return; try { localStorage.setItem('credo-hero:' + H.id, String(a.n)); } catch (e) {}
-    var head = '<div class="hwhy"><img src="assets/heroes/' + esc(a.file) + '" alt="' + esc(a.alt) + '" width="90" height="120"><div><b>Alt ' + a.n + ': ' + esc(a.concept) + '</b><p>' + esc(a.why || '') + '</p>' +
-      '<p class="sub">Page: <a href="' + esc(W.href) + '">' + esc(W.label) + '</a>. The switcher at the bottom left of the page compares it with the current photo and the other alternative.</p></div></div>';
-    if (W.key) { var t = abPageTab({ key: W.key, rows: [] }); openDrawer(H.page.h1 || H.id, [['Page with this image', head + (t || '').replace(/<p class="note">The landing page for the new ad \(B\):[\s\S]*?<\/p>/, '')]], 'x'); abPageLoad(); return; }
+    var where = '<p class="sub">Page: <a href="' + esc(W.href) + '">' + esc(W.label) + '</a></p>';
+    if (W.key) { var t = abPageTab({ key: W.key, rows: [] }); openDrawer(H.page.h1 || H.id, [['Page with this image', where + (t || '').replace(/<p class="note">The landing page for the new ad \(B\):[\s\S]*?<\/p>/, '')]], 'x'); abPageLoad(); return; }
     var u = W.file + '?hero=' + a.n;
-    openDrawer(H.page.h1 || H.id, [['Page with this image', head + '<div class="toolbar">' + link(u, 'Open the page in a new tab ↗') + '</div><div class="abpgwrap"><iframe class="abpgframe" src="' + esc(u) + '" title="' + esc(H.id + ' with alternative ' + a.n) + '"></iframe></div>']], 'x');
+    openDrawer(H.page.h1 || H.id, [['Page with this image', where + '<div data-hero-scope="' + esc(H.id) + '"><div class="hwhy" data-hero-box>' + heroBox(H, a.n) + '</div>' +
+      '<div class="abpgctl">' + heroBtns(H, a.n) + '</div><p><a data-hero-tab href="' + esc(u) + '" target="_blank" rel="noopener">Open the page in a new tab ↗</a></p>' +
+      '<div class="abpgwrap"><iframe class="abpgframe" data-hero-ctl src="' + esc(u) + '" title="' + esc(H.id) + '"></iframe></div></div>']], 'x');
   }
   function viewLpType(g) {
     var h = '<h1>' + esc(g.label) + '</h1><p class="lead">Landing pages for ' + esc(g.label.toLowerCase()) + ' · ' + g.pages.length + ' pages. Click a row for details and metrics; click a page name to open it.</p>' +
@@ -3769,9 +3787,11 @@
       (R.topics || []).map(function (t) { return '<li><b>' + esc(t.label) + '</b> <span class="sub">' + n0((byT[t.key] || []).length) + ' searches · ' + n0(sum(byT[t.key])) + ' impr. · ' + esc((t.answeredBy || []).map(where).join(', ')) + '</span></li>'; }).join('') + '</ul></details>';
     var review = (R.attorneyReview || []).length ? '<details class="state"><summary>For attorney review (' + R.attorneyReview.length + ')</summary><ul class="notes">' + R.attorneyReview.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' + (R.disclaimer ? '<p class="sub">Disclaimer: ' + esc(R.disclaimer) + '</p>' : '') + '</details>' : '';
     var VS = (R.page.variants || {}), vk = Object.keys(VS).filter(function (k) { return k[0] !== '_'; }); if (vk.indexOf(AB_PV) < 0) AB_PV = vk[0] || null;
-    var sw = vk.length > 1 ? '<div class="abpgctl"><span class="sub">Show as</span> ' + vk.map(function (k) { return '<button type="button" class="abpgbtn" data-abpvar="' + esc(k) + '" aria-pressed="' + (k === AB_PV) + '">' + esc(VS[k].label || k) + '</button>'; }).join('') + '</div>' : '';
-    return '<div id="abpg" data-group="' + esc(g.key) + '">' + sw + '<p class="note">The landing page for the new ad (B): <b>' + esc(R.page.name || 'new page') + '</b>. It keeps the design of ' + esc(R.page.base) + ' with its copy written for the ad and its searches, and one FAQ: the questions people search first, then the questions about Credo. Draft for attorney review; nothing is changed on staging.</p>' +
-      '<div class="abpgwrap"><iframe class="abpgframe" title="New landing page for ad B" sandbox="allow-scripts allow-same-origin"></iframe><p class="sub abpgstat"></p><p><button type="button" class="linkbtn" data-abpg-open>Open the full page in a new tab ↗</button></p></div>' + topics + review + '</div>'; }
+    var HP = heroOf(R.page.name), hi = HP ? heroCur(HP.id) : 0;
+    var sw = vk.length > 1 || HP ? '<div class="abpgctl">' + (vk.length > 1 ? '<span class="sub">Show as</span> ' + vk.map(function (k) { return '<button type="button" class="abpgbtn" data-abpvar="' + esc(k) + '" aria-pressed="' + (k === AB_PV) + '">' + esc(VS[k].label || k) + '</button>'; }).join('') : '') +
+      (HP ? (vk.length > 1 ? '<span class="abpgsep" aria-hidden="true"></span>' : '') + heroBtns(HP, hi) : '') + '</div>' : '';
+    return '<div id="abpg" data-group="' + esc(g.key) + '"' + (HP ? ' data-hero-scope="' + esc(HP.id) + '"' : '') + '>' + (HP ? '<div class="hwhy" data-hero-box>' + heroBox(HP, hi) + '</div>' : '') + sw + '<p class="note">The landing page for the new ad (B): <b>' + esc(R.page.name || 'new page') + '</b>. It keeps the design of ' + esc(R.page.base) + ' with its copy written for the ad and its searches, and one FAQ: the questions people search first, then the questions about Credo. Draft for attorney review; nothing is changed on staging.</p>' +
+      '<div class="abpgwrap"><iframe class="abpgframe" data-hero-ctl title="New landing page for ad B" sandbox="allow-scripts allow-same-origin"></iframe><p class="sub abpgstat"></p><p><button type="button" class="linkbtn" data-abpg-open>Open the full page in a new tab ↗</button></p></div>' + topics + review + '</div>'; }
   /* the built page in a tab of its own (a blob address; its <base> points at the hub, so styles and images load) */
   document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-abpg-open]'); if (!b) return; var fr = b.closest('#abpg').querySelector('iframe');
     if (fr && fr.srcdoc) window.open(URL.createObjectURL(new Blob([fr.srcdoc], { type: 'text/html' })), '_blank', 'noopener'); });

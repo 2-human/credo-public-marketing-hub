@@ -4,7 +4,9 @@
  * Swaps the page's .hero-photo between the current staging photo and the page's two alternatives (heroes.js, written by
  * tools/marketing-hub/bake-heroes.py; images in assets/heroes/). The page is <html data-hero-id="…">, set by
  * build-microsites.mjs for mirrored pages and by the hub for new pages. ?hero=0|1|2 picks one; the choice is kept per page
- * in this browser. The control sits outside <main> and <footer>, so the page itself stays identical to staging. */
+ * in this browser. The control sits outside <main> and <footer>, so the page itself stays identical to staging.
+ * window.CREDO_HERO.show(i) switches from outside; in a hub frame marked data-hero-ctl (29 Oct, operator: the switcher in
+ * the hub's header, with the explanation above it) the hub drives it and the page's own control stays hidden. */
 (function () {
   var me = document.currentScript, base = new URL('../../assets/heroes/', me.src).href;
   function start() {
@@ -26,6 +28,9 @@
       try { localStorage.setItem(key, String(cur)); } catch (e) {}
     }
     bar.addEventListener('click', function (e) { var b = e.target.closest('button[data-i]'); if (b) show(+b.getAttribute('data-i')); });
+    var driven = false; try { driven = !!(window.frameElement && window.frameElement.hasAttribute('data-hero-ctl')); } catch (e) {}
+    if (driven) bar.style.display = 'none';
+    window.CREDO_HERO = { show: show, current: function () { return cur; } };
     document.body.appendChild(bar); show(cur);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
