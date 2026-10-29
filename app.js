@@ -1653,20 +1653,24 @@
     var X = S4(), P = X && X.package;
     if (!P) return '<h1>Credit card validation: campaign package</h1><p class="empty">No package in data/stream4.js. Build it with node tools/marketing-hub/build-stream4.mjs (reads content/campaigns/stream-4/package.json).</p>';
     var kv4 = function (o) { return '<dl class="s4kv">' + Object.keys(o).filter(function (k) { return typeof o[k] === 'string'; }).map(function (k) { return '<dt>' + esc(k.replace(/([A-Z])/g, ' $1').replace(/^./, function (c) { return c.toUpperCase(); })) + '</dt><dd>' + esc(o[k]) + '</dd>'; }).join('') + '</dl>'; };
-    var START = 'https://start.credolegal.com/', pageOf = {}; P.pages.forEach(function (pg) { pageOf[pg.slug] = pg; });
+    var pageOf = {}; P.pages.forEach(function (pg) { pageOf[pg.slug] = pg; });
+    /* the pages as prototypes (operator 28 Oct): in the page-recs format, built in the browser like the A/B new pages */
+    ADC.pageRecs = ADC.pageRecs || {}; Object.keys(P.pageRecs || {}).forEach(function (k) { ADC.pageRecs['s4|' + k] = P.pageRecs[k]; });
+    var protoTab = function (slug) { var t = abPageTab({ key: 's4|' + slug, rows: [] }); return t && t.replace(/The landing page for the new ad \(B\):[\s\S]*?nothing is changed on staging\./, 'The page <b>/' + esc(slug) + '</b> as a prototype: built on ' + esc(P.pageRecs[slug].page.base) + ' (its design and form) with the Stream 4 copy, one FAQ with the topical questions first and the questions about Credo last. Draft for attorney review; the page is not on staging or start yet.'); };
+    var drawerP = function (slug, tab) { var pg = pageOf[slug]; openDrawer('/' + slug, [['Prototype', protoTab(slug)], ['Page spec', pageTab(slug)]].sort(function (a, b) { return a[0] === tab ? -1 : b[0] === tab ? 1 : 0; }), 'x'); abPageLoad(); };
+    var pageLink = function (slug) { return '<button type="button" class="linkbtn"' + dr(function () { drawerP(slug, 'Prototype'); }) + '>/' + esc(slug) + '</button>'; };
     var gAds = {}, mAds = {}; P.google.adGroups.forEach(function (g) { g.ads.forEach(function (a) { gAds[a.key] = [a, g]; }); }); P.meta.adSets.forEach(function (s) { s.ads.forEach(function (a) { mAds[a.key] = [a, s]; if (a.matches) gAds[a.matches] && (gAds[a.matches][0].meta = a.key); }); });
-    var pageLink = function (slug) { return '<a href="' + START + esc(slug) + '" target="_blank" rel="noopener">/' + esc(slug) + '</a>'; };
     var lines = function (arr, max, pins) { return '<table class="tbl"><tbody>' + arr.map(function (t, i) { var pin = pins && pins.HEADLINE_1 && pins.HEADLINE_1.indexOf(t) >= 0;
       return '<tr><td class="num sub">' + (i + 1) + '</td><td>' + esc(t) + (pin ? ' <span class="chip">pinned to position 1</span>' : '') + '</td><td class="num sub">' + t.length + '/' + max + '</td></tr>'; }).join('') + '</tbody></table>'; };
     var pageTab = function (slug) { var pg = pageOf[slug]; if (!pg) return '';
-      return '<p><b>' + pageLink(slug) + '</b></p><dl class="s4kv"><dt>H1</dt><dd>' + esc(pg.h1) + ' <span class="sub">(accent: ' + esc(pg.accent) + ')</span></dd><dt>Hero</dt><dd>' + esc(pg.hero) + '</dd><dt>What we do</dt><dd>' + esc(pg.whatWeDo) + '</dd><dt>Message</dt><dd>' + esc(pg.message) + '</dd><dt>Built from</dt><dd>' + esc(pg.based) + '</dd><dt>Used by</dt><dd>' + esc(pg.usedBy.join(', ')) + '</dd></dl>' +
+      return '<p><b>/' + esc(slug) + '</b> <span class="sub">(planned address on start.credolegal.com; not built there yet)</span></p><dl class="s4kv"><dt>H1</dt><dd>' + esc(pg.h1) + ' <span class="sub">(accent: ' + esc(pg.accent) + ')</span></dd><dt>Hero</dt><dd>' + esc(pg.hero) + '</dd><dt>What we do</dt><dd>' + esc(pg.whatWeDo) + '</dd><dt>Message</dt><dd>' + esc(pg.message) + '</dd><dt>Built from</dt><dd>' + esc(pg.based) + '</dd><dt>Used by</dt><dd>' + esc(pg.usedBy.join(', ')) + '</dd></dl>' +
         '<h3>FAQ (topical questions first)</h3><ol class="notes">' + pg.faq.map(function (q) { return '<li>' + esc(q) + '</li>'; }).join('') + '</ol>'; };
     var drawerG = function (key) { var a = gAds[key][0], g = gAds[key][1], m = a.meta && mAds[a.meta][0];
       openDrawer('Google ' + key + ': ' + a.angle, [
         ['Ad', '<p class="sub">Responsive search ad in ' + esc(g.name) + '. ' + a.headlines.length + ' headlines, ' + a.descriptions.length + ' descriptions.</p><h3>Headlines</h3>' + lines(a.headlines, 30, a.pins) + '<h3>Descriptions</h3>' + lines(a.descriptions, 90) +
           '<h3>Final URL</h3><p><code>' + esc(a.finalUrl) + '</code></p><p class="sub">With the campaign’s final URL suffix a click lands on:</p><p><code class="wrap">' + esc(a.trackedExample) + '</code></p>' +
           (m ? '<h3>Same page on Meta</h3><p>' + esc(a.meta) + ': “' + esc(m.headline) + '” (' + esc(mAds[a.meta][1].name) + ')</p>' : '')],
-        ['Landing page', pageTab(a.page)]], true); };
+        ['Landing page', protoTab(a.page)], ['Page spec', pageTab(a.page)]], 'x'); abPageLoad(); };
     var drawerM = function (key) { var a = mAds[key][0], s = mAds[key][1], g = a.matches && gAds[a.matches][0];
       openDrawer('Meta ' + key + ': ' + a.headline, [
         ['Ad', (a.creatives.length ? '<div class="s4cre">' + a.creatives.map(function (c) { return '<figure><img src="' + esc(c) + '" alt="' + esc(a.headline) + '" loading="lazy"><figcaption class="sub">' + esc(c.replace(/^.*-(\w+)\.jpg$/, '$1').replace('x', ':')) + '</figcaption></figure>'; }).join('') + '</div>' : '') +
@@ -1674,7 +1678,7 @@
           '<dt>Website URL</dt><dd><code>' + esc(a.websiteUrl) + '</code></dd><dt>URL parameters</dt><dd><code class="wrap">' + esc(a.urlParameters) + '</code></dd><dt>Disclaimer</dt><dd class="sub">' + esc(P.meta.disclaimer) + '</dd></dl>' +
           (g ? '<h3>Same page on Google</h3><p>' + esc(a.matches) + ': ' + esc(g.angle) + '</p>' : '')],
         ['Creative brief', '<dl class="s4kv"><dt>Concept</dt><dd>' + esc(a.concept) + '</dd><dt>Image prompt</dt><dd class="sub">' + esc(a.prompt) + '</dd><dt>Made with</dt><dd>Higgsfield (gpt_image), text baked by scripts/organic/bake-stream4.py</dd></dl>'],
-        ['Landing page', pageTab(a.page)]], true); };
+        ['Landing page', protoTab(a.page)], ['Page spec', pageTab(a.page)]], 'x'); abPageLoad(); };
     var adRows = function (g) { return '<div class="scroll"><table class="tbl"><thead><tr><th>Ad</th><th>Angle</th><th>First headlines</th><th>Landing page</th><th>Meta match</th></tr></thead><tbody>' + g.ads.map(function (a) {
       return '<tr class="click"' + dr(function () { drawerG(a.key); }) + '><td><b>' + esc(a.key) + '</b></td><td>' + esc(a.angle) + '</td><td class="sub">' + esc(a.headlines.slice(0, 3).join(' | ')) + '</td><td class="sub">/' + esc(a.page) + '</td><td>' + esc(a.meta || '') + '</td></tr>'; }).join('') + '</tbody></table></div>'; };
     var G = P.google, E = G.extensions, M = P.meta;
@@ -1696,8 +1700,8 @@
       M.adSets.map(function (s) { return '<h3>' + esc(s.name) + '</h3><div class="s4grid">' + s.ads.map(function (a) {
         return '<button class="s4card"' + dr(function () { drawerM(a.key); }) + '>' + (a.creatives[0] ? '<img src="' + esc(a.creatives[0]) + '" alt="' + esc(a.headline) + '" loading="lazy">' : '') + '<span><b>' + esc(a.key) + '</b> ' + esc(a.headline) + '</span><span class="sub">/' + esc(a.page) + (a.matches ? ' · same page as Google ' + esc(a.matches) : '') + '</span></button>'; }).join('') + '</div>'; }).join('') +
       '<h2 id="s4p-pages">Landing pages</h2><p class="sub">' + esc(P.pageRules) + '</p><div class="scroll"><table class="tbl"><thead><tr><th>Page</th><th>H1</th><th>Used by</th></tr></thead><tbody>' + P.pages.map(function (pg) {
-        return '<tr class="click"' + dr(function () { openDrawer('/' + pg.slug, [['Landing page', pageTab(pg.slug)]], true); }) + '><td class="sub">/' + esc(pg.slug) + '</td><td>' + esc(pg.h1) + '</td><td class="sub">' + esc(pg.usedBy.join(', ')) + '</td></tr>'; }).join('') + '</tbody></table></div>' +
-      '<p class="sub">The pages are specs: they are not built yet on staging or start.</p>' +
+        return '<tr class="click"' + dr(function () { drawerP(pg.slug, 'Prototype'); }) + '><td class="sub">/' + esc(pg.slug) + '</td><td>' + esc(pg.h1) + '</td><td class="sub">' + esc(pg.usedBy.join(', ')) + '</td></tr>'; }).join('') + '</tbody></table></div>' +
+      '<p class="sub">Click a page for its prototype (as a landing page or as a microsite page) and its spec. The pages are not built yet on staging or start.</p>' +
       '<h2 id="s4p-q">Questions</h2><ol class="notes">' + P.questions.map(function (q) { return '<li>' + esc(q) + '</li>'; }).join('') + '</ol>' +
       '<details class="state"><summary>Sources</summary><p class="sub">content/campaigns/stream-4/package.json, Keyword Planner volumes from ' + esc(X.keywords.source) + ', creatives in public/marketing-hub/assets/stream-4/ (bases in content/campaigns/stream-4/creatives/base/). Built by tools/marketing-hub/build-stream4.mjs.</p></details></div>';
   }
@@ -3670,6 +3674,7 @@
     doc.body.setAttribute('data-mh-layout', 'accordion'); }
   function pageRecApply(html, R, file, variant) { var doc = new DOMParser().parseFromString(html, 'text/html'), rep = { blocks: 0, missing: [], faq: 0, items: 0, nav: 0 };
     var base = doc.createElement('base'); base.href = new URL(file, location.href).href; doc.head.insertBefore(base, doc.head.firstChild);
+    if (R.page && R.page.name) doc.documentElement.setAttribute('data-hero-id', R.page.name);   /* the hero switcher offers the new page's own alternatives */
     /* MH-43 (operator 9 Oct): ONE FAQ section under the FAQ's own label and title, the topical questions and answers first
        (wysk.items: title, first sentence, then the article when opened) and the questions about Credo (faq) last — always
        in that order. Each is an item in the FAQ's own markup. */
@@ -3723,7 +3728,10 @@
     var VS = (R.page.variants || {}), vk = Object.keys(VS).filter(function (k) { return k[0] !== '_'; }); if (vk.indexOf(AB_PV) < 0) AB_PV = vk[0] || null;
     var sw = vk.length > 1 ? '<div class="abpgctl"><span class="sub">Show as</span> ' + vk.map(function (k) { return '<button type="button" class="abpgbtn" data-abpvar="' + esc(k) + '" aria-pressed="' + (k === AB_PV) + '">' + esc(VS[k].label || k) + '</button>'; }).join('') + '</div>' : '';
     return '<div id="abpg" data-group="' + esc(g.key) + '">' + sw + '<p class="note">The landing page for the new ad (B): <b>' + esc(R.page.name || 'new page') + '</b>. It keeps the design of ' + esc(R.page.base) + ' with its copy written for the ad and its searches, and one FAQ: the questions people search first, then the questions about Credo. Draft for attorney review; nothing is changed on staging.</p>' +
-      '<div class="abpgwrap"><iframe class="abpgframe" title="New landing page for ad B" sandbox="allow-scripts allow-same-origin"></iframe><p class="sub abpgstat"></p></div>' + topics + review + '</div>'; }
+      '<div class="abpgwrap"><iframe class="abpgframe" title="New landing page for ad B" sandbox="allow-scripts allow-same-origin"></iframe><p class="sub abpgstat"></p><p><button type="button" class="linkbtn" data-abpg-open>Open the full page in a new tab ↗</button></p></div>' + topics + review + '</div>'; }
+  /* the built page in a tab of its own (a blob address; its <base> points at the hub, so styles and images load) */
+  document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-abpg-open]'); if (!b) return; var fr = b.closest('#abpg').querySelector('iframe');
+    if (fr && fr.srcdoc) window.open(URL.createObjectURL(new Blob([fr.srcdoc], { type: 'text/html' })), '_blank', 'noopener'); });
   var AB_PV = null;   /* MH-38: which variant of the new page the tab shows (landing page | microsite page) */
   document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('#abpg [data-abpvar]'); if (!b) return; AB_PV = b.getAttribute('data-abpvar');
     [].forEach.call(document.querySelectorAll('#abpg [data-abpvar]'), function (x) { x.setAttribute('aria-pressed', String(x === b)); }); abPageLoad(); });
