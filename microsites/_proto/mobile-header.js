@@ -5,6 +5,8 @@
  *  - the floating "Is your debt situation becoming urgent? / Call now" bar is removed (it covered the form's Continue);
  *  - a chat icon bottom right stands in for the live site's Tidio chat (Tidio does not load on the prototype);
  *  - form steps 2 and 3 have no big title (the rule start.credolegal.com uses) and no "Step 2 of 3" line in the popup header;
+ *    step 3's send button reads Submit (operator 30 Oct, was Get a free case evaluation);
+ *  - the debt types dropdown on step 2 has a Done button, active from the first ticked box, that closes it;
  *  - the desktop header button (#btnCTA) always reads Free Review (the phone number is beside it);
  *  - the mobile header button (staging's .mobile-call, the phone number) reads "Call Now" and calls the page's number in
  *    operating hours, and "Free Review" and scrolls to the form outside them. Hours are staging's own rule: Monday to
@@ -84,6 +86,11 @@
     /* form steps 2 and 3: no big title (start's own rule) and no step line in the popup's header (operator 30 Oct) */
     '#gtmform .cell-42 .heading-49{display:none}#heropopup .mjfdcpaboxtext-copy-copy{display:none}' +
     '.navbar-no-shadow{position:sticky!important;top:0;z-index:1000;background:#fff}' +
+    /* the debt types panel hangs from the field itself (operator 30 Oct): no gap for the next label to show through */
+    '#stoggle #dtoggle{top:100%;left:-1px;width:calc(100% + 2px);box-sizing:border-box;z-index:5;border-top-left-radius:0;border-top-right-radius:0}' +
+    '.ux-dd-foot{display:flex;justify-content:flex-end;padding:4px 8px 8px}' +
+    '.ux-dd-done{border:0;border-radius:4px;padding:6px 14px;font:600 13px/1.2 inherit;font-family:inherit;background:#c92028;color:#fff;cursor:pointer}' +
+    '.ux-dd-done:disabled{background:#e2e4e9;color:#6b7280;cursor:not-allowed}' +
     'html[data-hours="off"] .hero-call,html[data-hours="off"] .callustext,html[data-hours="off"] .ux-newclients{display:none!important}' +
     '.sticky-call-button{display:none!important}' +
     '.mobile-call.ux-review .w-embed{display:none}' +
@@ -148,6 +155,17 @@
     else { b.onclick = null; if (home) b.setAttribute('href', home.getAttribute('href').split('#')[0] + '#herosec'); }
   }
 
+  /* the debt types dropdown (operator 30 Oct): a small Done, active from the first ticked box, closes it like a click outside */
+  function debtDone() {
+    var list = document.getElementById('dtoggle'), dd = document.getElementById('stoggle'); if (!list || !dd || list.querySelector('.ux-dd-done')) return;
+    var row = document.createElement('div'); row.className = 'ux-dd-foot'; row.innerHTML = '<button type="button" class="ux-dd-done" disabled>Done</button>';
+    list.appendChild(row); var b = row.firstChild;
+    var sync = function () { b.disabled = !list.querySelector('input[type=checkbox]:checked'); };
+    list.addEventListener('change', sync); sync();
+    b.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); if (window.jQuery) window.jQuery(dd).triggerHandler('w-close'); else document.body.click();
+      var t = dd.querySelector('.w-dropdown-toggle'); if (t && t.focus) t.focus(); });
+  }
+
   function chat() {
     if (document.querySelector('[data-ux-chat]')) return;
     var w = document.createElement('div'); w.setAttribute('data-ux-chat', '');
@@ -179,7 +197,8 @@
 
   function start() {
     var nc = document.getElementById('bfootercta'), row = nc && nc.closest('.w-layout-layout'); if (row) row.classList.add('ux-newclients');
-    dropBar(); header(); desktopCta(); chat(); lede(); }
+    var send = document.getElementById('submitform'); if (send) send.textContent = 'Submit →';
+    dropBar(); header(); desktopCta(); chat(); lede(); debtDone(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
   /* staging's own scripts set the header number on DOMContentLoaded and load; say it again once they have run */
   window.addEventListener('load', function () { dropBar(); header(); desktopCta(); });
