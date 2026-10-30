@@ -407,6 +407,16 @@
      (content/campaigns/heroes/heroes.json). The page's own switcher (Current · Alt 1 · Alt 2) keeps the choice per page in
      this browser, so the card sets it before the page loads. */
   var HRO = function () { return window.HUB_HEROES || null; };
+  /* Work hours on / off (operator 30 Oct), beside the view switches: drives the page in the preview (mobile-header.js). Starts
+     from the clock (staging's rule) until chosen; the choice is kept in this browser, shared with the pages */
+  function hoursOn() { try { var v = localStorage.getItem('credo-hours'); if (v) return v === 'on'; } catch (e) {}
+    var et = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })), d = et.getDay(), m = et.getHours() * 60 + et.getMinutes();
+    return d >= 1 && d <= 5 ? m >= 540 && m < 1260 : d === 6 ? m >= 540 && m < 1020 : false; }
+  function hoursBtns(cls) { var on = hoursOn(); return '<span class="sub">Work hours</span> ' + [[1, 'On'], [0, 'Off']].map(function (x) { return '<button type="button" class="' + cls + '" data-hoursel="' + x[0] + '" aria-pressed="' + (!!x[0] === on) + '">' + x[1] + '</button>'; }).join(''); }
+  document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-hoursel]'); if (!b) return; var on = b.getAttribute('data-hoursel') === '1';
+    try { localStorage.setItem('credo-hours', on ? 'on' : 'off'); } catch (x) {}
+    [].forEach.call(document.querySelectorAll('[data-hoursel]'), function (x) { x.setAttribute('aria-pressed', String((x.getAttribute('data-hoursel') === '1') === on)); });
+    [].forEach.call(document.querySelectorAll('#app-main iframe, #drawer-body iframe'), function (f) { try { f.contentWindow.CREDO_UX.hours(on); } catch (x) {} }); });
   /* a page's hero options: 0 = the current staging photo, 1 and 2 = its alternatives, each with the reason it fits */
   function heroOf(id) { var HX = HRO(); return HX ? HX.pages.filter(function (x) { return x.id === id; })[0] || null : null; }
   function heroCur(id) { try { return +(localStorage.getItem('credo-hero:' + id) || 0) || 0; } catch (e) { return 0; } }
@@ -455,7 +465,7 @@
     if (W.key) { var t = abPageTab({ key: W.key, rows: [] }); openDrawer(H.page.h1 || H.id, [['Page with this image', where + (t || '').replace(/<p class="note">The landing page for the new ad \(B\):[\s\S]*?<\/p>/, '')]], 'x'); abPageLoad(); return; }
     var u = W.file + '?hero=' + a.n;
     openDrawer(H.page.h1 || H.id, [['Page with this image', where + '<div data-hero-scope="' + esc(H.id) + '"><div class="hwhy" data-hero-box>' + heroBox(H, a.n) + '</div>' +
-      '<div class="abpgctl">' + heroBtns(H, a.n) + '</div><p><a data-hero-tab href="' + esc(u) + '" target="_blank" rel="noopener">Open the page in a new tab ↗</a></p>' +
+      '<div class="abpgctl">' + heroBtns(H, a.n) + '<span class="abpgsep" aria-hidden="true"></span>' + hoursBtns('abpgbtn') + '</div><p><a data-hero-tab href="' + esc(u) + '" target="_blank" rel="noopener">Open the page in a new tab ↗</a></p>' +
       '<div class="abpgwrap"><iframe class="abpgframe" data-hero-ctl src="' + esc(mv(u)) + '" title="' + esc(H.id) + '"></iframe></div></div>']], 'x');
   }
   function viewLpType(g) {
@@ -495,7 +505,7 @@
     var h = head + (HP ? '<div data-hero-scope="' + esc(hid) + '"><div class="hwhy" data-hero-box>' + heroBox(HP, hi) + '</div><div class="abpgctl">' + heroBtns(HP, hi) + '</div>' : '') + '<div class="toolbar">' +
       '<button class="btn" id="vw-desk" aria-pressed="' + !phoneView + '">Desktop</button><button class="btn" id="vw-phone" aria-pressed="' + phoneView + '">Phone (390 px)</button>' +
       '<button class="btn"' + dr(function () { drawerPage(s, p); }) + '>Details and metrics</button>' +
-      (HP ? '<a data-hero-tab href="' + esc(p.file + '?hero=' + hi) + '" target="_blank" rel="noopener">Open in a new tab ↗</a>' : link(p.file, 'Open in a new tab ↗')) + link(p.staging, 'Staging ↗') +
+      (HP ? '<a data-hero-tab href="' + esc(p.file + '?hero=' + hi) + '" target="_blank" rel="noopener">Open in a new tab ↗</a>' : link(p.file, 'Open in a new tab ↗')) + link(p.staging, 'Staging ↗') + hoursBtns('btn') +
       '<span class="frame-scale" id="frame-scale"></span></div>' +
       '<div class="frame-wrap" id="frame-wrap"><div class="frame-hold" id="frame-hold"><iframe' + (HP ? ' data-hero-ctl' : '') + ' src="' + esc(mv(p.file)) + '" title="' + esc(p.label) + '"></iframe></div></div>' + (HP ? '</div>' : '');
     return h;
@@ -566,9 +576,11 @@
   window.addEventListener('resize', fitFrame);
   function wirePage() {
     var set = function (ph) { phoneView = ph; try { localStorage.setItem('mh-phone', ph ? '1' : '0'); } catch (e) {}
-      $('vw-desk').setAttribute('aria-pressed', String(!ph)); $('vw-phone').setAttribute('aria-pressed', String(ph)); fitFrame(); };
+      $('vw-desk').setAttribute('aria-pressed', String(!ph)); $('vw-phone').setAttribute('aria-pressed', String(ph)); heroView(); fitFrame(); };
+    /* phones have no hero image (operator 30 Oct), so the Phone view drops the hero switch and its explanation */
+    var heroView = function () { var sc = document.querySelector('#app-main [data-hero-scope]'); if (sc) sc.classList.toggle('phone-view', phoneView); };
     $('vw-desk').onclick = function () { set(false); }; $('vw-phone').onclick = function () { set(true); };
-    fitFrame();
+    heroView(); fitFrame();
   }
   function drawerPage(s, p) {
     if (p.isNew) { s4PageRecs(); var R = (ADC.pageRecs || {})[p.recKey];
@@ -3814,7 +3826,7 @@
     var VS = (R.page.variants || {}), vk = Object.keys(VS).filter(function (k) { return k[0] !== '_'; }); if (vk.indexOf(AB_PV) < 0) AB_PV = vk[0] || null;
     var HP = heroOf(R.page.name), hi = HP ? heroCur(HP.id) : 0;
     var sw = vk.length > 1 || HP ? '<div class="abpgctl">' + (vk.length > 1 ? '<span class="sub">Show as</span> ' + vk.map(function (k) { return '<button type="button" class="abpgbtn" data-abpvar="' + esc(k) + '" aria-pressed="' + (k === AB_PV) + '">' + esc(VS[k].label || k) + '</button>'; }).join('') : '') +
-      (HP ? (vk.length > 1 ? '<span class="abpgsep" aria-hidden="true"></span>' : '') + heroBtns(HP, hi) : '') + '</div>' : '';
+      (HP ? (vk.length > 1 ? '<span class="abpgsep" aria-hidden="true"></span>' : '') + heroBtns(HP, hi) : '') + '<span class="abpgsep" aria-hidden="true"></span>' + hoursBtns('abpgbtn') + '</div>' : '';
     return '<div id="abpg" data-group="' + esc(g.key) + '"' + (HP ? ' data-hero-scope="' + esc(HP.id) + '"' : '') + '>' + (HP ? '<div class="hwhy" data-hero-box>' + heroBox(HP, hi) + '</div>' : '') + sw + '<p class="note">The landing page for the new ad (B): <b>' + esc(R.page.name || 'new page') + '</b>. It keeps the design of ' + esc(R.page.base) + ' with its copy written for the ad and its searches, and one FAQ: the questions people search first, then the questions about Credo. Draft for attorney review; nothing is changed on staging.</p>' +
       '<div class="abpgwrap"><iframe class="abpgframe" data-hero-ctl title="New landing page for ad B" sandbox="allow-scripts allow-same-origin"></iframe><p class="sub abpgstat"></p><p><button type="button" class="linkbtn" data-abpg-open>Open the full page in a new tab ↗</button></p></div>' + topics + review + '</div>'; }
   /* the built page in a tab of its own (a blob address; its <base> points at the hub, so styles and images load) */
