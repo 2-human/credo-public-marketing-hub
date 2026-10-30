@@ -6,6 +6,7 @@
  *  - a chat icon bottom right stands in for the live site's Tidio chat (Tidio does not load on the prototype);
  *  - form steps 2 and 3 have no big title (the rule start.credolegal.com uses) and no "Step 2 of 3" line in the popup header;
  *    step 3's send button reads Submit (operator 30 Oct, was Get a free case evaluation), on one row with Back at every width;
+ *  - step 2's error box shows only when Continue finds missing fields;
  *  - the debt types dropdown on step 2 has a Done button, active from the first ticked box, that closes it;
  *  - the desktop header button (#btnCTA) always reads Free Review (the phone number is beside it);
  *  - the mobile header button (staging's .mobile-call, the phone number) reads "Call Now" and calls the page's number in
@@ -88,6 +89,9 @@
     '.navbar-no-shadow{position:sticky!important;top:0;z-index:1000;background:#fff}' +
     /* the debt types panel hangs from the field itself (operator 30 Oct): no gap for the next label to show through */
     '#stoggle #dtoggle{top:100%;left:-1px;width:calc(100% + 2px);box-sizing:border-box;z-index:5;border-top-left-radius:0;border-top-right-radius:0}' +
+    /* step 2's error box: staging's display:block !important beats the script's hiding, so the box always showed (operator
+       30 Oct: only when Continue finds missing fields); the script fills it on an error and empties it otherwise */
+    '#alertdanger:empty{display:none!important}' +
     /* step 3's Back and Submit on one row, like step 2's Back and Continue (operator 30 Oct) */
     '#gtmform .quick-stack-27-copy{grid-template-columns:100px minmax(0,1fr)!important;grid-template-rows:auto!important;justify-content:stretch}' +
     '#gtmform .quick-stack-27-copy>.w-layout-cell{grid-row:1;min-width:0}' +
@@ -203,6 +207,7 @@
   function start() {
     var nc = document.getElementById('bfootercta'), row = nc && nc.closest('.w-layout-layout'); if (row) row.classList.add('ux-newclients');
     var send = document.getElementById('submitform'); if (send) send.textContent = 'Submit →';
+    var al = document.getElementById('alertdanger'); if (al) al.textContent = '';
     dropBar(); header(); desktopCta(); chat(); lede(); debtDone(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
   /* staging's own scripts set the header number on DOMContentLoaded and load; say it again once they have run */
