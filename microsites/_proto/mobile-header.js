@@ -28,7 +28,12 @@
  * as well"): Mobile shows the same page in a 390 px phone frame. */
 (function () {
   var framed = false; try { framed = window.self !== window.top; } catch (e) { framed = true; }
-  if (framed) return;   /* the hub's previews and the phone frame below have their own view */
+  if (framed) {   /* the hub's previews and the phone frame below have their own view */
+    /* a frame may not open the calling app (the page's frame-src, the hub's sandbox): phone links go through the top window */
+    document.addEventListener('click', function (e) { var a = e.target.closest && e.target.closest('a[href^="tel:"]'); if (!a || e.defaultPrevented) return;
+      e.preventDefault(); try { window.top.location.href = a.getAttribute('href'); } catch (x) {} });
+    return;
+  }
   var KEY = 'credo-view', W = 390, H = 844, wrap = null, bar;
   function frameView() {
     if (wrap) return; var f = document.createElement('iframe'); f.src = location.href; f.title = 'This page on a phone, ' + W + ' px wide';
