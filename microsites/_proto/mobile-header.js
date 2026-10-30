@@ -5,7 +5,7 @@
  *  - the floating "Is your debt situation becoming urgent? / Call now" bar is removed (it covered the form's Continue);
  *  - a chat icon bottom right stands in for the live site's Tidio chat (Tidio does not load on the prototype);
  *  - form steps 2 and 3 have no big title (the rule start.credolegal.com uses) and no "Step 2 of 3" line in the popup header;
- *    step 3's send button reads Submit (operator 30 Oct, was Get a free case evaluation);
+ *    step 3's send button reads Submit (operator 30 Oct, was Get a free case evaluation), on one row with Back at every width;
  *  - the debt types dropdown on step 2 has a Done button, active from the first ticked box, that closes it;
  *  - the desktop header button (#btnCTA) always reads Free Review (the phone number is beside it);
  *  - the mobile header button (staging's .mobile-call, the phone number) reads "Call Now" and calls the page's number in
@@ -88,6 +88,11 @@
     '.navbar-no-shadow{position:sticky!important;top:0;z-index:1000;background:#fff}' +
     /* the debt types panel hangs from the field itself (operator 30 Oct): no gap for the next label to show through */
     '#stoggle #dtoggle{top:100%;left:-1px;width:calc(100% + 2px);box-sizing:border-box;z-index:5;border-top-left-radius:0;border-top-right-radius:0}' +
+    /* step 3's Back and Submit on one row, like step 2's Back and Continue (operator 30 Oct) */
+    '#gtmform .quick-stack-27-copy{grid-template-columns:100px minmax(0,1fr)!important;grid-template-rows:auto!important;justify-content:stretch}' +
+    '#gtmform .quick-stack-27-copy>.w-layout-cell{grid-row:1;min-width:0}' +
+    '#gtmform .quick-stack-27-copy>.w-layout-cell:first-child{grid-column:1}#gtmform .quick-stack-27-copy>.w-layout-cell:last-child{grid-column:2}' +
+    '#submitform{width:100%;box-sizing:border-box}' +
     '.ux-dd-foot{display:flex;justify-content:flex-end;padding:4px 8px 8px}' +
     '.ux-dd-done{border:0;border-radius:4px;padding:6px 14px;font:600 13px/1.2 inherit;font-family:inherit;background:#c92028;color:#fff;cursor:pointer}' +
     '.ux-dd-done:disabled{background:#e2e4e9;color:#6b7280;cursor:not-allowed}' +
