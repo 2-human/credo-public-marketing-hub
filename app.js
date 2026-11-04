@@ -2844,7 +2844,7 @@
     var first = O.posts[0].date, last = O.posts[O.posts.length - 1].date;
     var counts = {}; O.posts.filter(function (p) { return p.campaign === 'v2'; }).forEach(function (p) { var s = stOf(p); counts[s] = (counts[s] || 0) + 1; });
     var h = '<div class="pagehead"><h1>Calendar</h1><span class="sub">' + ['draft', 'changes', 'approved', 'scheduled', 'published'].filter(function (s) { return counts[s]; }).map(function (s) { return counts[s] + ' ' + ST_LABEL[s]; }).join(' · ') + '</span></div>' +
-      '<p class="lead">Every organic post on Nextdoor, Facebook, Instagram and LinkedIn. The campaign (12 Oct – 8 Nov) follows the Nextdoor logic: education posts alternate with landing-page posts, one theme a week. Posts start as drafts; open one to see it as it will appear, copy it, approve it or ask for changes. Approved posts are scheduled by the sync (Nextdoor: the daily task; the others: Buffer).</p>';
+      '<p class="lead">Every organic post on Nextdoor, Facebook, Instagram and LinkedIn. The campaign (' + esc(OC ? fmtDay(OC.start) + ' – ' + fmtDay(OC.end) : '12 Oct – 30 Nov') + ') follows the Nextdoor logic: education posts alternate with landing-page posts, one theme a week. Posts start as drafts; open one to see it as it will appear, copy it, approve it or ask for changes. Approved posts are scheduled by the sync (Nextdoor: the daily task; the others: Buffer).</p>';
     if (mode === 'month') {
       var months = O.posts.map(function (p) { return p.date.slice(0, 7); }).filter(function (x, i, a) { return a.indexOf(x) === i; }).sort();
       var cur = TAB.slice(1), i = months.indexOf(cur); if (i < 0) { cur = months.indexOf(todayIso.slice(0, 7)) >= 0 ? todayIso.slice(0, 7) : months[months.length - 1]; i = months.indexOf(cur); }
