@@ -1609,7 +1609,7 @@
   /* ───────────── MH-93: Stream 2, the garnishment pause ─────────────
      One page: the client's decision and answers (the input), then the Google Ads and Meta recommendations, each with its evidence
      from the account snapshots, the related changes outside the ad platforms, the open questions and a reply for the ads manager. */
-  var S2ST = { done: 'ok', answer: 'ok', 'in progress': '', 'no change': '', open: 'warn', decision: 'warn', 'needs OK': 'warn' };
+  var S2ST = { done: 'ok', answer: 'ok', 'in progress': '', 'no change': '', open: 'warn', decision: 'warn', 'needs OK': 'warn', approved: '' };
   function s2Ev(X, key) {
     var E = X.ev, t = function (head, rows) { return '<div class="scroll"><table class="tbl s2ev"><thead><tr>' + head.map(function (h) { return '<th' + (h[1] ? ' class="num"' : '') + '>' + esc(h[0]) + '</th>'; }).join('') + '</tr></thead><tbody>' + rows.join('') + '</tbody></table></div>'; };
     var td = function (v, num) { return '<td' + (num ? ' class="num"' : '') + '>' + v + '</td>'; };
@@ -1694,7 +1694,8 @@
       '<details class="state"><summary>The input: Credo’s decision and answers</summary><p class="sub">' + esc(I.source) + '. Answers by ' + esc(I.by) + '.</p>' +
         '<div class="scroll"><table class="tbl"><thead><tr><th class="num">#</th><th>Question (Milan Gajić)</th><th>Answer</th></tr></thead><tbody>' + I.answers.map(function (a, k) { return '<tr><td class="num">' + (k + 1) + '</td><td>' + esc(a.q) + '</td><td><b>' + esc(a.a) + '</b></td></tr>'; }).join('') + '</tbody></table></div>' +
         '<ul class="notes">' + I.asks.map(function (a) { return '<li>' + esc(a) + '</li>'; }).join('') + '</ul></details>' +
-      '<details class="state"><summary>To confirm with Credo (' + X.questions.length + ')</summary><ol class="notes">' + X.questions.map(function (q) { return '<li>' + esc(q) + '</li>'; }).join('') + '</ol></details>' +
+      '<details class="state"><summary>To confirm with Credo (' + X.questions.filter(function (q) { return !q.done; }).length + ' open of ' + X.questions.length + ')</summary><ol class="notes">' + X.questions.map(function (q) {
+        return q.done ? '<li><s>' + esc(q.q) + '</s> <span class="sub">done (' + esc(q.done) + ')</span></li>' : '<li>' + esc(q.q || q) + '</li>'; }).join('') + '</ol></details>' +
       '<details class="state"><summary>Reply to Milan</summary><pre class="hopre">' + esc(X.reply) + '</pre><div class="hobtns"><button type="button" class="btn" data-s2c="reply|reply">Copy the reply</button> <span class="sub" data-s2msg></span></div></details>' +
       '<details class="state"><summary>Sources</summary><ul class="notes">' + X.sources.map(function (s) { return '<li>' + esc(s) + '</li>'; }).join('') + '</ul><p class="sub">Built ' + esc(X.built) + ' by tools/marketing-hub/build-stream2.mjs from content/campaigns/stream-2/garnishment-pause.json. Read-only: the hub changes nothing in Google Ads, Meta or Webflow.</p></details></div>';
   }
