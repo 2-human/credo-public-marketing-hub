@@ -1593,6 +1593,10 @@
   function s4PageRecs() { var X = S4(), P = X && X.package; ADC.pageRecs = ADC.pageRecs || {}; if (P) Object.keys(P.pageRecs || {}).forEach(function (k) { ADC.pageRecs['s4|' + k] = P.pageRecs[k]; }); }
   var streamTitle = function (s) { return 'Stream ' + s.n + ': ' + s.name; };
   var streamHref = function (s) { return '#/work/streams/' + s.key; };
+    /* Retargeting: missed calls and unreached leads (operator 4 Nov 2026): content/campaigns/retargeting → data/retargeting.js */
+  STREAMS.forEach(function (s) { if (s.key === 'ad-campaigns') s.items.push({ seg: 'retargeting', label: 'Retargeting: missed calls and unreached leads', href: '#/ads/retargeting',
+    what: 'Ads with the number up front for people whose call was missed and leads Credo could not reach: the policy and legal limits, the audiences per platform, Google (Search + Demand Gen) and Meta, two message strands × three variants, the test and what Credo must supply.',
+    count: function () { var X = window.HUB_RETARGETING; return X ? X.questions.length : 0; } }); });
   var STREAM_OF = {}, ITEM_OF = {}; STREAMS.forEach(function (s) { s.items.forEach(function (i) { STREAM_OF[i.seg] = s; (i.sub || []).forEach(function (u) { STREAM_OF[u.seg] = s; ITEM_OF[u.seg] = i; }); }); });   /* ITEM_OF: a sub-item's parent tool */
   function streamNav() {
     return { label: 'Streams', href: '#/work/streams', count: STREAMS.length, children: STREAMS.map(function (s) {
@@ -3999,6 +4003,7 @@
       else if (parts[1] === 'phone-numbers') { crumbs.push(['Phone numbers per page and source', hash]); html = viewS5(); after = wireS5; }   /* Stream 5 */
       else if (parts[1] === 'credit-card-validation') { crumbs.push(['Brief (v1, for iteration)', hash]); html = viewS4(); }   /* Stream 4 */
       else if (parts[1] === 'credit-card-validation-package') { crumbs.push(['Campaign package v1', hash]); html = viewS4P(); }   /* Stream 4 */
+      else if (parts[1] === 'retargeting') { crumbs.push(['Retargeting: missed calls and unreached leads', hash]); html = window.HUB_RT_VIEW ? window.HUB_RT_VIEW() : '<h1>Retargeting</h1><p class="empty">data/retargeting.js is not loaded. Build it with node tools/marketing-hub/build-retargeting.mjs.</p>'; }   /* Retargeting, 4 Nov */
       else if (parts[1] === 'ab-tests' && STG() && cluDoc()) { crumbs.push(['Current ad groups', '#/ads/ab-tests']); html = viewABPlan(); }
       else if (parts[1] === 'clusters' && STG() && cluDoc()) { crumbs.push(['Search-term clusters', '#/ads/clusters']); AFTER = null;
         /* #/ads/clusters/<intent>/<cluster>; an older #/ads/clusters/<cluster> link means the debt-lawyer intent */
