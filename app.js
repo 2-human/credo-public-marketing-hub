@@ -79,7 +79,7 @@
     (P.pages || []).forEach(function (pg) { if (!(P.pageRecs || {})[pg.slug]) return;
       var s = sites.filter(function (x) { return x.angle !== 'default' && pg.slug.indexOf('debt-credit-card-' + x.angle + '-') === 0; })[0], t = s && s.types.filter(function (x) { return x.type === 'credit-card'; })[0]; if (!t) return;
       s.pages.push({ id: 'new/' + pg.slug, label: pg.slug, kind: 'service', debt: t.label, file: null, staging: null, live: null, liveSlug: null, inMenu: false, isNew: true, recKey: 's4|' + pg.slug, h1: pg.h1,
-        reason: 'new page (Stream 4 draft), not in the menu', running: false, hadAd: false, reg: null }); }); })();
+        reason: 'new page (credit card validation draft), not in the menu', running: false, hadAd: false, reg: null }); }); })();
   /* MH-66 (operator 12 Oct): Website › Landing pages — every landing page (each microsite's Services pages, the default site's
      Defense Services pages included) grouped by debt type, beside Website › Microsites */
   var LP_BASE = '#/website/landing-pages', lpTypes = [], lpTypeBy = {};
@@ -392,7 +392,7 @@
   function viewLandingPages() {
     var nNew = lpTypes.reduce(function (t, g) { return t + g.pages.filter(function (x) { return x.p.isNew; }).length; }, 0);
     var h = '<h1>Landing pages</h1><p class="lead">All ' + lpCount + ' landing pages of the website, grouped by debt type: each microsite’s Services pages and the default site’s Defense Services pages, mirrored 1:1 from staging.credolegal.com' +
-      (nNew ? ', and ' + nNew + ' new credit card pages from Stream 4 (marked new: drafts built in the hub, not on staging yet)' : '') + '. ' +
+      (nNew ? ', and ' + nNew + ' new credit card pages from the credit card validation campaign (marked new: drafts built in the hub, not on staging yet)' : '') + '. ' +
       'Each card links to the debt type’s page (its pages with metrics) and to each landing page.</p><div class="tiles links">';
     var HX = HRO(); if (HX) h += '<div class="tile"><h3><a href="' + LP_BASE + '/hero-images">Alternative hero images</a> <span class="cnt">' + HX.pages.reduce(function (t, x) { return t + x.alts.length; }, 0) + '</span></h3>' +
       '<p>Two for each of the ' + HX.pages.length + ' prototype pages (landing pages, microsite homes and the new pages): why each one fits its page, and a link to see it there.</p></div>';
@@ -434,14 +434,14 @@
     var box = sc.querySelector('[data-hero-box]'); if (box) box.innerHTML = heroBox(H, i);
     var fr = sc.querySelector('iframe[data-hero-ctl]'); try { fr.contentWindow.CREDO_HERO.show(i); } catch (x) {}
     var tab = sc.querySelector('[data-hero-tab]'); if (tab) tab.href = tab.href.replace(/([?&]hero=)\d/, '$1' + i); });
-  var HERO_GROUPS = [['microsite home', 'Microsite home pages'], ['landing page', 'Landing pages'], ['new page (A/B test)', 'New pages for the A/B test (ad B)'], ['new page (Stream 4, credit card validation)', 'New pages: Stream 4, credit card validation']];
+  var HERO_GROUPS = [['microsite home', 'Microsite home pages'], ['landing page', 'Landing pages'], ['new page (A/B test)', 'New pages for the A/B test (ad B)'], ['new page (Stream 4, credit card validation)', 'New pages: credit card validation']];
   /* where a hero's page lives in the hub: a mirrored page (its file) or a new page built in the browser (its page-recs key) */
   function heroWhere(H) {
     if (H.kind === 'microsite home') { var ang = H.id === 'home' ? 'default' : H.id.replace(/-home$/, ''), s = siteBy[ang]; if (!s) return null;
       return { href: '#/website/' + ang + '/index', label: s.label + ' › Home', file: s.pages[0].file }; }
     if (H.kind === 'landing page') { var hit = null; lpTypes.forEach(function (g) { g.pages.forEach(function (x) { if (!hit && x.p.label === H.id) hit = { href: lpHref(g, x), label: x.s.label + ' › ' + H.id, file: x.p.file }; }); }); return hit; }
     s4PageRecs(); var key = Object.keys(ADC.pageRecs || {}).filter(function (k) { var R = ADC.pageRecs[k]; return R.page && R.page.name === H.id; })[0]; if (!key) return null;
-    var lp = null; lpTypes.forEach(function (g) { g.pages.forEach(function (x) { if (!lp && x.p.label === H.id) lp = { href: lpHref(g, x), label: 'Landing pages › ' + g.label + ' › ' + H.id + ' (new, Stream 4)', key: key }; }); });
+    var lp = null; lpTypes.forEach(function (g) { g.pages.forEach(function (x) { if (!lp && x.p.label === H.id) lp = { href: lpHref(g, x), label: 'Landing pages › ' + g.label + ' › ' + H.id + ' (new, credit card validation)', key: key }; }); });
     return /^s4\|/.test(key) ? lp || { href: '#/ads/credit-card-validation-package', label: 'Credit card validation › package › /' + H.id, key: key } : { href: '#/ads/ab-tests', label: 'Current ad groups › ' + (H.page.adGroup || key).replace('|', ' › ') + ' (new page for ad B)', key: key }; }
   function viewHeroes() {
     var HX = HRO(); if (!HX) return '<h1>Alternative hero images</h1><p class="empty">No data/heroes.js. Build it with python3 tools/marketing-hub/bake-heroes.py.</p>';
@@ -493,7 +493,7 @@
   }
   var phoneView = (function () { try { return localStorage.getItem('mh-phone') === '1'; } catch (e) { return false; } })();
   function viewPage(s, p, base) {
-    if (p.isNew) return '<h1>' + esc(p.label) + '</h1><p class="lead">New credit card page (Stream 4): <b>' + esc(p.h1) + '</b>. Built in the hub from its copy; not on staging or start yet, and not in the Services menu. ' +
+    if (p.isNew) return '<h1>' + esc(p.label) + '</h1><p class="lead">New credit card page (credit card validation campaign): <b>' + esc(p.h1) + '</b>. Built in the hub from its copy; not on staging or start yet, and not in the Services menu. ' +
       'Its ads and brief: <a href="#/ads/credit-card-validation-package">Campaign package</a>.</p>' + (s4ProtoTab(p.label) || '<p class="empty">No page-recs for this page in data/stream4.js.</p>');
     base = base || '#/website/' + s.angle + '/' + enc(p.id); var stp = ST && p.kind === 'service' ? (ST.pages[p.label] || []) : [], pads = adsForPage(p.liveSlug);
     var head = '<h1>' + esc(p.label) + '</h1>' + tabsBar(base, [['preview', 'Preview'], ['ads', 'Ads', pads.length], ['statutes', 'Statutes', stp.length]], TAB);
@@ -584,7 +584,7 @@
   }
   function drawerPage(s, p) {
     if (p.isNew) { s4PageRecs(); var R = (ADC.pageRecs || {})[p.recKey];
-      openDrawer(p.label, [['Basic info', kv([['Microsite', esc(s.label)], ['Kind', 'new page (Stream 4 draft)'], ['Debt type', esc(p.debt)], ['Headline', esc(p.h1 || '')], ['Built on', esc(R && R.page ? R.page.base : '')],
+      openDrawer(p.label, [['Basic info', kv([['Microsite', esc(s.label)], ['Kind', 'new page (credit card validation draft)'], ['Debt type', esc(p.debt)], ['Headline', esc(p.h1 || '')], ['Built on', esc(R && R.page ? R.page.base : '')],
         ['Status', 'draft for attorney review; not on staging or start; not in the Services menu']]) + '<div class="toolbar">' + go('#/website/' + s.angle + '/' + enc(p.id), 'Open the page') + go('#/ads/credit-card-validation-package', 'Campaign package') + '</div>']], true); return; }
     var ph = p.reg ? Object.keys(p.reg.phones || {}).map(function (k) { return k + ' ' + p.reg.phones[k]; }).join(' · ') : '';
     var h = kv([['Microsite', esc(s.label)], ['Kind', esc(p.kind)], ['Debt type', esc(p.debt || '')], ['Services menu', p.kind === 'service' ? (p.inMenu ? 'yes · ' : 'no · ') + esc(p.reason || '') : ''],
@@ -1547,48 +1547,49 @@
      should be named Stream 1: Google Ads Experiments … the search-term clusters, headline and description quadrant clusters, the
      A/B test plan (renamed to Ad test builder)." A stream's tools keep their addresses (permalinks keep working); the menu and
      the breadcrumb put them in the stream. */
-  var STREAMS = [{ key: 'google-ads-experiments', n: 1, name: 'Google Ads Experiments', short: 'New ads and their pages, built from the account’s own searches and copy.',
-    about: 'New ads and their pages, built from the account’s own searches and copy: what the searches ask, which lines work, and the second ad (B) to test in each ad group.',
+  /* Operator 4 Nov 2026: "consolidate all ad campaigns under one work stream, even the existing ones. Consolidate work on the website
+     and landing pages in another, unless building the landing page is part of an ad campaign. Consolidate work on social media and
+     content in a third work stream". The old streams (1 Google Ads Experiments, 2 Garnishment Pause, 3 Social Media Comments,
+     4 Credit Card Validation, 5 Phone Numbers) keep their tools and addresses; OLD_STREAMS sends their stream addresses to the new one. */
+  var STREAMS = [{ key: 'ad-campaigns', n: 1, name: 'Ad Campaigns', short: 'Every paid campaign on Google, Meta and Bing, with the landing pages built for it.',
+    about: 'Every paid campaign on Google Ads, Meta and Bing, the existing ones and the new ones, with the landing pages built for a campaign: the Google Ads experiments (search-term clusters, copy quadrants, ad tests), credit card validation, the garnishment pause in the ad accounts, the phone numbers per source on the landing pages, and retargeting.',
     items: [{ seg: 'clusters', label: 'Search-term clusters', href: '#/ads/clusters', what: 'Searches grouped by intent and cluster, with the key words each cluster needs and the ad lines written to cover them.', count: function () { return Object.keys(CLUS).length || 0; } },
       { seg: 'copy-quadrants', label: 'Headline and description quadrants', href: '#/ads/copy-quadrants', what: 'Every headline and description placed by CTR and by cost per conversion or per enrolled client: what to keep and what to replace.' },
       { seg: 'ad-test-builder', label: 'Ad test builder', href: '#/ads/ad-test-builder', what: 'The ads to test: a second ad (B) for each current ad group, and new ad groups for searches no current ad group targets.',
         sub: [{ seg: 'ab-tests', label: 'Current ad groups', href: '#/ads/ab-tests', what: 'A second ad (B) for each running ad group: its lines, the searches it should cover in full, and its landing page.', count: abGroupCount },   /* the A/B test plan (MH-30) */
           { seg: 'new-clusters', label: 'New ad groups', href: '#/ads/new-clusters', what: 'New ad groups for searches no current ad group targets, with their ads and pages.', count: function () { return NCL().length; },   /* the new topical clusters (MH-74), MH-85 */
             kids: function () { return NCL().map(function (c) { return { label: c.label, href: '#/ads/new-clusters/' + enc(c.key) }; }); } },
-          { seg: 'handoff', label: 'Handoff', href: '#/ads/handoff', what: 'Everything needed to apply each new ad (B) and its landing page in Google Ads and Webflow: the ad group, the ad, the page, and a prompt that applies them.', count: function () { return HO() ? HO().groups.length : 0; } }] }] },   /* MH-92 */
-    /* MH-93, operator 26 Oct: "Please create a Stream 2 in Work in the hub, and produce a page with recommendations for google ads and meta ads, based on the input" */
-    { key: 'garnishment-pause', n: 2, name: 'Garnishment Pause', short: 'Credo stops garnishment and post-judgment work: the actions in Google Ads, Meta Ads and the websites.',
-      about: 'Credo pauses all garnishment campaigns (26 Oct). What that means for the Google Ads and Meta accounts, the landing pages and the organic calendar, from the client’s answers and the account data.',
-      items: [{ seg: 'garnishment-pause', label: 'Actions: Google Ads, Meta Ads, Website', href: '#/ads/garnishment-pause', what: 'Every action in Google Ads, Meta Ads and on the websites, each with its evidence, a hand-over file and a prompt that applies it through Ryze, Pipeboard or Webflow.',
-        count: function () { var X = S2(); return X && X.actions ? s2All(X).filter(function (a) { return !a.noAction && a.status !== 'done'; }).length : 0; } }] },
-    /* MH-94, operator 26 Oct: "Create a Stream 3 for social media comments … segment them as high, medium and low priority for answers" */
-    { key: 'social-comments', n: 3, name: 'Social Media Comments', short: 'Every comment on Credo’s posts and ads, by priority for an answer, filterable by platform and post.',
-      about: 'Every comment on Credo’s Facebook posts, ads and page reviews, sorted into high, medium and low priority for an answer, with the post it belongs to, why it has that priority and what to do. Read from the Business Suite inbox; Instagram, LinkedIn and Nextdoor join as their comments are read.',
-      items: [{ seg: 'social-comments', label: 'Comments to answer', href: '#/ads/social-comments', what: 'The comments by priority (high: today, medium: this week, low: no answer), filterable by platform, post, type and status, each with its post and a link to the thread in Business Suite.',
-        count: function () { var X = S3(); return X ? X.totals.open : 0; } }] },
-    /* Stream 4, operator 28 Oct: "open a new work stream with a brief for what we have to do regarding the new topic around credit card
-       settlement and interest rates, in terms of google ads strategy, keywords, ads, meta ads and creatives and landing pages" */
-    { key: 'credit-card-validation', n: 4, name: 'Credit Card Validation', short: 'Validation clients: credit card debt at high interest, paying the minimum, not yet sued. The brief for Google Ads, Meta and the pages.',
-      about: 'After the garnishment pause Credo wants more validation files: people with credit card debt who are not in litigation, still paying the minimum on cards at 24–30% interest. The brief covers the guardrails, Google Ads strategy and keywords (with search volumes), ad lines, Meta ads and creatives, landing pages and how to judge the test.',
-      items: [{ seg: 'credit-card-validation', label: 'Brief (v1, for iteration)', href: '#/ads/credit-card-validation', what: 'What we heard on 28 Oct, the guardrails to settle first, the plan per channel, the keywords with search volumes, the open questions and who does what.',
+          { seg: 'handoff', label: 'Handoff', href: '#/ads/handoff', what: 'Everything needed to apply each new ad (B) and its landing page in Google Ads and Webflow: the ad group, the ad, the page, and a prompt that applies them.', count: function () { return HO() ? HO().groups.length : 0; } }] },
+      /* the garnishment pause, split by where the action is: Google and Meta here, the website in Stream 2 (?scope=) */
+      { seg: 'garnishment-pause', label: 'Garnishment pause: Google and Meta actions', href: '#/ads/garnishment-pause?scope=ads', what: 'Credo paused garnishment and post-judgment work on 26 Oct: every action in Google Ads and Meta, each with its evidence, a hand-over file and a prompt.',
+        count: function () { var X = S2(); return X && X.actions ? X.actions.google.concat(X.actions.meta).filter(function (a) { return !a.noAction && a.status !== 'done' && a.status !== 'no change'; }).length : 0; } },
+      { seg: 'credit-card-validation', label: 'Credit card validation: brief (v1)', href: '#/ads/credit-card-validation', what: 'Validation clients (credit card debt at high interest, paying the minimum, not yet sued): the guardrails, the plan per channel, the keywords with search volumes, the open questions and who does what.',
         count: function () { var X = S4(); return X ? X.questions.length : 0; } },
-        /* operator 28 Oct: "Produce one full campaign package in the same work stream. Google Ads Campaign … 2 ad groups with 3 ads
-           each … Create adequate extensions. Explain why you made the decisions in a brief. Then do the same for meta ads." */
-        { seg: 'credit-card-validation-package', label: 'Campaign package v1', href: '#/ads/credit-card-validation-package', what: 'The decisions and why, the Google campaign (settings, negatives, 2 ad groups × 3 ads, extensions), the Meta campaign (2 ad sets × 3 ads with creatives), the six landing pages and the tracked URLs.',
-          count: function () { var X = S4(); return X && X.package ? 12 : 0; } }] },
-    /* Stream 5, operator 6 Nov 2026: "place everything into a new work stream and give me a table based on which a human can test every page
-       to show the correct number" (Milan's Bing phone list, the change on start.credolegal.com, the test) */
-    { key: 'phone-numbers', n: 5, name: 'Phone Numbers', short: 'Which number each start.credolegal.com page shows for Google, Meta and Bing visitors: the Bing update of 6 Nov, the test, and a checklist to test every page by hand.',
-      about: 'Each landing page on start.credolegal.com picks its phone number by the visitor’s source (Google, Meta or Bing). On 6 Nov the Bing numbers were updated from Milan’s sheet before the Bing relaunch. This stream holds what changed, the automated test of every page and source, a checklist for testing by hand, and what is still open.',
-      items: [{ seg: 'phone-numbers', label: 'Numbers per page and source', href: '#/ads/phone-numbers', what: 'The Bing numbers changed on 6 Nov, every page × source with the number it must show, the automated result on desktop and mobile, a checklist to test by hand (CSV), and the open questions for Milan.',
-        count: function () { var X = window.HUB_STREAM5; return X ? X.rows.length : 0; } }] }];
+      { seg: 'credit-card-validation-package', label: 'Credit card validation: campaign package v1', href: '#/ads/credit-card-validation-package', what: 'The decisions and why, the Google campaign (settings, negatives, 2 ad groups × 3 ads, extensions), the Meta campaign (2 ad sets × 3 ads with creatives), the six landing pages and the tracked URLs.',
+        count: function () { var X = S4(); return X && X.package ? 12 : 0; } },
+      { seg: 'phone-numbers', label: 'Phone numbers per page and source', href: '#/ads/phone-numbers', what: 'Which number each start.credolegal.com page shows for Google, Meta and Bing visitors: the Bing update of 6 Nov, the automated test of every page and source, a checklist to test by hand (CSV), and the open questions for Milan.',
+        count: function () { var X = window.HUB_STREAM5; return X ? X.rows.length : 0; } }] },
+    { key: 'website-landing-pages', n: 2, name: 'Website and Landing Pages', short: 'The sites and their pages, apart from the pages built for a campaign.',
+      about: 'The microsites and landing pages on staging.credolegal.com and start.credolegal.com that are not built as part of a campaign: the garnishment pause on the websites, the legal pages and disclaimers, success stories, the lead form and the QA copy on enroll.credolegal.com.',
+      items: [{ seg: 'garnishment-pause@website', label: 'Garnishment pause: website actions', href: '#/ads/garnishment-pause?scope=website', what: 'The garnishment pause on the websites: the pages, the Services menu, the post-judgment copy on start and the lead form options.',
+        count: function () { var X = S2(); return X && X.actions ? X.actions.website.filter(function (a) { return !a.noAction && a.status !== 'done' && a.status !== 'no change'; }).length : 0; } },
+        { seg: 'web-landing-pages', label: 'Landing pages', href: LP_BASE, what: 'Every landing page by debt type, with its copy, its ads and its prototype.' },
+        { seg: 'web-microsites', label: 'Microsites', href: '#/website', what: 'The microsites and their pages.' }] },
+    { key: 'social-content', n: 3, name: 'Social Media and Content', short: 'Organic posts, comments and replies, and the content behind them.',
+      about: 'Organic posts on Nextdoor, Facebook, Instagram and LinkedIn, the comments on Credo’s posts and ads and the replies to them, the FAQ the replies are built from, and the follow-up messages to leads.',
+      items: [{ seg: 'social-comments', label: 'Comments to answer', href: '#/ads/social-comments', what: 'The comments by priority (high: today, medium: this week, low: no answer), filterable by platform, post, type and status, each with its post and a link to the thread in Business Suite.',
+        count: function () { var X = S3(); return X ? X.totals.open : 0; } },
+        { seg: 'org-calendar', label: 'Organic calendar', href: '#/organic', what: 'The organic posts by week and month, with their status, approvals and metrics.' },
+        { seg: 'org-campaign', label: 'Organic campaign', href: '#/organic/campaign', what: 'The campaign’s themes, the mix of posts and the voice per platform.' }] }];
+  var OLD_STREAMS = { 'google-ads-experiments': 'ad-campaigns', 'garnishment-pause': 'ad-campaigns', 'credit-card-validation': 'ad-campaigns', 'phone-numbers': 'ad-campaigns', 'social-comments': 'social-content' };
+  var SOPEN = function () { return window.HUB_STREAMS_OPEN || null; };   /* data/streams.js: open items per stream (content/internal/streams/open-items.json) */
   var HO = function () { return window.HUB_HANDOFF || null; };
   var S2 = function () { return window.HUB_STREAM2 || null; };   /* MH-93: data/stream2.js, from tools/marketing-hub/build-stream2.mjs */
   var S3 = function () { return window.HUB_STREAM3 || null; };   /* MH-94: data/stream3.js, from tools/marketing-hub/build-stream3.mjs */
   var S4 = function () { return window.HUB_STREAM4 || null; };   /* Stream 4: data/stream4.js, from tools/marketing-hub/build-stream4.mjs */
   /* the Stream 4 pages in the page-recs format, beside the A/B new pages (key 's4|<slug>'), built in the browser like them */
   function s4ProtoTab(slug) { s4PageRecs(); var R = (ADC.pageRecs || {})['s4|' + slug], t = R && abPageTab({ key: 's4|' + slug, rows: [] });
-    return t && t.replace(/The landing page for the new ad \(B\):[\s\S]*?nothing is changed on staging\./, 'The page <b>/' + esc(slug) + '</b> as a prototype: built on ' + esc(R.page.base) + ' (its design and form) with the Stream 4 copy, one FAQ with the topical questions first and the questions about Credo last. Draft for attorney review; the page is not on staging or start yet.'); }
+    return t && t.replace(/The landing page for the new ad \(B\):[\s\S]*?nothing is changed on staging\./, 'The page <b>/' + esc(slug) + '</b> as a prototype: built on ' + esc(R.page.base) + ' (its design and form) with the credit card validation copy, one FAQ with the topical questions first and the questions about Credo last. Draft for attorney review; the page is not on staging or start yet.'); }
   function s4PageRecs() { var X = S4(), P = X && X.package; ADC.pageRecs = ADC.pageRecs || {}; if (P) Object.keys(P.pageRecs || {}).forEach(function (k) { ADC.pageRecs['s4|' + k] = P.pageRecs[k]; }); }
   var streamTitle = function (s) { return 'Stream ' + s.n + ': ' + s.name; };
   var streamHref = function (s) { return '#/work/streams/' + s.key; };
@@ -1608,9 +1609,17 @@
       STREAMS.map(function (s) { return '<tr class="clk"' + dr(function (el) { el.classList.add('sel'); drawerStream(s); }) + '><td><a href="' + streamHref(s) + '">' + esc(streamTitle(s)) + '</a></td><td>' + esc(s.short || s.about) +
         '<div class="sub">' + s.items.map(function (i) { return esc(i.label); }).join(' · ') + '</div></td><td class="num">' + s.items.length + '</td></tr>'; }).join('') + '</tbody></table></div>';
   }
+  var SO_ST = { open: '', 'in progress': 'warn', waiting: 'warn', 'on hold': '', done: 'ok' };
+  function streamOpen(s) {   /* the stream's open items (the 4 Nov call and since), from data/streams.js */
+    var X = SOPEN(), L = X ? X.items.filter(function (i) { return i.stream === s.key; }) : [];
+    if (!L.length) return '';
+    return '<h2>Open items <span class="sub">' + L.filter(function (i) { return i.status !== 'done'; }).length + ' of ' + L.length + ' open</span></h2><div class="scroll"><table class="tbl"><thead><tr><th>#</th><th>Item</th><th>Owner</th><th>Status</th><th>Since</th></tr></thead><tbody>' +
+      L.map(function (i) { return '<tr><td><b>' + esc(i.id) + '</b></td><td>' + (i.href ? '<a href="' + esc(i.href) + '">' + esc(i.title) + '</a>' : '<b>' + esc(i.title) + '</b>') + '<div class="sub">' + esc(i.note) + '</div></td><td>' + esc(i.owner) + '</td><td><span class="chip ' + (SO_ST[i.status] || '') + '">' + esc(i.status) + '</span></td><td>' + esc(i.since) + '</td></tr>'; }).join('') +
+      '</tbody></table></div><p class="sub">From ' + esc(X.source) + '. Built ' + esc(X.built) + ' by tools/marketing-hub/build-streams.mjs from content/internal/streams/open-items.json.</p>';
+  }
   function viewStream(s) {
     return '<h1>' + esc(streamTitle(s)) + '</h1><p class="lead">' + esc(s.about) + '</p><div class="tiles links">' + s.items.map(function (i) { var n = i.count ? i.count() : null;
-      return '<a class="tile" href="' + i.href + '"><h3>' + esc(i.label) + '</h3>' + (n ? '<div class="big">' + n + '</div>' : '') + '<p>' + esc(i.what) + '</p>' + (i.sub ? '<p class="sub">' + i.sub.map(function (u) { return esc(u.label); }).join(' · ') + '</p>' : '') + '</a>'; }).join('') + '</div>';
+      return '<a class="tile" href="' + i.href + '"><h3>' + esc(i.label) + '</h3>' + (n ? '<div class="big">' + n + '</div>' : '') + '<p>' + esc(i.what) + '</p>' + (i.sub ? '<p class="sub">' + i.sub.map(function (u) { return esc(u.label); }).join(' · ') + '</p>' : '') + '</a>'; }).join('') + '</div>' + streamOpen(s);
   }
   /* ───────────── MH-93: Stream 2, the garnishment pause ─────────────
      One page: the client's decision and answers (the input), then the Google Ads and Meta recommendations, each with its evidence
@@ -1655,7 +1664,7 @@
      handover file and an option to apply the recommendations via connectors". One table per platform; a row opens the action's
      drawer: What and why (the step, its targets' evidence), Hand-over (the file for the person applying it) and Apply via
      <connector> (a prompt for a Claude session with Ryze, Pipeboard or Webflow that reads first and asks before any change). */
-  var S2PF = [['google', 'Google Ads'], ['meta', 'Meta Ads'], ['website', 'Website']];
+  var S2PF0 = [['google', 'Google Ads'], ['meta', 'Meta Ads'], ['website', 'Website']], S2PF = S2PF0, S2SCOPE = null;   /* ?scope=ads | website: the stream's own part */
   function s2All(X) { return X.actions.google.concat(X.actions.meta, X.actions.website); }
   function s2Find(id) { var X = S2(); return X ? s2All(X).filter(function (a) { return a.id === id; })[0] || null : null; }
   function s2Btns(a, kind) { var f = 'stream2-' + a.id.toLowerCase() + (kind === 'prompt' ? '-apply-' + a.connector : '-handover') + '.md';
@@ -1686,10 +1695,12 @@
   }
   function viewS2() {
     var X = S2();
-    if (!X || !X.actions) return '<h1>Garnishment pause: actions</h1><p class="empty">Stream 2’s data (data/stream2.js) is not loaded. Build it with node tools/marketing-hub/build-stream2.mjs.</p>';
+    if (!X || !X.actions) return '<h1>Garnishment pause: actions</h1><p class="empty">The garnishment pause data (data/stream2.js) is not loaded. Build it with node tools/marketing-hub/build-stream2.mjs.</p>';
+    S2PF = S2PF0.filter(function (p) { return S2SCOPE === 'ads' ? p[0] !== 'website' : S2SCOPE === 'website' ? p[0] === 'website' : true; });
     var I = X.input, G = X.ev.garnShare, gset = X.ev.metaGarn.sets.filter(function (x) { return / — Bold/.test(x.name); })[0] || {}, all = s2All(X);
     var todo = function (a) { return !a.noAction && a.status !== 'done' && a.status !== 'no change' && a.status !== 'answer'; };
-    return '<div id="s2page"><h1>Garnishment pause: actions</h1><p class="lead">' + esc(I.decision) + ' ' + esc(I.rule) + '</p>' + (X.roles ? '<p class="note">' + esc(X.roles) + ' Click an action for its hand-over file and the prompt that applies it through Ryze, Pipeboard or Webflow.</p>' : '') +
+    var s2h = S2SCOPE === 'ads' ? 'Garnishment pause: Google and Meta actions' : S2SCOPE === 'website' ? 'Garnishment pause: website actions' : 'Garnishment pause: actions';
+    return '<div id="s2page"><h1>' + s2h + '</h1>' + (S2SCOPE ? '<p class="sub">Part of the page for ' + (S2SCOPE === 'ads' ? 'Stream 1: Ad Campaigns' : 'Stream 2: Website and Landing Pages') + '. <a href="#/ads/garnishment-pause">All actions</a></p>' : '') + '<p class="lead">' + esc(I.decision) + ' ' + esc(I.rule) + '</p>' + (X.roles ? '<p class="note">' + esc(X.roles) + ' Click an action for its hand-over file and the prompt that applies it through Ryze, Pipeboard or Webflow.</p>' : '') +
       '<div class="tiles kpis">' + S2PF.map(function (p) { var L = X.actions[p[0]], open = L.filter(todo);
         return '<a class="tile" href="#s2-' + p[0] + '" data-s2jump><h3>' + p[1] + '</h3><div class="big">' + open.length + ' to do</div><p>' + L.filter(function (a) { return a.status === 'done'; }).length + ' done · ' + L.filter(function (a) { return a.noAction; }).length + ' no change' +
           (L.some(function (a) { return a.status === 'decision'; }) ? ' · ' + L.filter(function (a) { return a.status === 'decision'; }).length + ' to decide' : '') + '</p></a>'; }).join('') +
@@ -1729,7 +1740,7 @@
      the account already matched. A brief to iterate on: nothing here changes an account. */
   function viewS4() {
     var X = S4();
-    if (!X) return '<h1>Credit card validation: brief</h1><p class="empty">Stream 4’s data (data/stream4.js) is not loaded. Build it with node tools/marketing-hub/build-stream4.mjs.</p>';
+    if (!X) return '<h1>Credit card validation: brief</h1><p class="empty">The credit card validation data (data/stream4.js) is not loaded. Build it with node tools/marketing-hub/build-stream4.mjs.</p>';
     var kv4 = function (items) { return '<dl class="s4kv">' + items.map(function (x) { return '<dt>' + esc(x[0]) + '</dt><dd>' + esc(x[1]) + '</dd>'; }).join('') + '</dl>'; };
     var sec = function (s) {
       var body = s.items ? kv4(s.items) : '';
@@ -1823,7 +1834,7 @@
   }
   function viewS5() {
     var X = window.HUB_STREAM5;
-    if (!X) return '<h1>Phone numbers per page and source</h1><p class="empty">Stream 5’s data (data/stream5.js) is not loaded. Build it with node tools/marketing-hub/build-stream5.mjs.</p>';
+    if (!X) return '<h1>Phone numbers per page and source</h1><p class="empty">The phone number data (data/stream5.js) is not loaded. Build it with node tools/marketing-hub/build-stream5.mjs.</p>';
     var T = X.totals, OPEN = {}; X.open.forEach(function (o) { OPEN[o.id] = o; });
     var res = function (r) { return r.auto === 'pass' ? '<span class="chip ok">Pass</span>' : '<span class="chip warn" title="' + esc(OPEN[r.open] ? OPEN[r.open].what : '') + '">Open ' + esc(r.open) + '</span>'; };
     var nums = function (a) { return a.length ? a.map(esc).join('<br>') : dash; };
@@ -1915,7 +1926,7 @@
       (same.length ? '<h3>Other comments by ' + esc(c.author) + '</h3><ul class="notes">' + same.map(function (x) { return '<li>' + s3Chip(x) + ' ' + esc(x.ago) + ' · ' + esc(s3Post(X, x.post).ad) + ': ' + esc(x.text.slice(0, 140)) + (x.text.length > 140 ? '…' : '') + '</li>'; }).join('') + '</ul>' : '')],
       ['Post', '<p>' + esc(p.hook) + '</p>' + kv([['Kind', esc(p.type === 'ad' ? 'Ad' : p.type === 'review' ? 'Page reviews' : 'Organic post')], ['Ad or post', esc(p.ad)], ['Ad set', p.adset ? esc(p.adset) : dash], ['Campaign', p.campaign ? esc(p.campaign) : dash],
         ['Reactions · comments', p.reactions != null ? n0(p.reactions) + ' · ' + n0(p.comments) : dash], ['Comments here', p.n.high + ' high · ' + p.n.medium + ' medium · ' + p.n.low + ' low · ' + p.n.answered + ' answered'],
-        ['Thread', link(p.url, 'Open in Business Suite')]]) + (p.paused ? '<p class="note">Garnishment ad: Credo paused garnishment and post-judgment work on 26 Oct (Stream 2).</p>' : '')]]);
+        ['Thread', link(p.url, 'Open in Business Suite')]]) + (p.paused ? '<p class="note">Garnishment ad: Credo paused garnishment and post-judgment work on 26 Oct (the garnishment pause).</p>' : '')]]);
   }
   function s3List(X) {
     var rows = s3Shown(X), lim = 200;
@@ -1938,7 +1949,7 @@
   }
   function viewS3() {
     var X = S3();
-    if (!X) return '<h1>Comments to answer</h1><p class="empty">Stream 3’s data (data/stream3.js) is not loaded. Build it with node tools/marketing-hub/build-stream3.mjs.</p>';
+    if (!X) return '<h1>Comments to answer</h1><p class="empty">The comments data (data/stream3.js) is not loaded. Build it with node tools/marketing-hub/build-stream3.mjs.</p>';
     var T = X.totals, tile = function (h, n, p) { return '<div class="tile"><h3>' + esc(h) + '</h3><div class="big">' + n + '</div><p>' + esc(p) + '</p></div>'; };
     return '<div id="s3page"><h1>Comments to answer</h1><p class="lead">Every comment on Credo’s Facebook posts, ads and page reviews, by priority for an answer, with the post it belongs to. Read ' + esc(X.asOf) + ' from the Business Suite inbox; nothing was answered, hidden or changed.</p>' +
       '<div class="tiles kpis">' + tile('High: answer today', T.high, 'Recent requests for help, former clients, reviews, something broken.') + tile('Medium: this week', T.medium, 'Older requests, case-type questions, doubts a fact settles.') +
@@ -3970,7 +3981,7 @@
         if (pg) { crumbs.push([pg.label, hash]); html = viewPage(s, pg); after = pg.isNew ? abPageLoad : TAB ? null : wirePage; } else html = viewSite(s);
       }
     } else if (parts[0] === 'ads') {
-      if (STREAM_OF[parts[1]]) { var sx = STREAM_OF[parts[1]]; crumbs.push(['Work', '#/work'], ['Streams', '#/work/streams'], [streamTitle(sx), streamHref(sx)]); if (ITEM_OF[parts[1]]) crumbs.push([ITEM_OF[parts[1]].label, ITEM_OF[parts[1]].href]); }   /* MH-84, MH-85 */
+      if (STREAM_OF[parts[1]]) { var sx = STREAM_OF[parts[1] + '@' + PQ.get('scope')] || STREAM_OF[parts[1]]; crumbs.push(['Work', '#/work'], ['Streams', '#/work/streams'], [streamTitle(sx), streamHref(sx)]); if (ITEM_OF[parts[1]]) crumbs.push([ITEM_OF[parts[1]].label, ITEM_OF[parts[1]].href]); }   /* MH-84, MH-85 */
       else if (!ADPF[parts[1]] || parts[1] === 'google') crumbs.push(['Platforms', '#/platforms']);   /* MH-88 (Google's own crumbs below) */
       if (GPARENT[parts[1]]) { crumbs.push(['Google', PFH.google], ['Google Ads', '#/ads/google']); if (parts[1] !== 'terms') crumbs.push([gsLabel(GPARENT[parts[1]]), gsHref(GPARENT[parts[1]])]); }   /* MH-80 */
       if (parts[1] === 'google' && GSECV[parts[2]]) { crumbs.push(['Google', PFH.google], ['Google Ads', '#/ads/google'], [gsLabel(parts[2]), hash]); AFTER = null; html = GA ? GSECV[parts[2]]() : '<h1>' + esc(gsLabel(parts[2])) + '</h1><p class="empty">The account snapshot (data/google-account.js) is not loaded.</p>'; after = AFTER; }
@@ -3982,9 +3993,9 @@
       else if (parts[1] === 'new-clusters') { crumbs.push(['New ad groups', '#/ads/new-clusters']); var nc = NCL().filter(function (c) { return c.key === parts[2]; })[0]; if (nc) crumbs.push([nc.label, hash]);   /* MH-74, MH-85 */
         html = viewNewClusters(); if (nc) after = function () { if (/^page-/.test(TAB || '')) NC_PAGE = TAB.slice(5); drawerNC(nc, /^page-/.test(TAB || '') ? 'Pages' : null); }; }   /* MH-75: …/<key> opens the ad group's drawer (?tab=page-<ad>: on that ad's page) */
       else if (parts[1] === 'handoff') { crumbs.push(['Handoff', '#/ads/handoff']); html = viewHandoff(); }   /* MH-92 */
-      else if (parts[1] === 'garnishment-pause') { crumbs.push(['Actions: Google Ads, Meta Ads, Website', hash]); html = viewS2(); after = wireS2; }   /* MH-93 */
+      else if (parts[1] === 'garnishment-pause') { S2SCOPE = PQ.get('scope'); crumbs.push([S2SCOPE === 'website' ? 'Garnishment pause: website actions' : S2SCOPE === 'ads' ? 'Garnishment pause: Google and Meta actions' : 'Garnishment pause: all actions', hash]); html = viewS2(); after = wireS2; }   /* MH-93 */
       else if (parts[1] === 'social-comments') { crumbs.push(['Comments to answer', hash]); html = viewS3(); after = wireS3; }   /* MH-94 */
-      else if (parts[1] === 'phone-numbers') { crumbs.push(['Numbers per page and source', hash]); html = viewS5(); after = wireS5; }   /* Stream 5 */
+      else if (parts[1] === 'phone-numbers') { crumbs.push(['Phone numbers per page and source', hash]); html = viewS5(); after = wireS5; }   /* Stream 5 */
       else if (parts[1] === 'credit-card-validation') { crumbs.push(['Brief (v1, for iteration)', hash]); html = viewS4(); }   /* Stream 4 */
       else if (parts[1] === 'credit-card-validation-package') { crumbs.push(['Campaign package v1', hash]); html = viewS4P(); }   /* Stream 4 */
       else if (parts[1] === 'ab-tests' && STG() && cluDoc()) { crumbs.push(['Current ad groups', '#/ads/ab-tests']); html = viewABPlan(); }
@@ -4010,6 +4021,7 @@
     } else if (parts[0] === 'reference') {
       crumbs.push(['Reference', '#/reference/statutes'], ['Statutes', '#/reference/statutes']); html = viewStatutes();
     } else if (parts[0] === 'work' && parts[1] === 'streams') {   /* MH-84 */
+      if (OLD_STREAMS[parts[2]]) { location.replace('#/work/streams/' + OLD_STREAMS[parts[2]]); return; }   /* the five streams before 6 Nov */
       crumbs.push(['Work', '#/work'], ['Streams', '#/work/streams']); var st = STREAMS.filter(function (x) { return x.key === parts[2]; })[0];
       if (st) { crumbs.push([streamTitle(st), hash]); html = viewStream(st); } else html = viewStreams();
     } else if (parts[0] === 'work' && B) {
