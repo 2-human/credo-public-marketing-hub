@@ -1829,23 +1829,24 @@
     var q = function (v) { v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
     var head = ['#', 'Source', 'Test link (open in a private window)', 'Expected number', 'Campaign', 'Campaign status', 'Ad group', 'Ad group status', 'Ad', 'Automated test 6 Nov', 'Page shows now (desktop)', 'Page shows now (mobile)', 'Tester: desktop Pass/Fail', 'Tester: mobile Pass/Fail', 'Tester notes'];
     return [head].concat(X.rows.map(function (r) { return [r.n, S5SRC[r.src], r.url, r.expected || r.sheet, r.campaign, r.campaignStatus, r.adGroup, r.adGroupStatus, r.ad,
-      r.auto === 'pass' ? 'Pass' : 'Open ' + r.open + ': ' + r.note, r.desktop.join(' / '), r.mobile.join(' / ') + (r.sticky ? '' : ' (no sticky button)'), '', '', '']; }))
+      r.auto === 'pass' ? 'Pass' : (r.auto === 'closed' ? 'Closed ' : 'Open ') + r.open + ': ' + r.note, r.desktop.join(' / '), r.mobile.join(' / ') + (r.sticky ? '' : ' (no sticky button)'), '', '', '']; }))
       .map(function (row) { return row.map(q).join(','); }).join('\r\n');
   }
   function viewS5() {
     var X = window.HUB_STREAM5;
     if (!X) return '<h1>Phone numbers per page and source</h1><p class="empty">The phone number data (data/stream5.js) is not loaded. Build it with node tools/marketing-hub/build-stream5.mjs.</p>';
     var T = X.totals, OPEN = {}; X.open.forEach(function (o) { OPEN[o.id] = o; });
-    var res = function (r) { return r.auto === 'pass' ? '<span class="chip ok">Pass</span>' : '<span class="chip warn" title="' + esc(OPEN[r.open] ? OPEN[r.open].what : '') + '">Open ' + esc(r.open) + '</span>'; };
+    var res = function (r) { return r.auto === 'pass' ? '<span class="chip ok">Pass</span>' : r.auto === 'closed' ? '<span class="chip ok" title="' + esc(r.note) + '">Closed ' + esc(r.open) + '</span>' : '<span class="chip warn" title="' + esc(OPEN[r.open] ? OPEN[r.open].what : '') + '">Open ' + esc(r.open) + '</span>'; };
+    var nOpen = X.open.filter(function (o) { return !o.closed; }).length;
     var nums = function (a) { return a.length ? a.map(esc).join('<br>') : dash; };
     return '<div id="s5page"><h1>Phone numbers per page and source</h1><p class="lead">' + esc(X.how) + '</p>' +
       '<div class="tiles kpis"><div class="tile"><h3>Rows tested</h3><div class="big">' + T.rows + '</div><p>every start.credolegal.com row of Milan’s sheet, desktop and mobile</p></div>' +
         '<div class="tile"><h3>Show the right number</h3><div class="big">' + T.pass + '</div><p>automated test, ' + esc(X.date) + '</p></div>' +
-        '<div class="tile"><h3>Open</h3><div class="big">' + T.open + ' rows</div><p>' + X.open.length + ' questions for Milan (below)</p></div>' +
-        '<div class="tile"><h3>Changed on 6 Nov</h3><div class="big">' + X.changes.length + ' pages</div><p>Bing number only</p></div></div>' +
-      '<h2>Open questions for Milan</h2><div class="scroll"><table class="tbl"><thead><tr><th>#</th><th>What the pages do now</th><th>Question</th><th>Rows</th></tr></thead><tbody>' +
+        '<div class="tile"><h3>Open</h3><div class="big">' + T.open + ' rows</div><p>' + (nOpen ? nOpen + ' of ' + X.open.length + ' questions for Milan still open' : 'all ' + X.open.length + ' questions for Milan answered') + (T.closed ? '; ' + T.closed + ' rows closed by his answers' : '') + '</p></div>' +
+        '<div class="tile"><h3>Changed on 6 Nov</h3><div class="big">' + X.changes.length + ' pages</div><p>the Bing number; on collector-penalties every source</p></div></div>' +
+      '<h2>Questions for Milan <span class="sub">' + nOpen + ' of ' + X.open.length + ' open</span></h2><div class="scroll"><table class="tbl"><thead><tr><th>#</th><th>What the pages did</th><th>Question</th><th>Answer</th><th>Rows</th></tr></thead><tbody>' +
         X.open.map(function (o) { var n = X.rows.filter(function (r) { return r.open === o.id; }).map(function (r) { return r.n; });
-          return '<tr><td><b>' + esc(o.id) + '</b></td><td>' + esc(o.what) + '</td><td>' + esc(o.ask) + '</td><td>' + (n.length ? esc(n.join(', ')) : 'all Bing rows') + '</td></tr>'; }).join('') + '</tbody></table></div>' +
+          return '<tr><td><b>' + esc(o.id) + '</b></td><td>' + esc(o.what) + '</td><td>' + esc(o.ask) + '</td><td>' + (o.closed ? '<span class="chip ok">Closed</span> ' + esc(o.closed) : '<span class="chip warn">Open</span>') + '</td><td>' + (n.length ? esc(n.join(', ')) : o.id === 'P3' ? 'row 13 (now passes)' : 'all Bing rows') + '</td></tr>'; }).join('') + '</tbody></table></div>' +
       '<h2>Test every page by hand</h2><ol class="notes">' + X.tester.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ol>' +
       '<div class="toolbar"><button type="button" class="btn" data-s5csv>Download the checklist (CSV)</button> ' +
         ['all', 'bing', 'google', 'meta'].map(function (s) { var n = s === 'all' ? X.rows.length : X.rows.filter(function (r) { return r.src === s; }).length;
@@ -1858,7 +1859,7 @@
             '<td>' + nums(r.desktop) + '</td><td>' + nums(r.mobile) + (r.sticky ? '' : '<div class="sub">no sticky button</div>') + '</td><td class="sub">' + esc(r.note) + '</td></tr>'; }).join('') + '</tbody></table></div>' +
       '<h2>The Bing update (' + esc(X.date) + ')</h2><p class="sub">' + esc(X.request) + '</p>' +
       '<div class="scroll"><table class="tbl"><thead><tr><th>Page</th><th>Bing number before</th><th>Bing number now</th><th>Bing campaign · ad group</th></tr></thead><tbody>' +
-        X.changes.map(function (c) { return '<tr><td>' + link('https://start.credolegal.com' + c.page + '?utm_source=bing', c.page) + '</td><td>' + esc(c.from) + '</td><td><b>' + esc(c.to) + '</b></td><td>' + esc(c.campaign) + '</td></tr>'; }).join('') + '</tbody></table></div>' +
+        X.changes.map(function (c) { return '<tr><td>' + link('https://start.credolegal.com' + c.page + '?utm_source=bing', c.page) + '</td><td>' + esc(c.from) + '</td><td><b>' + esc(c.to) + '</b>' + (c.note ? '<div class="sub">' + esc(c.note) + '</div>' : '') + '</td><td>' + esc(c.campaign) + '</td></tr>'; }).join('') + '</tbody></table></div>' +
       '<p class="sub">' + esc(X.unchanged) + '</p><p class="sub">' + esc(X.publish) + '</p>' +
       '<details class="state"><summary>Sources</summary><ul class="notes"><li>' + esc(X.sheet) + '</li><li>' + esc(X.test) + '</li><li>' + esc(X.resultsFile) + '</li></ul><p class="sub">Built ' + esc(X.built) + ' by tools/marketing-hub/build-stream5.mjs from content/campaigns/stream-5/. Read-only: the hub changes nothing in Webflow, Google Ads, Meta or Bing.</p></details></div>';
   }
