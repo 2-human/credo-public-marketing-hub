@@ -1575,7 +1575,13 @@
         /* operator 28 Oct: "Produce one full campaign package in the same work stream. Google Ads Campaign … 2 ad groups with 3 ads
            each … Create adequate extensions. Explain why you made the decisions in a brief. Then do the same for meta ads." */
         { seg: 'credit-card-validation-package', label: 'Campaign package v1', href: '#/ads/credit-card-validation-package', what: 'The decisions and why, the Google campaign (settings, negatives, 2 ad groups × 3 ads, extensions), the Meta campaign (2 ad sets × 3 ads with creatives), the six landing pages and the tracked URLs.',
-          count: function () { var X = S4(); return X && X.package ? 12 : 0; } }] }];
+          count: function () { var X = S4(); return X && X.package ? 12 : 0; } }] },
+    /* Stream 5, operator 6 Nov 2026: "place everything into a new work stream and give me a table based on which a human can test every page
+       to show the correct number" (Milan's Bing phone list, the change on start.credolegal.com, the test) */
+    { key: 'phone-numbers', n: 5, name: 'Phone Numbers', short: 'Which number each start.credolegal.com page shows for Google, Meta and Bing visitors: the Bing update of 6 Nov, the test, and a checklist to test every page by hand.',
+      about: 'Each landing page on start.credolegal.com picks its phone number by the visitor’s source (Google, Meta or Bing). On 6 Nov the Bing numbers were updated from Milan’s sheet before the Bing relaunch. This stream holds what changed, the automated test of every page and source, a checklist for testing by hand, and what is still open.',
+      items: [{ seg: 'phone-numbers', label: 'Numbers per page and source', href: '#/ads/phone-numbers', what: 'The Bing numbers changed on 6 Nov, every page × source with the number it must show, the automated result on desktop and mobile, a checklist to test by hand (CSV), and the open questions for Milan.',
+        count: function () { var X = window.HUB_STREAM5; return X ? X.rows.length : 0; } }] }];
   var HO = function () { return window.HUB_HANDOFF || null; };
   var S2 = function () { return window.HUB_STREAM2 || null; };   /* MH-93: data/stream2.js, from tools/marketing-hub/build-stream2.mjs */
   var S3 = function () { return window.HUB_STREAM3 || null; };   /* MH-94: data/stream3.js, from tools/marketing-hub/build-stream3.mjs */
@@ -1804,6 +1810,60 @@
       '<h2 id="s4p-q">Questions</h2><ol class="notes">' + P.questions.map(function (q) { return '<li>' + esc(q) + '</li>'; }).join('') + '</ol>' +
       '<details class="state"><summary>Sources</summary><p class="sub">content/campaigns/stream-4/package.json, Keyword Planner volumes from ' + esc(X.keywords.source) + ', creatives in public/marketing-hub/assets/stream-4/ (bases in content/campaigns/stream-4/creatives/base/). Built by tools/marketing-hub/build-stream4.mjs.</p></details></div>';
   }
+  /* ───────────── Stream 5: phone numbers per page and source (operator 6 Nov 2026) ─────────────
+     data/stream5.js from tools/marketing-hub/build-stream5.mjs (content/campaigns/stream-5/): Milan's sheet, the Bing change on
+     start.credolegal.com, the automated test (tools/webflow/check-phone-numbers.mjs) and a checklist a person can test every row with. */
+  var S5SRC = { bing: 'Bing', google: 'Google', meta: 'Meta' };
+  function s5Csv(X) {
+    var q = function (v) { v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    var head = ['#', 'Source', 'Test link (open in a private window)', 'Expected number', 'Campaign', 'Campaign status', 'Ad group', 'Ad group status', 'Ad', 'Automated test 6 Nov', 'Page shows now (desktop)', 'Page shows now (mobile)', 'Tester: desktop Pass/Fail', 'Tester: mobile Pass/Fail', 'Tester notes'];
+    return [head].concat(X.rows.map(function (r) { return [r.n, S5SRC[r.src], r.url, r.expected || r.sheet, r.campaign, r.campaignStatus, r.adGroup, r.adGroupStatus, r.ad,
+      r.auto === 'pass' ? 'Pass' : 'Open ' + r.open + ': ' + r.note, r.desktop.join(' / '), r.mobile.join(' / ') + (r.sticky ? '' : ' (no sticky button)'), '', '', '']; }))
+      .map(function (row) { return row.map(q).join(','); }).join('\r\n');
+  }
+  function viewS5() {
+    var X = window.HUB_STREAM5;
+    if (!X) return '<h1>Phone numbers per page and source</h1><p class="empty">Stream 5’s data (data/stream5.js) is not loaded. Build it with node tools/marketing-hub/build-stream5.mjs.</p>';
+    var T = X.totals, OPEN = {}; X.open.forEach(function (o) { OPEN[o.id] = o; });
+    var res = function (r) { return r.auto === 'pass' ? '<span class="chip ok">Pass</span>' : '<span class="chip warn" title="' + esc(OPEN[r.open] ? OPEN[r.open].what : '') + '">Open ' + esc(r.open) + '</span>'; };
+    var nums = function (a) { return a.length ? a.map(esc).join('<br>') : dash; };
+    return '<div id="s5page"><h1>Phone numbers per page and source</h1><p class="lead">' + esc(X.how) + '</p>' +
+      '<div class="tiles kpis"><div class="tile"><h3>Rows tested</h3><div class="big">' + T.rows + '</div><p>every start.credolegal.com row of Milan’s sheet, desktop and mobile</p></div>' +
+        '<div class="tile"><h3>Show the right number</h3><div class="big">' + T.pass + '</div><p>automated test, ' + esc(X.date) + '</p></div>' +
+        '<div class="tile"><h3>Open</h3><div class="big">' + T.open + ' rows</div><p>' + X.open.length + ' questions for Milan (below)</p></div>' +
+        '<div class="tile"><h3>Changed on 6 Nov</h3><div class="big">' + X.changes.length + ' pages</div><p>Bing number only</p></div></div>' +
+      '<h2>Open questions for Milan</h2><div class="scroll"><table class="tbl"><thead><tr><th>#</th><th>What the pages do now</th><th>Question</th><th>Rows</th></tr></thead><tbody>' +
+        X.open.map(function (o) { var n = X.rows.filter(function (r) { return r.open === o.id; }).map(function (r) { return r.n; });
+          return '<tr><td><b>' + esc(o.id) + '</b></td><td>' + esc(o.what) + '</td><td>' + esc(o.ask) + '</td><td>' + (n.length ? esc(n.join(', ')) : 'all Bing rows') + '</td></tr>'; }).join('') + '</tbody></table></div>' +
+      '<h2>Test every page by hand</h2><ol class="notes">' + X.tester.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ol>' +
+      '<div class="toolbar"><button type="button" class="btn" data-s5csv>Download the checklist (CSV)</button> ' +
+        ['all', 'bing', 'google', 'meta'].map(function (s) { var n = s === 'all' ? X.rows.length : X.rows.filter(function (r) { return r.src === s; }).length;
+          return '<button type="button" class="btn' + (s === 'all' ? ' on' : '') + '" data-s5src="' + s + '" aria-pressed="' + (s === 'all') + '">' + (s === 'all' ? 'All' : S5SRC[s]) + ' (' + n + ')</button>'; }).join(' ') + '</div>' +
+      '<div class="scroll"><table class="tbl" id="s5rows"><thead><tr><th class="num">#</th><th>Source</th><th>Page (opens with the source)</th><th>Expected number</th><th>Campaign · ad group</th><th>Automated test</th><th>Desktop shows</th><th>Mobile shows</th><th>Notes</th></tr></thead><tbody>' +
+        X.rows.map(function (r) {
+          return '<tr data-src="' + esc(r.src) + '"><td class="num">' + r.n + '</td><td>' + esc(S5SRC[r.src]) + (r.changed ? ' <span class="chip">changed 6 Nov</span>' : '') + '</td><td>' + link(r.url, r.page) + '</td>' +
+            '<td><b>' + esc(r.expected || r.sheet) + '</b>' + (r.expected && r.sheet !== r.expected ? '<div class="sub">sheet: ' + esc(r.sheet) + '</div>' : '') + '</td>' +
+            '<td>' + esc(r.campaign || '') + '<div class="sub">' + esc([r.campaignStatus, r.adGroup, r.adGroupStatus].filter(Boolean).join(' · ')) + '</div></td><td>' + res(r) + '</td>' +
+            '<td>' + nums(r.desktop) + '</td><td>' + nums(r.mobile) + (r.sticky ? '' : '<div class="sub">no sticky button</div>') + '</td><td class="sub">' + esc(r.note) + '</td></tr>'; }).join('') + '</tbody></table></div>' +
+      '<h2>The Bing update (' + esc(X.date) + ')</h2><p class="sub">' + esc(X.request) + '</p>' +
+      '<div class="scroll"><table class="tbl"><thead><tr><th>Page</th><th>Bing number before</th><th>Bing number now</th><th>Bing campaign · ad group</th></tr></thead><tbody>' +
+        X.changes.map(function (c) { return '<tr><td>' + link('https://start.credolegal.com' + c.page + '?utm_source=bing', c.page) + '</td><td>' + esc(c.from) + '</td><td><b>' + esc(c.to) + '</b></td><td>' + esc(c.campaign) + '</td></tr>'; }).join('') + '</tbody></table></div>' +
+      '<p class="sub">' + esc(X.unchanged) + '</p><p class="sub">' + esc(X.publish) + '</p>' +
+      '<details class="state"><summary>Sources</summary><ul class="notes"><li>' + esc(X.sheet) + '</li><li>' + esc(X.test) + '</li><li>' + esc(X.resultsFile) + '</li></ul><p class="sub">Built ' + esc(X.built) + ' by tools/marketing-hub/build-stream5.mjs from content/campaigns/stream-5/. Read-only: the hub changes nothing in Webflow, Google Ads, Meta or Bing.</p></details></div>';
+  }
+  function wireS5() {
+    var X = window.HUB_STREAM5, P = document.getElementById('s5page'); if (!X || !P) return;
+    P.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-s5src]');
+      if (b) { var s = b.getAttribute('data-s5src');
+        P.querySelectorAll('[data-s5src]').forEach(function (x) { var on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)); });
+        P.querySelectorAll('#s5rows tbody tr').forEach(function (tr) { tr.style.display = s === 'all' || tr.getAttribute('data-src') === s ? '' : 'none'; }); return; }
+      if (e.target.closest('[data-s5csv]')) {
+        var url = URL.createObjectURL(new Blob(['﻿' + s5Csv(X)], { type: 'text/csv;charset=utf-8' })), a = document.createElement('a');
+        a.href = url; a.download = 'credo-phone-numbers-test-' + X.date + '.csv'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(url); }, 2000); }
+    });
+  }
+
   /* ───────────── MH-94: Stream 3, social media comments ─────────────
      Every comment, by priority for an answer (high: today, medium: this week, low: none), with its post. Filters: platform,
      priority or status, post, type and a text search; they live in S3F (kept per browser) and re-render only the list. */
@@ -3924,6 +3984,7 @@
       else if (parts[1] === 'handoff') { crumbs.push(['Handoff', '#/ads/handoff']); html = viewHandoff(); }   /* MH-92 */
       else if (parts[1] === 'garnishment-pause') { crumbs.push(['Actions: Google Ads, Meta Ads, Website', hash]); html = viewS2(); after = wireS2; }   /* MH-93 */
       else if (parts[1] === 'social-comments') { crumbs.push(['Comments to answer', hash]); html = viewS3(); after = wireS3; }   /* MH-94 */
+      else if (parts[1] === 'phone-numbers') { crumbs.push(['Numbers per page and source', hash]); html = viewS5(); after = wireS5; }   /* Stream 5 */
       else if (parts[1] === 'credit-card-validation') { crumbs.push(['Brief (v1, for iteration)', hash]); html = viewS4(); }   /* Stream 4 */
       else if (parts[1] === 'credit-card-validation-package') { crumbs.push(['Campaign package v1', hash]); html = viewS4P(); }   /* Stream 4 */
       else if (parts[1] === 'ab-tests' && STG() && cluDoc()) { crumbs.push(['Current ad groups', '#/ads/ab-tests']); html = viewABPlan(); }
