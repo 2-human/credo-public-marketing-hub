@@ -1579,6 +1579,8 @@
       about: 'Organic posts on Nextdoor, Facebook, Instagram and LinkedIn, the comments on Credo’s posts and ads and the replies to them, the FAQ the replies are built from, and the follow-up messages to leads.',
       items: [{ seg: 'social-comments', label: 'Comments to answer', href: '#/ads/social-comments', what: 'The comments by priority (high: today, medium: this week, low: no answer), filterable by platform, post, type and status, each with its post and a link to the thread in Business Suite.',
         count: function () { var X = S3(); return X ? X.totals.open : 0; } },
+        { seg: 'social-messages', label: 'Messages to answer', href: '#/ads/social-messages', what: 'Every Messenger conversation in the Business Suite inbox, by priority for an answer, with a reply draft, whether it is unread for Credo’s team, and a link to the conversation.',
+          count: function () { var X = S3(); return X && X.mtotals ? X.mtotals.high + X.mtotals.medium : 0; } },
         { seg: 'org-calendar', label: 'Organic calendar', href: '#/organic', what: 'The organic posts by week and month, with their status, approvals and metrics.' },
         { seg: 'org-campaign', label: 'Organic campaign', href: '#/organic/campaign', what: 'The campaign’s themes, the mix of posts and the voice per platform.' }] }];
   var OLD_STREAMS = { 'google-ads-experiments': 'ad-campaigns', 'garnishment-pause': 'ad-campaigns', 'credit-card-validation': 'ad-campaigns', 'phone-numbers': 'ad-campaigns', 'social-comments': 'social-content' };
@@ -1927,11 +1929,11 @@
   function drawerS3(X, c) {
     var p = s3Post(X, c.post), same = X.comments.filter(function (x) { return x.author === c.author && x.id !== c.id; });
     openDrawer(c.author, [['Comment', '<p class="s3text">' + esc(c.text) + '</p>' + (c.paste || c.replyNote ? '<h3>Reply draft</h3>' + s3Draft(c, true) : '') + kv([['Priority', s3Chip(c) + ' ' + esc(S3KIND[c.kind] || c.kind)], ['Why', esc(c.why)], ['What to do', '<b>' + esc(c.action) + '</b>'],
-        ['Written', s3When(c)], ['Platform', esc(S3PF[c.platform])], ['Thread', link(p.url, 'Open in Business Suite')]]) +
+        ['Written', s3When(c)], ['Platform', esc(S3PF[c.platform])], ['Thread', link(p.url, p.platform === 'instagram' ? 'Open on Instagram' : 'Open in Business Suite')]]) +
       (same.length ? '<h3>Other comments by ' + esc(c.author) + '</h3><ul class="notes">' + same.map(function (x) { return '<li>' + s3Chip(x) + ' ' + esc(x.ago) + ' · ' + esc(s3Post(X, x.post).ad) + ': ' + esc(x.text.slice(0, 140)) + (x.text.length > 140 ? '…' : '') + '</li>'; }).join('') + '</ul>' : '')],
       ['Post', '<p>' + esc(p.hook) + '</p>' + kv([['Kind', esc(p.type === 'ad' ? 'Ad' : p.type === 'review' ? 'Page reviews' : 'Organic post')], ['Ad or post', esc(p.ad)], ['Ad set', p.adset ? esc(p.adset) : dash], ['Campaign', p.campaign ? esc(p.campaign) : dash],
         ['Reactions · comments', p.reactions != null ? n0(p.reactions) + ' · ' + n0(p.comments) : dash], ['Comments here', p.n.high + ' high · ' + p.n.medium + ' medium · ' + p.n.low + ' low · ' + p.n.answered + ' answered'],
-        ['Thread', link(p.url, 'Open in Business Suite')]]) + (p.paused ? '<p class="note">Garnishment ad: Credo paused garnishment and post-judgment work on 26 Oct (the garnishment pause).</p>' : '')]]);
+        ['Thread', link(p.url, p.platform === 'instagram' ? 'Open on Instagram' : 'Open in Business Suite')]]) + (p.paused ? '<p class="note">Garnishment ad: Credo paused garnishment and post-judgment work on 26 Oct (the garnishment pause).</p>' : '')]]);
   }
   function s3List(X) {
     var rows = s3Shown(X), lim = 200;
@@ -1967,6 +1969,33 @@
         return '<tr><td><a href="#s3page" data-s3post="' + esc(p.id) + '">' + esc(p.ad) + '</a><div class="sub">' + esc(p.hook) + '</div></td><td>' + esc(p.type === 'ad' ? 'Ad' : p.type === 'review' ? 'Reviews' : 'Organic') + (p.paused ? ' <span class="chip">paused</span>' : '') + '</td>' +
           ['high', 'medium', 'low', 'answered'].map(function (k) { return '<td class="num">' + (p.n[k] || dash) + '</td>'; }).join('') + '<td>' + link(p.url, 'Thread') + '</td></tr>'; }).join('') + '</tbody></table></div>' +
       '<details class="state"><summary>Priority rules, sources and gaps</summary>' + kv([['High', esc(X.rules.high)], ['Medium', esc(X.rules.medium)], ['Low', esc(X.rules.low)]]) + '<p>' + esc(X.source) + '</p><ul class="notes">' + X.gaps.map(function (g) { return '<li>' + esc(g) + '</li>'; }).join('') + '</ul><p class="sub">Built ' + esc(X.built) + ' by tools/marketing-hub/build-stream3.mjs from content/campaigns/stream-3/comments.json.</p></details></div>';
+  }
+  /* Messages to answer (operator 8 Nov 2026: "review all the comments and inbox messages"): data/stream3.js › messages, read from the
+     Business Suite Messenger inbox; unread conversations were marked unread again, and no phone numbers or emails are copied. */
+  var S3MK = { lead: 'Asks for help', question: 'Question', client: 'Client services', other: 'Other', spam: 'Spam / phishing' };
+  function viewS3M() {
+    var X = S3(), M = X && X.messagesMeta;
+    if (!M) return '<h1>Messages to answer</h1><p class="empty">No messages in data/stream3.js. Build it with node tools/marketing-hub/build-stream3.mjs (reads content/campaigns/stream-3/messages.json).</p>';
+    var T = X.mtotals, L = X.messages.slice().sort(function (a, b) { var o = ['high', 'medium', 'low']; return o.indexOf(a.priority) - o.indexOf(b.priority) || (a.date < b.date ? 1 : -1); });
+    var chip = function (m) { return '<span class="chip ' + (m.priority === 'high' ? 'red' : m.priority === 'medium' ? 'warn' : '') + '">' + esc(m.priority) + '</span>'; };
+    return '<div id="s3mpage"><h1>Messages to answer</h1><p class="lead">' + esc(M.source) + '</p>' +
+      '<div class="tiles kpis"><div class="tile"><h3>High: answer today</h3><div class="big">' + T.high + '</div><p>' + esc(M.rules.high) + '</p></div>' +
+        '<div class="tile"><h3>Medium: this week</h3><div class="big">' + T.medium + '</div><p>' + esc(M.rules.medium) + '</p></div>' +
+        '<div class="tile"><h3>Low: no answer</h3><div class="big">' + T.low + '</div><p>' + esc(M.rules.low) + '</p></div>' +
+        '<div class="tile"><h3>Unread in the inbox</h3><div class="big">' + T.unread + ' of ' + T.total + '</div><p>Kept unread after reading, as Credo’s team left them.</p></div></div>' +
+      '<details class="state" open><summary>Before answering</summary><ul class="notes">' + M.notes.map(function (n) { return '<li>' + esc(n) + '</li>'; }).join('') + '</ul></details>' +
+      '<div class="scroll"><table class="tbl"><thead><tr><th>Priority</th><th>Who · when</th><th>The conversation</th><th>What to do</th><th>Reply draft</th></tr></thead><tbody>' +
+      L.map(function (m) {
+        return '<tr><td>' + chip(m) + '<div class="sub">' + esc(S3MK[m.kind] || m.kind) + '</div>' + (m.unread ? '<div class="sub"><b>unread</b></div>' : '') + '</td>' +
+          '<td><b>' + esc(m.name) + '</b><div class="sub">' + esc(m.date) + '</div><div class="sub">' + link(m.url, 'Open in Business Suite') + '</div></td>' +
+          '<td>' + esc(m.summary) + '<div class="sub">' + esc(m.why) + '</div></td><td><b>' + esc(m.action) + '</b>' + (m.note ? '<div class="sub">' + esc(m.note) + '</div>' : '') + '</td>' +
+          '<td>' + (m.reply ? '<div class="s3reply">' + esc(m.reply) + '</div><button type="button" class="btn" data-s3mcopy="' + esc(m.id) + '">Copy reply</button> <span class="sub" data-s3msg></span>' : dash) + '</td></tr>'; }).join('') +
+      '</tbody></table></div><p class="sub">Read ' + esc(M.asOf) + '. Built by tools/marketing-hub/build-stream3.mjs from content/campaigns/stream-3/messages.json. Opening a conversation from here marks it read in Business Suite.</p></div>';
+  }
+  function wireS3M() {
+    var P = document.getElementById('s3mpage'); if (!P) return;
+    P.addEventListener('click', function (e) { var b = e.target.closest('[data-s3mcopy]'); if (!b) return; e.preventDefault();
+      var X = S3(), id = b.getAttribute('data-s3mcopy'), m = X.messages.filter(function (x) { return x.id === id; })[0]; if (m) s3Copy(m.reply, b.parentNode.querySelector('[data-s3msg]')); });
   }
   function wireS3() {
     var X = S3(), root = $('s3page'); if (!X || !root) return;   /* the listeners live on the page's own element, so a re-render never stacks them */
@@ -4000,6 +4029,7 @@
       else if (parts[1] === 'handoff') { crumbs.push(['Handoff', '#/ads/handoff']); html = viewHandoff(); }   /* MH-92 */
       else if (parts[1] === 'garnishment-pause') { S2SCOPE = PQ.get('scope'); crumbs.push([S2SCOPE === 'website' ? 'Garnishment pause: website actions' : S2SCOPE === 'ads' ? 'Garnishment pause: Google and Meta actions' : 'Garnishment pause: all actions', hash]); html = viewS2(); after = wireS2; }   /* MH-93 */
       else if (parts[1] === 'social-comments') { crumbs.push(['Comments to answer', hash]); html = viewS3(); after = wireS3; }   /* MH-94 */
+      else if (parts[1] === 'social-messages') { crumbs.push(['Messages to answer', hash]); html = viewS3M(); after = wireS3M; }   /* Stream 3, 8 Nov */
       else if (parts[1] === 'phone-numbers') { crumbs.push(['Phone numbers per page and source', hash]); html = viewS5(); after = wireS5; }   /* Stream 5 */
       else if (parts[1] === 'credit-card-validation') { crumbs.push(['Brief (v1, for iteration)', hash]); html = viewS4(); }   /* Stream 4 */
       else if (parts[1] === 'credit-card-validation-package') { crumbs.push(['Campaign package v1', hash]); html = viewS4P(); }   /* Stream 4 */
