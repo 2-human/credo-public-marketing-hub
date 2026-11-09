@@ -1596,6 +1596,9 @@
   var streamTitle = function (s) { return 'Stream ' + s.n + ': ' + s.name; };
   var streamHref = function (s) { return '#/work/streams/' + s.key; };
     /* Retargeting: missed calls and unreached leads (operator 4 Nov 2026): content/campaigns/retargeting → data/retargeting.js */
+    /* 31 Oct design A/B test (9 Nov 2026): the -061031 landing-page copies and Milan's hand-off per platform -> lp-061031.html, item A9 */
+  STREAMS.forEach(function (s) { if (s.key === 'ad-campaigns') s.items.push({ seg: 'lp-061031', label: 'A/B test: 31 Oct landing-page design', href: 'lp-061031.html',
+    what: 'The 23 landing pages linked from active ads, each with a -061031 copy in the 31 Oct design (live since 9 Nov), and the hand-off for Milan per platform (Google, Bing, Meta): every ad with its current URL and the new one.' }); });
   STREAMS.forEach(function (s) { if (s.key === 'ad-campaigns') s.items.push({ seg: 'retargeting', label: 'Retargeting: missed calls and unreached leads', href: '#/ads/retargeting',
     what: 'Ads with the number up front for people whose call was missed and leads Credo could not reach: the policy and legal limits, the audiences per platform, Google (Search + Demand Gen) and Meta, two message strands × three variants, the test and what Credo must supply.',
     count: function () { var X = window.HUB_RETARGETING; return X ? X.questions.length : 0; } }); });
