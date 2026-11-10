@@ -3,47 +3,49 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex, nofollow">
-<title>Marketing Hub · Crēdo Legal</title>
-<link rel="stylesheet" href="hub.css?v=3">
-<link rel="stylesheet" href="app.css?v=62">
+<meta name="robots" content="noindex,nofollow">
+<title>Hub</title>
+<link rel="stylesheet" href="chassis/hub-core.css?v=d09116bc80">
+<link rel="stylesheet" href="chassis/hub-modules.css?v=7d84d23954">
 </head>
 <body class="app-body">
-<!-- MH-10 (5 Oct 2026): the Marketing Hub in three panels. Left: navigation (Website, Ads, more). Main: the item chosen
-     in the navigation. Right: a drawer with more information and metrics for an item clicked in main. Local only. -->
-<header class="app-bar">
-  <button class="app-menu" id="app-menu" aria-label="Show navigation" aria-expanded="false">☰</button>
-  <a class="mh-brand" href="#/website">Marketing Hub <small>Crēdo Legal</small></a>
-  <div class="mh-right" id="app-right"></div>
+<a class="hub-skip" id="app-skip" href="#" data-skip></a>
+<header class="app-bar" id="app-bar">
+  <button class="app-menu" id="app-menu" type="button" aria-expanded="false" aria-controls="app-nav">&#9776;</button>
+  <a class="brand" id="app-brand" href="#"></a>
+  <div class="bar-right" id="app-right"></div>
 </header>
 <div class="app-grid">
-  <nav class="app-nav" id="app-nav" aria-label="Hub navigation">
-    <input class="app-filter" id="app-filter" type="search" placeholder="Filter the navigation" aria-label="Filter the navigation">
+  <nav class="app-nav" id="app-nav">
+    <input class="app-filter" id="app-filter" type="search">
     <div id="app-tree"></div>
   </nav>
   <main class="app-main" id="app-main" tabindex="-1"></main>
 </div>
-<aside class="app-drawer" id="app-drawer" aria-hidden="true" aria-labelledby="drawer-title">
-  <div class="drawer-head"><h2 id="drawer-title"></h2><button type="button" class="linkbtn drawer-link" id="drawer-copylink" title="Copy a link to this drawer (with its tab)">Copy link</button><button class="drawer-close" id="drawer-close" aria-label="Close the details">×</button></div>
+<div class="app-scrim" id="app-scrim" hidden></div>
+<aside class="app-drawer" id="app-drawer" aria-hidden="true" aria-labelledby="drawer-title" inert>
+  <div class="drawer-head">
+    <div class="drawer-nav"><button class="drawer-arrow" id="drawer-back" type="button" disabled>&larr;</button><button class="drawer-arrow" id="drawer-fwd" type="button" disabled>&rarr;</button></div>
+    <div class="drawer-id"><h2 id="drawer-title"></h2><div class="drawer-sub" id="drawer-sub"></div></div>
+    <button class="linkbtn" id="drawer-copy" type="button" data-copy></button>
+    <button class="drawer-close" id="drawer-close" type="button">&times;</button>
+  </div>
   <div class="drawer-body" id="drawer-body"></div>
 </aside>
-<aside class="app-ldrawer" id="app-ldrawer" aria-hidden="true" aria-labelledby="ldrawer-title">
-  <div class="drawer-head"><h2 id="ldrawer-title"></h2><button class="drawer-close" id="ldrawer-close" aria-label="Close the search terms">×</button></div>
-  <div class="drawer-body" id="ldrawer-body"></div>
-</aside>
-<div class="gate" id="gate" hidden>
-  <form class="gate-card" id="gate-form" autocomplete="off">
-    <h1>Marketing Hub</h1>
-    <p>Crēdo Legal · enter the hub password.</p>
-    <label for="gate-pw">Password</label>
-    <input id="gate-pw" type="password" required autocomplete="current-password">
-    <button class="btn dl" type="submit">Open the hub</button>
-    <p class="gate-msg" id="gate-msg" role="status" aria-live="polite"></p>
+<div class="hub-status" id="hub-status" role="status" aria-live="polite"></div>
+<main id="gate" hidden>
+  <form id="gate-form" autocomplete="off">
+    <h1 id="gate-title"></h1>
+    <p id="gate-prompt"></p>
+    <label for="gate-input" id="gate-label"></label>
+    <input id="gate-input" type="email" required autocomplete="email">
+    <button type="submit" disabled></button>
+    <p id="gate-msg" role="status" aria-live="polite"></p>
+    <button type="button" id="gate-out" hidden></button>
   </form>
-</div>
-<script src="gate.js?v=77"></script>
-<!-- MH-95 (27 Oct 2026): review widget (review-widget 1.3.0, hash-route composition). Inert until ?review=1; then review-mode.css/js load. -->
-<script src="review.config.js?v=1"></script>
-<script src="review-bootstrap.js?v=1"></script>
+</main>
+<script src="hub.config.js?v=11d95c0ccd"></script>
+<script src="chassis/hub-core.js?v=a710c67696"></script>
+<script src="chassis/gate-key.js?v=e4bc71aa65"></script>
 </body>
 </html>
