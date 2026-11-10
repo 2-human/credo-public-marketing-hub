@@ -1,14 +1,14 @@
-/* review-bootstrap.js — inert-by-default loader for the review widget (Marketing Hub composition, MH-95, 27 Oct 2026;
- * copied from public/harassment-lp, review-widget feature_version 1.3.0).
+/* review-bootstrap.js — inert-by-default loader for the review widget (Credo Marketing Hub, review-widget 1.6.0,
+ * composed 8 Nov 2026 for the hub on hub-chassis 1.3.0). Loaded by views/review.js through Hub.load, once data and
+ * views are in, so the config global (data/review-config.js, behind the gate) is already set.
  * No ?review=1  -> only a floating entry button (no widget chrome, no backend).
- * ?review=1     -> sets data-review-mode=on, loads review-mode.css + review-mode.js.
+ * ?review=1     -> sets data-review-mode=on, loads review-mode.css + review-mode.js with a version query.
+ * One IIFE (js-isolation): nothing reaches the page's scope.
  */
 (function () {
-  /* Resolve the widget assets next to this script (2026-09-24), so pages in
-   * sub-folders (e.g. qa/<report>/) can load ../../review-bootstrap.js. For pages
-   * in the same folder the base is that folder, so nothing changes for them. */
+  /* the widget files sit next to this script, whatever page loaded it */
   var me = document.currentScript;
-  var base = me && me.src ? me.src.replace(/[^\/]*$/, '') : '';
+  var base = me && me.src ? me.src.replace(/[?#].*$/, '').replace(/[^\/]*$/, '') : '';
   var cfg = window.CREDO_REVIEW_CONFIG || {};
   var L = cfg.REVIEW_LABELS || {};
   var active = new URLSearchParams(window.location.search).get('review') === '1';
@@ -33,9 +33,7 @@
   }
 
   document.documentElement.setAttribute('data-review-mode', 'on');
-  /* Cache-bust the widget assets (2026-09-22): GitHub Pages serves them with a
-   * 10-minute cache and browsers hold them far longer, so reviewers were seeing
-   * a stale widget for hours after a fix shipped. The page itself stays cached. */
+  /* fresh assets on injection (1.4.0): static hosting keeps these in browser caches long after a fix ships */
   var v = '?v=' + Date.now();
   var css = document.createElement('link'); css.rel = 'stylesheet'; css.href = base + 'review-mode.css' + v; document.head.appendChild(css);
   var js = document.createElement('script'); js.src = base + 'review-mode.js' + v; document.body.appendChild(js);
