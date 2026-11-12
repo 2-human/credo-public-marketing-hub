@@ -35,6 +35,6 @@
   document.documentElement.setAttribute('data-review-mode', 'on');
   /* fresh assets on injection (1.4.0): static hosting keeps these in browser caches long after a fix ships */
   var v = '?v=' + Date.now();
-  var css = document.createElement('link'); css.rel = 'stylesheet'; css.href = base + 'review-mode.css' + v; document.head.appendChild(css);
-  var js = document.createElement('script'); js.src = base + 'review-mode.js' + v; document.body.appendChild(js);
+  var css = document.createElement('link'); css.rel = 'stylesheet'; css.href = base + 'review-mode.css?v=ff898e6abc' + v; document.head.appendChild(css);
+  var js = document.createElement('script'); js.src = base + 'review-mode.js?v=af86a563cf' + v; document.body.appendChild(js);
 })();

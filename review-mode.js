@@ -12,6 +12,8 @@
  *  · Jumps set the hash; the chassis renders the screen and opens the drawer, and the widget spotlights once the anchor
  *    exists. "All screens" lists this hub's records only, grouped by screen.
  *  · One channel: window.__rwComments() is the read the chassis comments module (Hub.comments) uses.
+ *  · 1.7.0 (12 Nov 2026): dots via a data-rw-pos mark + one layered zero-specificity rule (no inline position); storage under
+ *    the hub's prefix with STORAGE_LEGACY_KEYS copied once; the widget keeps its own named Firebase app (credo-review).
  *  · 1.6.0: review mode never reflows the host page. Outlines are paint-only and the pill is fixed-positioned beside
  *    its element; the only style the widget sets on host elements is an inline position:relative on a commented element
  *    that is position:static, as the box for its status dots, removed on the next pass. Storage keys carry STORAGE_PREFIX.
@@ -31,7 +33,12 @@ const L = Object.assign({
   placeholder: 'Your feedback…', replacementPlaceholder: 'Suggested change (optional)…', namePrompt: 'Your name:'
 }, CFG.REVIEW_LABELS || {});
 const PREFIX = CFG.PAGE_PREFIX;                 /* required, no default (hash-route-screens) */
-const SP = CFG.STORAGE_PREFIX;                  /* required (1.6.0 storage namespace) */
+/* 1.7.0 storage namespace: STORAGE_PREFIX, else the hub-chassis hub's own prefix (HUB_CONFIG.storage.prefix, else id) + ':' */
+const HUBC = window.HUB_CONFIG || {};
+const SP = CFG.STORAGE_PREFIX || (((HUBC.storage && HUBC.storage.prefix) || HUBC.id) ? ((HUBC.storage && HUBC.storage.prefix) || HUBC.id) + ':' : '');
+/* STORAGE_LEGACY_KEYS: keys the replaced deliverable used. { copy: 'key' } copies once (the old key stays for anything else
+ * that reads it); a plain 'key' moves it. Each lands on the 1.7.0 key its name ends in: reviewer, comments or side. */
+const LEGACY = CFG.STORAGE_LEGACY_KEYS || [];
 const HR = CFG.HASH_ROUTES || {};
 const DEFAULT_ROUTE = HR.defaultRoute || '/';
 const RENAMES = CFG.PAGE_RENAMES || {}, DRAWER_RENAMES = CFG.DRAWER_RENAMES || {};
@@ -42,16 +49,26 @@ const NARROW = '(max-width:900px)';             /* below this the sidebar overla
 
 /* storage: every key carries the project prefix; a blocked store falls back to memory */
 const _MEM = {};
+function legacyFor(k) {
+  const want = k.replace(/^review-/, '');
+  for (const e of LEGACY) {
+    const key = typeof e === 'string' ? e : e && e.copy; if (!key) continue;
+    const tail = (key.match(/(reviewer|comments|side)$/) || [])[1]; if (tail !== want) continue;
+    let v = null; try { v = localStorage.getItem(key); } catch (x) {}
+    if (v == null) continue;
+    try { localStorage.setItem(SP + k, v); if (typeof e === 'string') localStorage.removeItem(key); } catch (x) {}
+    return v;
+  }
+  return null;
+}
 const store = {
-  get(k) { try { return localStorage.getItem(SP + k); } catch (e) { return (SP + k in _MEM) ? _MEM[SP + k] : null; } },
+  get(k) { try { const v = localStorage.getItem(SP + k); return v != null ? v : legacyFor(k); } catch (e) { return (SP + k in _MEM) ? _MEM[SP + k] : null; } },
   set(k, v) { try { localStorage.setItem(SP + k, v); } catch (e) { _MEM[SP + k] = v; } }
 };
 /* native dialogs can throw in an embedded browser (comment-lifecycle): one guard for all three */
 function ask(kind, message, fallback) { try { return window[kind](message, kind === 'prompt' ? '' : undefined); } catch (e) { return fallback; } }
 function reviewerName() {
-  const saved = store.get('review-reviewer'); if (saved) return saved;
-  let legacy = null; try { legacy = localStorage.getItem('credo_reviewer'); } catch (e) {}   /* the name the old hub kept */
-  if (legacy) { store.set('review-reviewer', legacy); return legacy; }
+  const saved = store.get('review-reviewer'); if (saved) return saved;   /* old names arrive through STORAGE_LEGACY_KEYS */
   const asked = ask('prompt', L.namePrompt, undefined);
   if (asked === undefined) return L.anonymous;   /* no dialog here: don't store it, a later session can still ask */
   const name = (asked || L.anonymous).trim() || L.anonymous;
@@ -319,10 +336,19 @@ function dotHost(a) {
   if (t === 'TABLE' || t === 'THEAD' || t === 'TBODY' || t === 'TFOOT') return null;
   return a;
 }
+/* 1.7.0 (comment-status-indicators): the one positioning rule, in cascade layer rw-pos, in its own style element kept first
+ * in <head>, so any host rule, layered (Tailwind v4) or not, beats it; dialogs and popovers keep the browser's position */
+function ensurePosLayer() {
+  let st = document.getElementById('rw-pos-layer');
+  if (!st) { st = document.createElement('style'); st.id = 'rw-pos-layer';
+    st.textContent = '@layer rw-pos{:where([data-review-mode="on"] [data-rw-pos]:not(dialog,[popover])){position:relative}}'; }
+  if (document.head.firstChild !== st) document.head.insertBefore(st, document.head.firstChild);
+}
 function decorate(here) {
   document.querySelectorAll('.has-comment,.has-applied-comment').forEach(e => e.classList.remove('has-comment', 'has-applied-comment'));
   document.querySelectorAll('.rw-dots').forEach(e => e.remove());
-  document.querySelectorAll('[data-rw-pos]').forEach(e => { if (e.style.position === 'relative') e.style.position = ''; e.removeAttribute('data-rw-pos'); });
+  document.querySelectorAll('[data-rw-pos]').forEach(e => e.removeAttribute('data-rw-pos'));   /* released at the start of every pass */
+  ensurePosLayer();
   const by = {};
   here.forEach(([, c]) => { const r = by[c.anchor] || (by[c.anchor] = { active: 0, resolved: 0 }); if (statusOf(c) === 'resolved') r.resolved++; else r.active++; });
   Object.keys(by).forEach(an => {
@@ -330,8 +356,8 @@ function decorate(here) {
     document.querySelectorAll('[data-comment-id="' + cssq(an) + '"]').forEach(a => {
       a.classList.add(r.active > 0 ? 'has-comment' : 'has-applied-comment');
       const host = dotHost(a); if (!host) return;
-      /* 1.6.0: a box for the dots only where the host left the element static; a positioned element is left alone */
-      if (getComputedStyle(host).position === 'static') { host.style.position = 'relative'; host.setAttribute('data-rw-pos', ''); }
+      /* 1.7.0: mark the host; the zero-specificity rule in the weakest layer positions it only where no host rule does */
+      host.setAttribute('data-rw-pos', '');
       const d = document.createElement('span'); d.className = 'rw-dots'; d.setAttribute('aria-hidden', 'true');
       let h = ''; for (let i = 0; i < r.active; i++) h += '<i class="rw-dot rw-dot-active"></i>'; for (let i = 0; i < r.resolved; i++) h += '<i class="rw-dot rw-dot-resolved"></i>';
       d.innerHTML = h; host.appendChild(d);

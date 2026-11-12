@@ -1,4 +1,4 @@
-/* Crēdo Legal Marketing Hub on hub-chassis 1.3.0: the thin config (identity, tokens, labels, file lists, storage prefix).
+/* Crēdo Legal Marketing Hub on hub-chassis 1.4.0: the thin config (identity, tokens, labels, file lists, storage prefix).
  * Navigation, text and figures are in data/ and views/. */
 window.HUB_CONFIG = {
   id: 'credo-marketing-hub', title: 'Marketing Hub · Crēdo Legal', lang: 'en', locale: 'en-US', currency: 'USD',
@@ -23,9 +23,12 @@ window.HUB_CONFIG = {
     'data/organic.js', 'data/ad-copy.js', 'data/google-account.js', 'data/platforms.js', 'data/handoff.js', 'data/stream2.js', 'data/stream3.js', 'data/stream4.js',
     'data/retargeting.js', 'data/stream5.js', 'data/streams.js', 'data/disclaimers.js', 'data/heroes.js'],
   views: ['views/core.js', 'views/overview.js', 'views/website.js', 'views/reference.js', 'views/ads.js', 'views/google.js', 'views/platforms.js',
-    'views/streams.js', 'views/terms.js', 'views/organic.js', 'views/work.js', 'views/more.js', 'views/review.js'],
-  /* personal sign-in (M13 key-gated, chassis/gate-key.js): Credo's Firebase credo-712c4, accounts and roles in tools/hub-firebase.
+    'views/streams.js', 'views/terms.js', 'views/organic.js', 'views/work.js', 'views/more.js'],
+  /* page code the chassis loads once the hub runs (1.4.0 `after`): versioned by the publisher, so the review widget is never served stale */
+  after: ['review-bootstrap.js?v=8117193a55'],
+  /* personal sign-in (M13 key-gated, chassis/gate-key.js + the chassis's reference store chassis/gate-store.js since 12 Nov; the menu foot shows
+   * "Signed in as …" with Sign out): Credo's Firebase credo-712c4, accounts and roles in tools/hub-firebase.
    * Locally gate-mode.js is false and the hub boots without sign-in; the published mirror's copy is true. */
-  gate: { scripts: ['firebase-config.js?v=66d7a6dcb2', 'auth.js?v=b0e4b19b1e'], store: 'HubAuth' },
+  gate: { scripts: ['firebase-config.js?v=66d7a6dcb2', 'chassis/gate-store.js'], store: 'HubAuth', keyDoc: 'hubs/credo-mh/meta/gate', roles: ['admin', 'team'] },
   labels: { gateTitle: 'Marketing Hub · Crēdo Legal', filter: 'Filter the navigation', copyLink: 'Copy link', closeDrawer: 'Close the details', menu: 'Show navigation', navigation: 'Hub navigation' }
 };

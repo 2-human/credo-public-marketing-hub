@@ -7,10 +7,10 @@
   var M = function () { return (window.HUB_DATA || {}).metrics || null; };
   Hub.period = function () { var m = M(); return m && m.periods ? m.periods[key] || null : null; };
   Hub.periodLabel = function () { var p = Hub.period(); return p ? p.label : Hub.t('noMetrics'); };
+  /* Hub.render keeps the screen's scroll and repaints an open drawer (since 1.4.0) */
   Hub.setPeriod = function (k) {
-    var m = M(), main = document.getElementById('app-main'), top = main.scrollTop; if (!m || !m.periods[k]) return;
-    key = k; Hub.store.set('period', k); Hub.render(); main.scrollTop = top;
-    if (Hub.state.d) Hub.open(Hub.state.d, Hub.state.dt, true);
+    var m = M(); if (!m || !m.periods[k]) return;
+    key = k; Hub.store.set('period', k); Hub.render();
   };
   Hub.ready(function () {
     var m = M();

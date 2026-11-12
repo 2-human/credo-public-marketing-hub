@@ -4,20 +4,26 @@
  * prefix), data/*.js (window.HUB_DATA: navigation, text, figures) and views.js (layout only):
  *   Hub.route(prefix, fn(rest, query) -> html)                       main panel, longest prefix wins
  *   Hub.drawer(type, fn(id) -> { title, sub?, wide?, tabs, after? })  right panel, opened by [data-d="type:id"]
- *     tabs: [[key, label, html or fn() -> html]]; a function tab renders only when shown
+ *     tabs: [[key, label, html or fn() -> html]]; a function tab renders only when shown; after(redraw) runs once it is drawn
  *   Hub.legacy / Hub.alias                                           old links
- *   Hub.onRender(fn), Hub.onDrawer(fn(ref or null))                  hooks; the review widget and modules use them
+ *   Hub.onRender(fn), Hub.onDrawer(fn(ref or null, redraw))          hooks; the review widget and modules use them. redraw is
+ *                                                                    true when Hub.render() repainted the open drawer
+ *   Hub.render(opts?)                                                redraw from current data: the same screen keeps its scroll
+ *                                                                    and a text field's caret; an open drawer is repainted on its
+ *                                                                    tab and scroll when what it shows changed, unless focus is
+ *                                                                    in a field inside it or opts.drawer is false
+ *   Hub.foot(html)                                                   a row at the foot of the menu (the gate's account line)
  * A drawer keeps a trail of the drawers opened from inside it; the back and forward arrows move along it.
  * Rule: every entity exists once; more information about it is a tab on its drawer. References are stable ids, never labels.
  * Hub.boot() loads modules, data and views, then calls Hub.start(). A gate module may replace Hub.loadData, and calls Hub.look()
  * first so the gate wears the hub's look (chassis/gate-key.js). */
 (function () {
-  var VERSION = '1.3.0';
+  var VERSION = '1.4.0';
   var $ = function (id) { return document.getElementById(id); };
   var cfg = window.HUB_CONFIG || {};
   var ROUTES = [], DRAWERS = {}, COUNTS = {}, renderHooks = [], drawerHooks = [], readyHooks = [];
   var state = { path: '', query: {}, d: null, dt: null };
-  var started = false, lastMain = null, lastFocus = null, curDrawer = null, statusTimer = null;
+  var started = false, lastMain = null, lastFocus = null, curDrawer = null, statusTimer = null, painting = 0, drawn = null;
 
   /* ─── text and escaping ─── */
   var DEFAULT_LABELS = {
@@ -166,22 +172,65 @@
   }
   function mainKey(p) { var q = Object.assign({}, p.query); delete q.d; delete q.dt; return (p.unknown ? '?' + p.unknown : p.path) + '|' + JSON.stringify(q); }
   /* force: redraw main even when only the drawer part of the address changed */
-  function render(force) {
-    var p = parse(), key = mainKey(p), main = $('app-main'), first = lastMain === null;
+  /* what had focus inside a box about to be redrawn: a selector its redrawn copy will match, else its place among its kind,
+   * and in a text field the caret and selection, so typing carries on where it was */
+  function focusKey(box) {
+    var a = document.activeElement, k = null, sel = null; if (!a || a === box || !box.contains(a)) return null;
+    /* only where the field has a caret: other input types give null here and throw on setSelectionRange */
+    if ((a.tagName === 'INPUT' || a.tagName === 'TEXTAREA') && typeof a.selectionStart === 'number') sel = [a.selectionStart, a.selectionEnd, a.selectionDirection || 'none'];
+    if (a.id) k = '#' + CSS.escape(a.id);
+    else ['data-d', 'data-dt', 'data-search', 'name'].some(function (n) { var v = a.getAttribute(n); if (v) k = a.tagName.toLowerCase() + '[' + n + '="' + CSS.escape(v) + '"]'; return !!k; });
+    return { key: k || [a.tagName.toLowerCase(), [].indexOf.call(box.querySelectorAll(a.tagName), a)], sel: sel };
+  }
+  function refocus(box, had) {
+    var key = had && had.key, el = !key ? null : typeof key === 'string' ? box.querySelector(key) : box.querySelectorAll(key[0])[key[1]];
+    if (!el || !el.focus) return;
+    el.focus({ preventScroll: true });
+    if (had.sel && typeof el.selectionStart === 'number') { try { el.setSelectionRange(had.sel[0], had.sel[1], had.sel[2]); } catch (e) {} }
+  }
+  /* a field the user may be typing in: a repaint would lose its value, caret and any IME composition */
+  function editing(box) {
+    var a = document.activeElement; if (!a || !box || !box.contains(a)) return false;
+    return !!a.isContentEditable || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || (a.tagName === 'INPUT' && !/^(button|submit|reset|image)$/i.test(a.type || ''));
+  }
+  /* a scroll position put back once the hooks have run: a hook that fills the screen leaves it short when the position is first
+   * set, so the browser cuts it down. Only when nothing else moved it in between. The browser's own scroll anchoring would move
+   * it too when a hook fills a part with content below it, and look like a hook's deliberate move, so it is off while the
+   * screen is drawn and the hooks run: holdAnchor(box) turns it off and returns what turns it back on. */
+  function keepScroll(box, want, left) { if (box.scrollTop === left && left !== want) box.scrollTop = want; }
+  function holdAnchor(box) { var was = box.style.overflowAnchor; box.style.overflowAnchor = 'none'; return function () { box.style.overflowAnchor = was; }; }
+  /* force: redraw main even when only the drawer part of the address changed. A new screen starts at the top; the same screen
+   * drawn again (Hub.render after a data change, a group or a period) keeps its scroll, its focus and a text field's caret,
+   * and an open drawer is repainted from the current data on its tab and scroll when what it shows has changed. The drawer
+   * is left as it is while focus is in a field inside it, when the caller says drawer: false, and for a Hub.render() from a
+   * drawer's own `after` or onDrawer hook while it runs. A later Hub.render() from a hook, after a fetch or a timer, finds
+   * the drawer unchanged unless its markup changed, so it doesn't repaint it and run the hook again without end. */
+  function render(force, opts) {
+    var p = parse(), key = mainKey(p), main = $('app-main'), first = lastMain === null, again = !first && key === lastMain;
     state.path = p.path; state.query = p.query;
     if (force === true || key !== lastMain) {
+      var top = main.scrollTop, had = again ? focusKey(main) : null, release = again ? holdAnchor(main) : null;
       lastMain = key;
-      var r = p.unknown ? null : find(p.path), rest = r ? p.path.slice(r.prefix.length + 1) : '';
-      main.classList.remove('flush');
-      main.innerHTML = r ? crumbs(p.path) + r.fn(rest, p.query) : notFound(p.unknown || p.path);
-      main.scrollTop = 0;
-      drawTree();
-      document.title = (pageTitle(p.path) ? pageTitle(p.path) + ' · ' : '') + (cfg.title || (cfg.brand || {}).name || 'Hub');
-      renderHooks.forEach(function (fn) { fn(); });
+      try {
+        var r = p.unknown ? null : find(p.path), rest = r ? p.path.slice(r.prefix.length + 1) : '';
+        main.classList.remove('flush');
+        main.innerHTML = r ? crumbs(p.path) + r.fn(rest, p.query) : notFound(p.unknown || p.path);
+        main.scrollTop = again ? top : 0;
+        var left = main.scrollTop;
+        refocus(main, had);
+        drawTree();
+        document.title = (pageTitle(p.path) ? pageTitle(p.path) + ' · ' : '') + (cfg.title || (cfg.brand || {}).name || 'Hub');
+        renderHooks.forEach(function (fn) { fn(); });
+        if (again) keepScroll(main, top, left);
+      } finally { if (release) release(); }
       if (!first && force !== true && !p.query.d) main.focus({ preventScroll: true });
       $('app-nav').classList.remove('open'); $('app-menu').setAttribute('aria-expanded', 'false');
     }
-    if (p.query.d) { if (p.query.d !== state.d || p.query.dt !== state.dt) openDrawer(p.query.d, p.query.dt, true); else markSelected(state.d); } else if (state.d) closeDrawer(true);
+    if (p.query.d) {
+      if (p.query.d !== state.d || p.query.dt !== state.dt) openDrawer(p.query.d, p.query.dt, true);
+      else if (force === true && !painting && !(opts && opts.drawer === false) && !editing(drawerEl())) openDrawer(p.query.d, p.query.dt, true, false, true);
+      else markSelected(state.d);
+    } else if (state.d) closeDrawer(true);
   }
   function pageTitle(path) { var hit = navFind(path); return (Hub.titles || {})[path] || (hit && hit.label) || ''; }
   /* main tabs: the address holds the tab. Only the current tab's fn runs. A page opened without ?tab= returns to the tab
@@ -209,7 +258,8 @@
   function navFind(path) { var hit = null; (function walk(list) { list.some(function (n) { if (n.route === path) { hit = n; return true; } return n.children && walk(n.children); }); })(navItems()); return hit; }
   function trail(path) { var out = []; (function walk(list, tr) { return list.some(function (n) { var t2 = tr.concat([n]); if (n.route === path) { out = t2; return true; } return !!(n.children && walk(n.children, t2)); }); })(navItems(), []); return out; }
   function nearest(path) { var parts = path.split('/').filter(Boolean); while (parts.length) { var c = '/' + parts.join('/'), tr = trail(c); if (tr.length) return tr; parts.pop(); } return []; }
-  function countOf(n) { var f = COUNTS[n.route]; return f ? f() : n.count; }
+  /* a count is a number or text, or a function of the item drawn anew with the tree (live data, a group); Hub.count wins */
+  function countOf(n) { var f = COUNTS[n.route], c = f ? f() : n.count; return typeof c === 'function' ? c(n) : c; }
   function drawTree() {
     var q = norm($('app-filter').value.trim()), cur = state.path, tr = nearest(cur);
     if (lastCur !== cur) { if (tr.length) expanded[tr[0].route] = true; lastCur = cur; }
@@ -301,17 +351,33 @@
       el.disabled = !step; el.title = tip; el.setAttribute('aria-label', tip || t(b[2]));
     });
   }
-  function paintDrawer(item, cur, keep) {
-    var tabs = item.tabs, body = $('drawer-body'), bar = '', pos = keep ? body.scrollTop : 0;
+  /* what a drawer shows, as drawn from its item: the head, the tab bar and the current tab */
+  function drawerHtml(item, cur) {
+    var tabs = item.tabs, bar = '';
     if (tabs.length > 1) bar = '<div class="dtabs" role="tablist">' + tabs.map(function (x) {
       var on = x[0] === cur[0];
       return '<button type="button" role="tab" id="dtab-' + esc(x[0]) + '" aria-controls="dpanel" data-dt="' + esc(x[0]) + '" aria-selected="' + on + '" tabindex="' + (on ? 0 : -1) + '">' + esc(x[1]) + '</button>';
     }).join('') + '</div>';
     var html = typeof cur[2] === 'function' ? cur[2]() : cur[2];
-    body.innerHTML = bar + '<div class="dpanel" id="dpanel" role="tabpanel"' + (tabs.length > 1 ? ' aria-labelledby="dtab-' + esc(cur[0]) + '"' : ' aria-labelledby="drawer-title"') + ' tabindex="-1">' + html + '</div>';
-    body.scrollTop = pos;
+    return bar + '<div class="dpanel" id="dpanel" role="tabpanel"' + (tabs.length > 1 ? ' aria-labelledby="dtab-' + esc(cur[0]) + '"' : ' aria-labelledby="drawer-title"') + ' tabindex="-1">' + html + '</div>';
   }
-  function openDrawer(ref, tab, fromRoute, moving) {
+  /* a cache-buster made from the clock, such as the page frame's ?v=<Date.now()>, is not a change: without this a drawer that
+   * holds a page frame would never match, and a hook that calls Hub.render() later would run again without end */
+  function drawnAs(ref, item, html) { return [ref, item.title, item.sub || '', item.wide || '', html.replace(/([?&;]v=)\d{12,}/g, '$1')].join('\u0000'); }
+  /* returns the scroll it put back, so openDrawer can put it back again after the drawer's `after` and hooks */
+  function paintDrawer(item, cur, keep, html) {
+    var body = $('drawer-body'), pos = keep ? body.scrollTop : 0;
+    if (html == null) html = drawerHtml(item, cur);
+    body.innerHTML = html; drawn = drawnAs(state.d, item, html);
+    body.scrollTop = pos;
+    return pos;
+  }
+  /* a drawer's own code and the drawer hooks; redraw is true when Hub.render() repainted the drawer that was already open */
+  function drawerDone(item, ref, redraw) {
+    painting++;
+    try { if (item && item.after) item.after(redraw); drawerHooks.forEach(function (f) { f(ref, redraw); }); } finally { painting--; }
+  }
+  function openDrawer(ref, tab, fromRoute, moving, redraw) {
     var i = ref.indexOf(':'), type = i < 0 ? '' : ref.slice(0, i), id = i < 0 ? '' : ref.slice(i + 1), fn = DRAWERS[type], item = fn ? fn(id) : null;
     if (!item) {   /* the item is gone: the page stays, and the address drops the dead reference */
       if (fromRoute || moving) { var q0 = Object.assign({}, state.query); delete q0.d; delete q0.dt; replaceHash(state.path, q0); state.query = q0; say(t('staleItem')); }
@@ -322,31 +388,38 @@
     /* an explicit tab wins; a permalink without dt= means the first tab; a click reuses the last picked tab if this item has it */
     var want = tab != null ? tab : !fromRoute && mem ? store.get('drawer-tab', mem) : null;
     var cur = tabs.filter(function (x) { return x[0] === want; })[0] || tabs[0];
+    /* a repaint that would draw what is already there is skipped, with its `after` and hooks: nothing to wire again, and a
+     * hook that calls Hub.render() later, after a fetch or a timer, would otherwise run again on every pass, without end */
+    var html = redraw && same ? drawerHtml(item, cur) : null;
+    if (html != null && drawn === drawnAs(ref, item, html)) { curDrawer = item; markSelected(ref); return true; }
     if (moving) { gesture = null; visits[at].title = item.title; } else stepTrail(ref, item, cur, same, fromRoute, tab);
     state.d = ref; state.dt = cur[0] === tabs[0][0] ? undefined : cur[0]; curDrawer = item;
     $('drawer-title').textContent = item.title; $('drawer-sub').innerHTML = item.sub || '';
-    paintDrawer(item, cur, same);
-    d.classList.add('open'); d.classList.toggle('wide', !!item.wide); d.classList.toggle('xwide', item.wide === 'x');
-    d.setAttribute('aria-hidden', 'false'); d.removeAttribute('inert');
-    document.body.classList.add('has-drawer'); document.body.classList.toggle('drawer-wide', !!item.wide && item.wide !== 'x'); document.body.classList.toggle('drawer-xwide', item.wide === 'x');
-    $('app-scrim').hidden = false;
-    markSelected(ref);
-    if (!fromRoute) {
-      var q = Object.assign({}, state.query, { d: ref, dt: state.dt || '' }); if (!state.dt) delete q.dt;
-      replaceHash(state.path, q); state.query = q;
-      if (tab != null && !moving && mem) store.set('drawer-tab', cur[0], mem);
-    }
-    if (!same) { var sel = document.querySelector('[data-d="' + CSS.escape(ref) + '"]'); if (sel && sel.scrollIntoView && sel.closest('#app-main')) sel.scrollIntoView({ block: 'nearest' }); if (!moving) $('drawer-close').focus({ preventScroll: true }); }
-    drawArrows();
-    if (item.after) item.after();
-    drawerHooks.forEach(function (f) { f(ref); });
+    var had = same ? focusKey($('drawer-body')) : null, release = same ? holdAnchor($('drawer-body')) : null;
+    try {
+      var pos = paintDrawer(item, cur, same, html), left = $('drawer-body').scrollTop; refocus($('drawer-body'), had);
+      d.classList.add('open'); d.classList.toggle('wide', !!item.wide); d.classList.toggle('xwide', item.wide === 'x');
+      d.setAttribute('aria-hidden', 'false'); d.removeAttribute('inert');
+      document.body.classList.add('has-drawer'); document.body.classList.toggle('drawer-wide', !!item.wide && item.wide !== 'x'); document.body.classList.toggle('drawer-xwide', item.wide === 'x');
+      $('app-scrim').hidden = false;
+      markSelected(ref);
+      if (!fromRoute) {
+        var q = Object.assign({}, state.query, { d: ref, dt: state.dt || '' }); if (!state.dt) delete q.dt;
+        replaceHash(state.path, q); state.query = q;
+        if (tab != null && !moving && mem) store.set('drawer-tab', cur[0], mem);
+      }
+      if (!same) { var sel = document.querySelector('[data-d="' + CSS.escape(ref) + '"]'); if (sel && sel.scrollIntoView && sel.closest('#app-main')) sel.scrollIntoView({ block: 'nearest' }); if (!moving) $('drawer-close').focus({ preventScroll: true }); }
+      drawArrows();
+      drawerDone(item, ref, !!redraw);
+      if (same) keepScroll($('drawer-body'), pos, left);
+    } finally { if (release) release(); }
     return true;
   }
   function closeDrawer(fromRoute) {
     var d = drawerEl(), was = d.classList.contains('open');
     d.classList.remove('open', 'wide', 'xwide'); d.setAttribute('aria-hidden', 'true'); d.setAttribute('inert', '');
     document.body.classList.remove('has-drawer', 'drawer-wide', 'drawer-xwide'); $('app-scrim').hidden = true;
-    var ref = state.d; state.d = null; state.dt = undefined; curDrawer = null;
+    var ref = state.d; state.d = null; state.dt = undefined; curDrawer = null; drawn = null;
     visits = []; at = -1; gesture = null; drawArrows();
     markSelected(null);
     if (!fromRoute && state.query.d) { var q = Object.assign({}, state.query); delete q.d; delete q.dt; replaceHash(state.path, q); state.query = q; }
@@ -366,8 +439,7 @@
     var q = Object.assign({}, state.query); if (state.dt) q.dt = state.dt; else delete q.dt;
     replaceHash(state.path, q); state.query = q;
     var b = $('drawer-body').querySelector('[data-dt="' + CSS.escape(key) + '"]'); if (b) b.focus({ preventScroll: true });
-    if (curDrawer.after) curDrawer.after();
-    drawerHooks.forEach(function (f) { f(state.d); });
+    drawerDone(curDrawer, state.d, false);
   }
 
   /* ─── copy link: copy inside the click (it needs the gesture), the Clipboard API if that fails; review mode is not part of the link ─── */
@@ -445,12 +517,27 @@
 
   /* ─── boot ─── */
   var base = (document.currentScript && document.currentScript.src || '').replace(/[^\/]*$/, '');
+  /* A bare name the config lists with a query (fingerprint_assets.py --scripts writes ?v= into the public hub.config.js) loads
+   * at the listed address, so a file a view loads by name is versioned even when the view itself is encrypted. A file in
+   * `after` loads once, whoever asks first. */
+  var bareName = function (f) { return String(f).replace(/\?.*$/, ''); };
+  function listed(src) {
+    if (String(src).indexOf('?') >= 0) return src;
+    var all = [].concat(cfg.after || [], cfg.data || [], cfg.dataOptional || [], cfg.views || [], (cfg.gate || {}).scripts || []);
+    for (var i = 0; i < all.length; i++) if (bareName(all[i]) === src) return all[i];
+    return src;
+  }
+  var once = {};
   function load(src, optional) {
-    return new Promise(function (ok, no) {
-      var s = document.createElement('script'); s.src = src; s.onload = ok;
-      s.onerror = function () { if (optional) ok(); else no(new Error(src)); };
+    var at = listed(src), single = (cfg.after || []).some(function (f) { return bareName(f) === bareName(at); });
+    if (single && once[bareName(at)]) return once[bareName(at)];
+    var p = new Promise(function (ok, no) {
+      var s = document.createElement('script'); s.src = at; s.onload = ok;
+      s.onerror = function () { if (optional) ok(); else no(new Error(at)); };
       document.head.appendChild(s);
     });
+    if (single) once[bareName(at)] = p;
+    return p;
   }
   var inOrder = function (list, fn) { return (list || []).reduce(function (p, x) { return p.then(function () { return fn(x); }); }, Promise.resolve()); };
   function fail(err) {
@@ -467,12 +554,17 @@
     routes: function () { return ROUTES.map(function (r) { return r.prefix; }); },
     drawers: function () { return Object.keys(DRAWERS); },
     match: find, tabbed: tabbed, open: openDrawer, close: closeDrawer, tab: pickTab,
-    render: function () { render(true); }, setTheme: setTheme, applyTokens: applyTokens, look: look,
+    render: function (opts) { render(true, opts); }, setTheme: setTheme, applyTokens: applyTokens, look: look,
     onRender: function (fn) { renderHooks.push(fn); }, onDrawer: function (fn) { drawerHooks.push(fn); },
     /* a module or view that needs the data registers here; it runs after data and views, before the first render */
     ready: function (fn) { readyHooks.push(fn); },
     runReady: function () { var list = readyHooks; readyHooks = []; list.forEach(function (fn) { fn(window.HUB_DATA || {}); }); },
     bar: function (html) { var w = document.createElement('span'); w.style.display = 'contents'; w.innerHTML = html; $('app-right').insertBefore(w, $('app-right').firstChild); return w; },
+    /* a row at the foot of the menu, below the tree, kept across redraws; returns it, so its owner can repaint or remove it */
+    foot: function (html) {
+      var box = $('app-foot'); if (!box) { box = document.createElement('div'); box.className = 'nav-foot'; box.id = 'app-foot'; $('app-nav').appendChild(box); }
+      var w = document.createElement('div'); w.innerHTML = html; box.appendChild(w); return w;
+    },
     load: load,
     labelDefaults: function (o) { Object.keys(o).forEach(function (k) { if (labels[k] == null) labels[k] = o[k]; }); },
     /* a module's own stylesheet; a bundled page carries it inline */
@@ -509,6 +601,9 @@
       $('app-menu').addEventListener('click', function () { var on = $('app-nav').classList.toggle('open'); this.setAttribute('aria-expanded', on); });
       render(false);
       document.documentElement.setAttribute('data-hub-started', '');
+      /* page code the hub loads once it runs, such as the review widget's bootstrap: listed here, in public config, so publishing
+       * versions it even when the views are encrypted. A missing file is reported and the hub carries on. */
+      inOrder(cfg.after, function (f) { return load(f).catch(function (e) { if (window.console) console.warn('hub: after: ' + (e && e.message || e)); }); });
     }
   };
 })();

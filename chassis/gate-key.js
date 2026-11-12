@@ -12,7 +12,13 @@
  * HTML files in the bundle land in window.HUB_EMBEDS. Nothing that opens the hub is kept in the browser. When no key opens
  * the bundle, or a file in it fails to run, the card says gateOpenFailed with a sign-out, and auth-denied fires (open-failed).
  *
- * The store is project-owned, a global named by gate.store (default HubAuth), loaded from gate.scripts:
+ * Open. Once the hub runs, the foot of the menu can say who is signed in, with a sign-out (gateSignedIn, gateSignOut).
+ * gate.account true shows it and false leaves it out; unset, it shows with the reference store (chassis/gate-store.js in
+ * gate.scripts) and not with a hub's own store, which may draw its own line. Its id is hub-account, so a hub that drew its own
+ * line by that id keeps it.
+ *
+ * The store is a global named by gate.store (default HubAuth), loaded from gate.scripts: chassis/gate-store.js, the reference
+ * store on Firebase (since 1.4.0), or the project's own:
  *   init() -> Promise          finishes a sign-in link in the address, then settles on the first auth state
  *   user                       null, or { email, ... } once init settles
  *   signInError                set when a sign-in link failed
@@ -35,7 +41,7 @@
     gateSent: 'Check your inbox for a sign-in link and open it in this browser. Look in spam if it is not there.',
     gateNotListed: 'That address is not on the account list.', gateSendFailed: 'The link could not be sent. Try again.',
     gateLinkFailed: 'That sign-in link did not work. It may have expired or been used already. Ask for a new one.',
-    gateNoAccess: '{email} is signed in, but this account does not have access to the hub.', gateSignOut: 'Sign out',
+    gateNoAccess: '{email} is signed in, but this account does not have access to the hub.', gateSignOut: 'Sign out', gateSignedIn: 'Signed in as {email}',
     gateOpenFailed: 'The hub could not be opened. Reload the page, or sign out and in again.', gateUnavailable: 'The hub is not available right now.'
   });
 
@@ -67,6 +73,16 @@
     return Hub.boot().then(function () { if (!document.documentElement.hasAttribute('data-hub-started')) throw new Error('the hub did not start'); });
   }
 
+  /* the open hub: who is signed in, and a way out, at the foot of the menu. Unset, only with the reference store: a hub on its
+   * own store kept its own line before 1.4.0, and would show two. */
+  var withStore = (G.scripts || []).some(function (f) { return /(^|\/)gate-store\.js$/.test(bare(f)); });
+  function account(A) {
+    if (!(G.account != null ? G.account : withStore) || !A.user || document.getElementById('hub-account')) return;
+    var row = Hub.foot('<div class="hub-account" id="hub-account"><span></span><button type="button" class="linkbtn"></button></div>').firstChild;
+    row.firstChild.textContent = t('gateSignedIn', { email: A.user.email || '' });
+    row.lastChild.textContent = t('gateSignOut');
+    row.lastChild.onclick = function () { Promise.resolve(A.signOut()).then(function () { location.reload(); }); };
+  }
   function gate() {
     var g = $('gate'), form = $('gate-form'), input = $('gate-input') || $('gate-pw'), msg = $('gate-msg'), out = $('gate-out') || $('gate-retry');
     var btn = form.querySelector('button[type=submit]'), A = window[G.store || 'HubAuth'];
@@ -101,6 +117,7 @@
         if (!A.canRead()) { emit('auth-denied', { reason: 'not-allowlisted', email: A.user.email }); return show(t('gateNoAccess', { email: A.user.email }), true); }
         g.hidden = true;
         return A.gateKeys().then(function (keys) { return tryKeys(keys, bundle); }).then(start).then(function () {
+          try { account(A); } catch (e) { console.error('[gate] account line', e); }   /* never a reason to refuse an open hub */
           emit('auth-granted', { email: A.user.email, surface: C.id });
         }, function (e) { console.error('[gate]', e); emit('auth-denied', { reason: 'open-failed', email: A.user.email }); show(t('gateOpenFailed'), true); });
       });

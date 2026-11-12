@@ -2,7 +2,10 @@
  * Every value is a --hub-* token. Brand colours are set once under the governed token names (library/design/colors,
  * see library/patterns/branding-atomization.md) and the --hub-* brand names alias them. hub.config.js overrides the light
  * set through `tokens` and the dark set through `tokensDark`. Everything else is a chassis token: status, chart series,
- * card, sizes and the accent tint, which waits for the library's tint scale (library/design/INDEX.md). */
+ * card, sizes and the accent tint, which waits for the library's tint scale (library/design/INDEX.md).
+ * The top bar reads optional tokens, unset by default so it follows the card colours as before: --hub-bar (background),
+ * --hub-on-bar (text and controls), --hub-on-bar-mute, --hub-bar-line (rule and control borders), --hub-bar-ctl (control fill)
+ * and --hub-bar-hover. Config keys bar, onBar, onBarMute, barLine, barCtl, barHover set them, light and dark. */
 :root{color-scheme:light;
   --surface-base:#f7f7f5;--surface-tint:#f0efeb;--rule:#e3e3df;--text-default:#1c1d21;--text-soft:#5e6068;--neutral-deep:#111114;--primary-deep:#3f4bd0;
   --hub-bg:var(--surface-base);--hub-soft:var(--surface-tint);--hub-line:var(--rule);--hub-ink:var(--text-default);--hub-mute:var(--text-soft);
@@ -36,10 +39,10 @@ html:has(.app-body){overflow:hidden}
 .hub-status{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:90;background:var(--hub-head);color:var(--hub-bg);border-radius:8px;font-size:13px;padding:0;max-width:90vw}
 .hub-status:not(:empty){padding:8px 14px}
 /* top bar */
-.app-bar{flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:8px 16px;background:var(--hub-card);border-bottom:1px solid var(--hub-line);min-width:0;position:relative;z-index:50}
-.app-menu{display:none;padding:0;width:36px;height:34px;font-size:18px;line-height:1;border:1px solid var(--hub-line);background:var(--hub-card);color:var(--hub-head);border-radius:7px;cursor:pointer}
-.app-body .brand{display:flex;align-items:baseline;gap:8px;font-weight:700;font-size:15px;color:var(--hub-head);text-decoration:none;white-space:nowrap;min-width:0}
-.brand small{font-weight:400;font-size:12px;color:var(--hub-mute);overflow:hidden;text-overflow:ellipsis}
+.app-bar{flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:8px 16px;background:var(--hub-bar,var(--hub-card));color:var(--hub-on-bar,var(--hub-ink));border-bottom:1px solid var(--hub-bar-line,var(--hub-line));min-width:0;position:relative;z-index:50}
+.app-menu{display:none;padding:0;width:36px;height:34px;font-size:18px;line-height:1;border:1px solid var(--hub-bar-line,var(--hub-line));background:var(--hub-bar-ctl,var(--hub-card));color:var(--hub-on-bar,var(--hub-head));border-radius:7px;cursor:pointer}
+.app-body .brand{display:flex;align-items:baseline;gap:8px;font-weight:700;font-size:15px;color:var(--hub-on-bar,var(--hub-head));text-decoration:none;white-space:nowrap;min-width:0}
+.brand small{font-weight:400;font-size:12px;color:var(--hub-on-bar-mute,var(--hub-mute));overflow:hidden;text-overflow:ellipsis}
 .brand img,.brand svg{height:22px;width:auto;align-self:center}
 .bar-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;min-width:0}
 .topbtn,.btn{font:inherit;font-size:13px;border:1px solid var(--hub-line);background:var(--hub-card);color:var(--hub-ink);border-radius:7px;padding:5px 10px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
@@ -51,6 +54,15 @@ html:has(.app-body){overflow:hidden}
 .seg button[aria-pressed="true"]{background:var(--hub-accent);color:var(--hub-on-accent)}
 .bar-field{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--hub-mute)}
 .bar-field select{font:inherit;font-size:12.5px;border:1px solid var(--hub-line);border-radius:6px;background:var(--hub-card);color:var(--hub-ink);padding:4px 6px}
+/* the same controls on the bar, on the bar tokens; each falls back to the colour it had before them. :where() keeps each rule
+ * at the specificity of the plain rule above, so a skin rule for these controls still wins on load order, as before 1.4.0 */
+:where(.app-bar) .topbtn,:where(.app-bar) .btn,:where(.app-bar) .bar-field select{background:var(--hub-bar-ctl,var(--hub-card));color:var(--hub-on-bar,var(--hub-ink));border-color:var(--hub-bar-line,var(--hub-line))}
+:where(.app-bar) .topbtn:hover,:where(.app-bar) .btn:hover{background:var(--hub-bar-hover,var(--hub-soft))}
+:where(.app-bar) .btn[aria-pressed="true"]{background:var(--hub-accent-soft);border-color:var(--hub-accent);color:var(--hub-head)}
+:where(.app-bar) .seg{border-color:var(--hub-bar-line,var(--hub-line))}
+:where(.app-bar) .seg button{background:var(--hub-bar-ctl,var(--hub-card));color:var(--hub-on-bar-mute,var(--hub-mute))}
+:where(.app-bar) .seg button[aria-pressed="true"]{background:var(--hub-accent);color:var(--hub-on-accent)}
+:where(.app-bar) .bar-field{color:var(--hub-on-bar-mute,var(--hub-mute))}
 /* panels */
 .app-grid{flex:1 1 auto;display:grid;grid-template-columns:var(--hub-nav-w) minmax(0,1fr);min-height:0}
 .app-nav{background:var(--hub-card);border-right:1px solid var(--hub-line);overflow:auto;padding:10px 10px 40px;min-height:0}
@@ -64,6 +76,9 @@ html:has(.app-body){overflow:hidden}
 .tree .tog{flex:0 0 auto;width:20px;height:24px;border:0;background:none;color:var(--hub-mute);cursor:pointer;font-size:9px;padding:0;transition:transform .12s}
 .tree .tog[aria-expanded="true"]{transform:rotate(90deg)}.tree .tog.leaf{visibility:hidden}
 .tree .cnt,.cnt{font-size:11px;color:var(--hub-mute);font-variant-numeric:tabular-nums;padding-right:6px}
+.nav-foot{margin-top:16px;padding:10px 6px 0;border-top:1px solid var(--hub-line);font-size:12px;color:var(--hub-mute);overflow-wrap:anywhere}
+.nav-foot>div+div{margin-top:8px}
+.hub-account{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 6px}.hub-account .linkbtn{font-size:12px;padding:0}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:var(--hub-line)}
 .dot.ok{background:var(--hub-ok)}.dot.warn{background:var(--hub-warn)}.dot.bad{background:var(--hub-bad)}.dot.on{background:var(--hub-accent)}
 .app-main{position:relative;overflow:auto;min-width:0;min-height:0;padding:20px 28px 60px;transition:margin-right .18s ease;outline:none}
