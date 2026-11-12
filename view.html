@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Marketing Hub</title>
+<!-- The public view of a share: one hub page or a set of them, opened by link without sign-in (views/public-view.js makes
+     the copy; views/share-rules.js decides what a share covers). A plain shell: this page and view.js hold no hub data. The
+     copy is read from Firestore by the token after the #, and only while its share is switched on. -->
+<link rel="stylesheet" href="chassis/hub-core.css?v=37be666d8c">
+<link rel="stylesheet" href="chassis/hub-modules.css?v=7d84d23954">
+<link rel="stylesheet" href="skin.css?v=f08e63ec05">
+</head>
+<body class="app-body pub-body">
+<header class="app-bar" id="app-bar">
+  <span class="brand" id="app-brand"></span>
+  <div class="bar-right" id="app-right"><button type="button" class="topbtn" id="pub-share" hidden></button><button type="button" class="topbtn" id="pub-print" hidden></button></div>
+</header>
+<div class="app-grid">
+  <nav class="pub-menu" id="pub-menu" hidden></nav>
+  <main class="app-main" id="app-main" tabindex="-1"></main>
+</div>
+<div class="app-scrim" id="app-scrim" hidden></div>
+<aside class="app-drawer" id="app-drawer" aria-hidden="true" aria-labelledby="drawer-title" inert>
+  <div class="drawer-head">
+    <div class="drawer-id"><h2 id="drawer-title"></h2><div class="drawer-sub" id="drawer-sub"></div></div>
+    <button class="drawer-close" id="drawer-close" type="button">&times;</button>
+  </div>
+  <div class="drawer-body" id="drawer-body"></div>
+</aside>
+<script src="hub.config.js?v=d5fae962a2"></script>
+<script src="firebase-config.js?v=66d7a6dcb2"></script>
+<script src="view.js?v=d8918047e8"></script>
+</body>
+</html>
