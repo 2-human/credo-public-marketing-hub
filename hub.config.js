@@ -12,7 +12,7 @@ window.HUB_CONFIG = {
     card: '#1a1e24', accentSoft: '#2a313c', onAccent: '#111418', ok: '#6fd39b', okBg: '#12301f', warn: '#e8b65c', warnBg: '#352a12', bad: '#f3949a', badBg: '#3d1c20',
     shadow: 'rgba(0,0,0,.5)' },
   fonts: { body: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif' },
-  skin: ['skin.css?v=f08e63ec05', 'crm.css?v=f9648b3a04'],
+  skin: ['skin.css?v=f08e63ec05', 'crm.css?v=19fd34b070'],
   storage: { prefix: 'credo-mh' },
   modules: ['canvas'],   /* M10 diagram canvas: Work › Lead journey (views/journey.js) */
   /* the generated data files (tools/marketing-hub/build-*.mjs), in the old gate's order; the views need the first three */

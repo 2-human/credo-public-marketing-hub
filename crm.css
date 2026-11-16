@@ -145,3 +145,4 @@
 .app-main .crm .crm-spec td { border-top:1px solid var(--c-line); border-bottom:0; }
 .app-main .crm .crm-ct { font-size:17px; font-weight:500; margin:0 0 12px; } .app-main .crm .crm-h { font-size:18px; font-weight:500; } .app-main .crm .crm-ph h2 { font-size:26px; } .app-main .crm .crm-lh h2 { font-size:20px; } .app-main .crm .crm-sec h4 { font-size:13px; font-weight:600; }
 .crm-frow { flex-wrap:wrap; }
+.crm-recsec { border:1px solid var(--hub-line); border-radius:6px; margin:10px 0; padding:0 12px; background:var(--hub-card); } .crm-recsec > summary { cursor:pointer; padding:10px 0; } .app-body .crm-banner a { color:#0d5ea8; text-decoration:underline; }
