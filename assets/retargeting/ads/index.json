@@ -4,243 +4,813 @@
  "ads": [
   {
    "v": "A1",
+   "c": "p",
    "size": "meta-4x5",
    "w": 1080,
    "h": 1350,
    "phone": "(555) 010-0101",
-   "file": "public/marketing-hub/assets/retargeting/ads/A1-meta-4x5.jpg"
+   "file": "public/marketing-hub/assets/retargeting/ads/A1-p-meta-4x5.jpg"
   },
   {
    "v": "A1",
+   "c": "p",
    "size": "meta-9x16",
    "w": 1080,
    "h": 1920,
    "phone": "(555) 010-0101",
-   "file": "public/marketing-hub/assets/retargeting/ads/A1-meta-9x16.jpg"
+   "file": "public/marketing-hub/assets/retargeting/ads/A1-p-meta-9x16.jpg"
   },
   {
    "v": "A1",
+   "c": "p",
    "size": "dg-191",
    "w": 1200,
    "h": 628,
    "phone": "(555) 010-0103",
-   "file": "public/marketing-hub/assets/retargeting/ads/A1-dg-191.jpg"
+   "file": "public/marketing-hub/assets/retargeting/ads/A1-p-dg-191.jpg"
   },
   {
    "v": "A1",
+   "c": "p",
    "size": "dg-1x1",
    "w": 1200,
    "h": 1200,
    "phone": "(555) 010-0103",
-   "file": "public/marketing-hub/assets/retargeting/ads/A1-dg-1x1.jpg"
+   "file": "public/marketing-hub/assets/retargeting/ads/A1-p-dg-1x1.jpg"
   },
   {
    "v": "A1",
+   "c": "p",
    "size": "dg-4x5",
    "w": 960,
    "h": 1200,
    "phone": "(555) 010-0103",
-   "file": "public/marketing-hub/assets/retargeting/ads/A1-dg-4x5.jpg"
+   "file": "public/marketing-hub/assets/retargeting/ads/A1-p-dg-4x5.jpg"
   },
   {
-   "v": "A2",
+   "v": "A1",
+   "c": "f",
    "size": "meta-4x5",
    "w": 1080,
    "h": 1350,
    "phone": "(555) 010-0101",
-   "file": "public/marketing-hub/assets/retargeting/ads/A2-meta-4x5.jpg"
+   "file": "public/marketing-hub/assets/retargeting/ads/A1-f-meta-4x5.jpg"
   },
   {
-   "v": "A2",
+   "v": "A1",
+   "c": "f",
    "size": "meta-9x16",
    "w": 1080,
    "h": 1920,
    "phone": "(555) 010-0101",
-   "file": "public/marketing-hub/assets/retargeting/ads/A2-meta-9x16.jpg"
+   "file": "public/marketing-hub/assets/retargeting/ads/A1-f-meta-9x16.jpg"
   },
   {
-   "v": "A2",
+   "v": "A1",
+   "c": "f",
    "size": "dg-191",
    "w": 1200,
    "h": 628,
    "phone": "(555) 010-0103",
-   "file": "public/marketing-hub/assets/retargeting/ads/A2-dg-191.jpg"
+   "file": "public/marketing-hub/assets/retargeting/ads/A1-f-dg-191.jpg"
   },
   {
-   "v": "A2",
+   "v": "A1",
+   "c": "f",
    "size": "dg-1x1",
    "w": 1200,
    "h": 1200,
    "phone": "(555) 010-0103",
-   "file": "public/marketing-hub/assets/retargeting/ads/A2-dg-1x1.jpg"
+   "file": "public/marketing-hub/assets/retargeting/ads/A1-f-dg-1x1.jpg"
   },
   {
-   "v": "A2",
+   "v": "A1",
+   "c": "f",
    "size": "dg-4x5",
    "w": 960,
    "h": 1200,
    "phone": "(555) 010-0103",
-   "file": "public/marketing-hub/assets/retargeting/ads/A2-dg-4x5.jpg"
+   "file": "public/marketing-hub/assets/retargeting/ads/A1-f-dg-4x5.jpg"
   },
   {
-   "v": "A3",
+   "v": "A1",
+   "c": "m",
    "size": "meta-4x5",
    "w": 1080,
    "h": 1350,
    "phone": "(555) 010-0101",
-   "file": "public/marketing-hub/assets/retargeting/ads/A3-meta-4x5.jpg"
+   "file": "public/marketing-hub/assets/retargeting/ads/A1-m-meta-4x5.jpg"
   },
   {
-   "v": "A3",
+   "v": "A1",
+   "c": "m",
    "size": "meta-9x16",
    "w": 1080,
    "h": 1920,
    "phone": "(555) 010-0101",
-   "file": "public/marketing-hub/assets/retargeting/ads/A3-meta-9x16.jpg"
+   "file": "public/marketing-hub/assets/retargeting/ads/A1-m-meta-9x16.jpg"
   },
   {
-   "v": "A3",
+   "v": "A1",
+   "c": "m",
    "size": "dg-191",
    "w": 1200,
    "h": 628,
    "phone": "(555) 010-0103",
-   "file": "public/marketing-hub/assets/retargeting/ads/A3-dg-191.jpg"
+   "file": "public/marketing-hub/assets/retargeting/ads/A1-m-dg-191.jpg"
   },
   {
-   "v": "A3",
+   "v": "A1",
+   "c": "m",
    "size": "dg-1x1",
    "w": 1200,
    "h": 1200,
    "phone": "(555) 010-0103",
-   "file": "public/marketing-hub/assets/retargeting/ads/A3-dg-1x1.jpg"
+   "file": "public/marketing-hub/assets/retargeting/ads/A1-m-dg-1x1.jpg"
   },
   {
-   "v": "A3",
+   "v": "A1",
+   "c": "m",
    "size": "dg-4x5",
    "w": 960,
    "h": 1200,
    "phone": "(555) 010-0103",
-   "file": "public/marketing-hub/assets/retargeting/ads/A3-dg-4x5.jpg"
+   "file": "public/marketing-hub/assets/retargeting/ads/A1-m-dg-4x5.jpg"
+  },
+  {
+   "v": "A2",
+   "c": "p",
+   "size": "meta-4x5",
+   "w": 1080,
+   "h": 1350,
+   "phone": "(555) 010-0101",
+   "file": "public/marketing-hub/assets/retargeting/ads/A2-p-meta-4x5.jpg"
+  },
+  {
+   "v": "A2",
+   "c": "p",
+   "size": "meta-9x16",
+   "w": 1080,
+   "h": 1920,
+   "phone": "(555) 010-0101",
+   "file": "public/marketing-hub/assets/retargeting/ads/A2-p-meta-9x16.jpg"
+  },
+  {
+   "v": "A2",
+   "c": "p",
+   "size": "dg-191",
+   "w": 1200,
+   "h": 628,
+   "phone": "(555) 010-0103",
+   "file": "public/marketing-hub/assets/retargeting/ads/A2-p-dg-191.jpg"
+  },
+  {
+   "v": "A2",
+   "c": "p",
+   "size": "dg-1x1",
+   "w": 1200,
+   "h": 1200,
+   "phone": "(555) 010-0103",
+   "file": "public/marketing-hub/assets/retargeting/ads/A2-p-dg-1x1.jpg"
+  },
+  {
+   "v": "A2",
+   "c": "p",
+   "size": "dg-4x5",
+   "w": 960,
+   "h": 1200,
+   "phone": "(555) 010-0103",
+   "file": "public/marketing-hub/assets/retargeting/ads/A2-p-dg-4x5.jpg"
+  },
+  {
+   "v": "A2",
+   "c": "f",
+   "size": "meta-4x5",
+   "w": 1080,
+   "h": 1350,
+   "phone": "(555) 010-0101",
+   "file": "public/marketing-hub/assets/retargeting/ads/A2-f-meta-4x5.jpg"
+  },
+  {
+   "v": "A2",
+   "c": "f",
+   "size": "meta-9x16",
+   "w": 1080,
+   "h": 1920,
+   "phone": "(555) 010-0101",
+   "file": "public/marketing-hub/assets/retargeting/ads/A2-f-meta-9x16.jpg"
+  },
+  {
+   "v": "A2",
+   "c": "f",
+   "size": "dg-191",
+   "w": 1200,
+   "h": 628,
+   "phone": "(555) 010-0103",
+   "file": "public/marketing-hub/assets/retargeting/ads/A2-f-dg-191.jpg"
+  },
+  {
+   "v": "A2",
+   "c": "f",
+   "size": "dg-1x1",
+   "w": 1200,
+   "h": 1200,
+   "phone": "(555) 010-0103",
+   "file": "public/marketing-hub/assets/retargeting/ads/A2-f-dg-1x1.jpg"
+  },
+  {
+   "v": "A2",
+   "c": "f",
+   "size": "dg-4x5",
+   "w": 960,
+   "h": 1200,
+   "phone": "(555) 010-0103",
+   "file": "public/marketing-hub/assets/retargeting/ads/A2-f-dg-4x5.jpg"
+  },
+  {
+   "v": "A2",
+   "c": "m",
+   "size": "meta-4x5",
+   "w": 1080,
+   "h": 1350,
+   "phone": "(555) 010-0101",
+   "file": "public/marketing-hub/assets/retargeting/ads/A2-m-meta-4x5.jpg"
+  },
+  {
+   "v": "A2",
+   "c": "m",
+   "size": "meta-9x16",
+   "w": 1080,
+   "h": 1920,
+   "phone": "(555) 010-0101",
+   "file": "public/marketing-hub/assets/retargeting/ads/A2-m-meta-9x16.jpg"
+  },
+  {
+   "v": "A2",
+   "c": "m",
+   "size": "dg-191",
+   "w": 1200,
+   "h": 628,
+   "phone": "(555) 010-0103",
+   "file": "public/marketing-hub/assets/retargeting/ads/A2-m-dg-191.jpg"
+  },
+  {
+   "v": "A2",
+   "c": "m",
+   "size": "dg-1x1",
+   "w": 1200,
+   "h": 1200,
+   "phone": "(555) 010-0103",
+   "file": "public/marketing-hub/assets/retargeting/ads/A2-m-dg-1x1.jpg"
+  },
+  {
+   "v": "A2",
+   "c": "m",
+   "size": "dg-4x5",
+   "w": 960,
+   "h": 1200,
+   "phone": "(555) 010-0103",
+   "file": "public/marketing-hub/assets/retargeting/ads/A2-m-dg-4x5.jpg"
+  },
+  {
+   "v": "A3",
+   "c": "p",
+   "size": "meta-4x5",
+   "w": 1080,
+   "h": 1350,
+   "phone": "(555) 010-0101",
+   "file": "public/marketing-hub/assets/retargeting/ads/A3-p-meta-4x5.jpg"
+  },
+  {
+   "v": "A3",
+   "c": "p",
+   "size": "meta-9x16",
+   "w": 1080,
+   "h": 1920,
+   "phone": "(555) 010-0101",
+   "file": "public/marketing-hub/assets/retargeting/ads/A3-p-meta-9x16.jpg"
+  },
+  {
+   "v": "A3",
+   "c": "p",
+   "size": "dg-191",
+   "w": 1200,
+   "h": 628,
+   "phone": "(555) 010-0103",
+   "file": "public/marketing-hub/assets/retargeting/ads/A3-p-dg-191.jpg"
+  },
+  {
+   "v": "A3",
+   "c": "p",
+   "size": "dg-1x1",
+   "w": 1200,
+   "h": 1200,
+   "phone": "(555) 010-0103",
+   "file": "public/marketing-hub/assets/retargeting/ads/A3-p-dg-1x1.jpg"
+  },
+  {
+   "v": "A3",
+   "c": "p",
+   "size": "dg-4x5",
+   "w": 960,
+   "h": 1200,
+   "phone": "(555) 010-0103",
+   "file": "public/marketing-hub/assets/retargeting/ads/A3-p-dg-4x5.jpg"
+  },
+  {
+   "v": "A3",
+   "c": "f",
+   "size": "meta-4x5",
+   "w": 1080,
+   "h": 1350,
+   "phone": "(555) 010-0101",
+   "file": "public/marketing-hub/assets/retargeting/ads/A3-f-meta-4x5.jpg"
+  },
+  {
+   "v": "A3",
+   "c": "f",
+   "size": "meta-9x16",
+   "w": 1080,
+   "h": 1920,
+   "phone": "(555) 010-0101",
+   "file": "public/marketing-hub/assets/retargeting/ads/A3-f-meta-9x16.jpg"
+  },
+  {
+   "v": "A3",
+   "c": "f",
+   "size": "dg-191",
+   "w": 1200,
+   "h": 628,
+   "phone": "(555) 010-0103",
+   "file": "public/marketing-hub/assets/retargeting/ads/A3-f-dg-191.jpg"
+  },
+  {
+   "v": "A3",
+   "c": "f",
+   "size": "dg-1x1",
+   "w": 1200,
+   "h": 1200,
+   "phone": "(555) 010-0103",
+   "file": "public/marketing-hub/assets/retargeting/ads/A3-f-dg-1x1.jpg"
+  },
+  {
+   "v": "A3",
+   "c": "f",
+   "size": "dg-4x5",
+   "w": 960,
+   "h": 1200,
+   "phone": "(555) 010-0103",
+   "file": "public/marketing-hub/assets/retargeting/ads/A3-f-dg-4x5.jpg"
+  },
+  {
+   "v": "A3",
+   "c": "m",
+   "size": "meta-4x5",
+   "w": 1080,
+   "h": 1350,
+   "phone": "(555) 010-0101",
+   "file": "public/marketing-hub/assets/retargeting/ads/A3-m-meta-4x5.jpg"
+  },
+  {
+   "v": "A3",
+   "c": "m",
+   "size": "meta-9x16",
+   "w": 1080,
+   "h": 1920,
+   "phone": "(555) 010-0101",
+   "file": "public/marketing-hub/assets/retargeting/ads/A3-m-meta-9x16.jpg"
+  },
+  {
+   "v": "A3",
+   "c": "m",
+   "size": "dg-191",
+   "w": 1200,
+   "h": 628,
+   "phone": "(555) 010-0103",
+   "file": "public/marketing-hub/assets/retargeting/ads/A3-m-dg-191.jpg"
+  },
+  {
+   "v": "A3",
+   "c": "m",
+   "size": "dg-1x1",
+   "w": 1200,
+   "h": 1200,
+   "phone": "(555) 010-0103",
+   "file": "public/marketing-hub/assets/retargeting/ads/A3-m-dg-1x1.jpg"
+  },
+  {
+   "v": "A3",
+   "c": "m",
+   "size": "dg-4x5",
+   "w": 960,
+   "h": 1200,
+   "phone": "(555) 010-0103",
+   "file": "public/marketing-hub/assets/retargeting/ads/A3-m-dg-4x5.jpg"
   },
   {
    "v": "B1",
+   "c": "p",
    "size": "meta-4x5",
    "w": 1080,
    "h": 1350,
    "phone": "(555) 010-0102",
-   "file": "public/marketing-hub/assets/retargeting/ads/B1-meta-4x5.jpg"
+   "file": "public/marketing-hub/assets/retargeting/ads/B1-p-meta-4x5.jpg"
   },
   {
    "v": "B1",
+   "c": "p",
    "size": "meta-9x16",
    "w": 1080,
    "h": 1920,
    "phone": "(555) 010-0102",
-   "file": "public/marketing-hub/assets/retargeting/ads/B1-meta-9x16.jpg"
+   "file": "public/marketing-hub/assets/retargeting/ads/B1-p-meta-9x16.jpg"
   },
   {
    "v": "B1",
+   "c": "p",
    "size": "dg-191",
    "w": 1200,
    "h": 628,
    "phone": "(555) 010-0104",
-   "file": "public/marketing-hub/assets/retargeting/ads/B1-dg-191.jpg"
+   "file": "public/marketing-hub/assets/retargeting/ads/B1-p-dg-191.jpg"
   },
   {
    "v": "B1",
+   "c": "p",
    "size": "dg-1x1",
    "w": 1200,
    "h": 1200,
    "phone": "(555) 010-0104",
-   "file": "public/marketing-hub/assets/retargeting/ads/B1-dg-1x1.jpg"
+   "file": "public/marketing-hub/assets/retargeting/ads/B1-p-dg-1x1.jpg"
   },
   {
    "v": "B1",
+   "c": "p",
    "size": "dg-4x5",
    "w": 960,
    "h": 1200,
    "phone": "(555) 010-0104",
-   "file": "public/marketing-hub/assets/retargeting/ads/B1-dg-4x5.jpg"
+   "file": "public/marketing-hub/assets/retargeting/ads/B1-p-dg-4x5.jpg"
   },
   {
-   "v": "B2",
+   "v": "B1",
+   "c": "f",
    "size": "meta-4x5",
    "w": 1080,
    "h": 1350,
    "phone": "(555) 010-0102",
-   "file": "public/marketing-hub/assets/retargeting/ads/B2-meta-4x5.jpg"
+   "file": "public/marketing-hub/assets/retargeting/ads/B1-f-meta-4x5.jpg"
   },
   {
-   "v": "B2",
+   "v": "B1",
+   "c": "f",
    "size": "meta-9x16",
    "w": 1080,
    "h": 1920,
    "phone": "(555) 010-0102",
-   "file": "public/marketing-hub/assets/retargeting/ads/B2-meta-9x16.jpg"
+   "file": "public/marketing-hub/assets/retargeting/ads/B1-f-meta-9x16.jpg"
   },
   {
-   "v": "B2",
+   "v": "B1",
+   "c": "f",
    "size": "dg-191",
    "w": 1200,
    "h": 628,
    "phone": "(555) 010-0104",
-   "file": "public/marketing-hub/assets/retargeting/ads/B2-dg-191.jpg"
+   "file": "public/marketing-hub/assets/retargeting/ads/B1-f-dg-191.jpg"
   },
   {
-   "v": "B2",
+   "v": "B1",
+   "c": "f",
    "size": "dg-1x1",
    "w": 1200,
    "h": 1200,
    "phone": "(555) 010-0104",
-   "file": "public/marketing-hub/assets/retargeting/ads/B2-dg-1x1.jpg"
+   "file": "public/marketing-hub/assets/retargeting/ads/B1-f-dg-1x1.jpg"
   },
   {
-   "v": "B2",
+   "v": "B1",
+   "c": "f",
    "size": "dg-4x5",
    "w": 960,
    "h": 1200,
    "phone": "(555) 010-0104",
-   "file": "public/marketing-hub/assets/retargeting/ads/B2-dg-4x5.jpg"
+   "file": "public/marketing-hub/assets/retargeting/ads/B1-f-dg-4x5.jpg"
   },
   {
-   "v": "B3",
+   "v": "B1",
+   "c": "m",
    "size": "meta-4x5",
    "w": 1080,
    "h": 1350,
    "phone": "(555) 010-0102",
-   "file": "public/marketing-hub/assets/retargeting/ads/B3-meta-4x5.jpg"
+   "file": "public/marketing-hub/assets/retargeting/ads/B1-m-meta-4x5.jpg"
   },
   {
-   "v": "B3",
+   "v": "B1",
+   "c": "m",
    "size": "meta-9x16",
    "w": 1080,
    "h": 1920,
    "phone": "(555) 010-0102",
-   "file": "public/marketing-hub/assets/retargeting/ads/B3-meta-9x16.jpg"
+   "file": "public/marketing-hub/assets/retargeting/ads/B1-m-meta-9x16.jpg"
   },
   {
-   "v": "B3",
+   "v": "B1",
+   "c": "m",
    "size": "dg-191",
    "w": 1200,
    "h": 628,
    "phone": "(555) 010-0104",
-   "file": "public/marketing-hub/assets/retargeting/ads/B3-dg-191.jpg"
+   "file": "public/marketing-hub/assets/retargeting/ads/B1-m-dg-191.jpg"
   },
   {
-   "v": "B3",
+   "v": "B1",
+   "c": "m",
    "size": "dg-1x1",
    "w": 1200,
    "h": 1200,
    "phone": "(555) 010-0104",
-   "file": "public/marketing-hub/assets/retargeting/ads/B3-dg-1x1.jpg"
+   "file": "public/marketing-hub/assets/retargeting/ads/B1-m-dg-1x1.jpg"
   },
   {
-   "v": "B3",
+   "v": "B1",
+   "c": "m",
    "size": "dg-4x5",
    "w": 960,
    "h": 1200,
    "phone": "(555) 010-0104",
-   "file": "public/marketing-hub/assets/retargeting/ads/B3-dg-4x5.jpg"
+   "file": "public/marketing-hub/assets/retargeting/ads/B1-m-dg-4x5.jpg"
+  },
+  {
+   "v": "B2",
+   "c": "p",
+   "size": "meta-4x5",
+   "w": 1080,
+   "h": 1350,
+   "phone": "(555) 010-0102",
+   "file": "public/marketing-hub/assets/retargeting/ads/B2-p-meta-4x5.jpg"
+  },
+  {
+   "v": "B2",
+   "c": "p",
+   "size": "meta-9x16",
+   "w": 1080,
+   "h": 1920,
+   "phone": "(555) 010-0102",
+   "file": "public/marketing-hub/assets/retargeting/ads/B2-p-meta-9x16.jpg"
+  },
+  {
+   "v": "B2",
+   "c": "p",
+   "size": "dg-191",
+   "w": 1200,
+   "h": 628,
+   "phone": "(555) 010-0104",
+   "file": "public/marketing-hub/assets/retargeting/ads/B2-p-dg-191.jpg"
+  },
+  {
+   "v": "B2",
+   "c": "p",
+   "size": "dg-1x1",
+   "w": 1200,
+   "h": 1200,
+   "phone": "(555) 010-0104",
+   "file": "public/marketing-hub/assets/retargeting/ads/B2-p-dg-1x1.jpg"
+  },
+  {
+   "v": "B2",
+   "c": "p",
+   "size": "dg-4x5",
+   "w": 960,
+   "h": 1200,
+   "phone": "(555) 010-0104",
+   "file": "public/marketing-hub/assets/retargeting/ads/B2-p-dg-4x5.jpg"
+  },
+  {
+   "v": "B2",
+   "c": "f",
+   "size": "meta-4x5",
+   "w": 1080,
+   "h": 1350,
+   "phone": "(555) 010-0102",
+   "file": "public/marketing-hub/assets/retargeting/ads/B2-f-meta-4x5.jpg"
+  },
+  {
+   "v": "B2",
+   "c": "f",
+   "size": "meta-9x16",
+   "w": 1080,
+   "h": 1920,
+   "phone": "(555) 010-0102",
+   "file": "public/marketing-hub/assets/retargeting/ads/B2-f-meta-9x16.jpg"
+  },
+  {
+   "v": "B2",
+   "c": "f",
+   "size": "dg-191",
+   "w": 1200,
+   "h": 628,
+   "phone": "(555) 010-0104",
+   "file": "public/marketing-hub/assets/retargeting/ads/B2-f-dg-191.jpg"
+  },
+  {
+   "v": "B2",
+   "c": "f",
+   "size": "dg-1x1",
+   "w": 1200,
+   "h": 1200,
+   "phone": "(555) 010-0104",
+   "file": "public/marketing-hub/assets/retargeting/ads/B2-f-dg-1x1.jpg"
+  },
+  {
+   "v": "B2",
+   "c": "f",
+   "size": "dg-4x5",
+   "w": 960,
+   "h": 1200,
+   "phone": "(555) 010-0104",
+   "file": "public/marketing-hub/assets/retargeting/ads/B2-f-dg-4x5.jpg"
+  },
+  {
+   "v": "B2",
+   "c": "m",
+   "size": "meta-4x5",
+   "w": 1080,
+   "h": 1350,
+   "phone": "(555) 010-0102",
+   "file": "public/marketing-hub/assets/retargeting/ads/B2-m-meta-4x5.jpg"
+  },
+  {
+   "v": "B2",
+   "c": "m",
+   "size": "meta-9x16",
+   "w": 1080,
+   "h": 1920,
+   "phone": "(555) 010-0102",
+   "file": "public/marketing-hub/assets/retargeting/ads/B2-m-meta-9x16.jpg"
+  },
+  {
+   "v": "B2",
+   "c": "m",
+   "size": "dg-191",
+   "w": 1200,
+   "h": 628,
+   "phone": "(555) 010-0104",
+   "file": "public/marketing-hub/assets/retargeting/ads/B2-m-dg-191.jpg"
+  },
+  {
+   "v": "B2",
+   "c": "m",
+   "size": "dg-1x1",
+   "w": 1200,
+   "h": 1200,
+   "phone": "(555) 010-0104",
+   "file": "public/marketing-hub/assets/retargeting/ads/B2-m-dg-1x1.jpg"
+  },
+  {
+   "v": "B2",
+   "c": "m",
+   "size": "dg-4x5",
+   "w": 960,
+   "h": 1200,
+   "phone": "(555) 010-0104",
+   "file": "public/marketing-hub/assets/retargeting/ads/B2-m-dg-4x5.jpg"
+  },
+  {
+   "v": "B3",
+   "c": "p",
+   "size": "meta-4x5",
+   "w": 1080,
+   "h": 1350,
+   "phone": "(555) 010-0102",
+   "file": "public/marketing-hub/assets/retargeting/ads/B3-p-meta-4x5.jpg"
+  },
+  {
+   "v": "B3",
+   "c": "p",
+   "size": "meta-9x16",
+   "w": 1080,
+   "h": 1920,
+   "phone": "(555) 010-0102",
+   "file": "public/marketing-hub/assets/retargeting/ads/B3-p-meta-9x16.jpg"
+  },
+  {
+   "v": "B3",
+   "c": "p",
+   "size": "dg-191",
+   "w": 1200,
+   "h": 628,
+   "phone": "(555) 010-0104",
+   "file": "public/marketing-hub/assets/retargeting/ads/B3-p-dg-191.jpg"
+  },
+  {
+   "v": "B3",
+   "c": "p",
+   "size": "dg-1x1",
+   "w": 1200,
+   "h": 1200,
+   "phone": "(555) 010-0104",
+   "file": "public/marketing-hub/assets/retargeting/ads/B3-p-dg-1x1.jpg"
+  },
+  {
+   "v": "B3",
+   "c": "p",
+   "size": "dg-4x5",
+   "w": 960,
+   "h": 1200,
+   "phone": "(555) 010-0104",
+   "file": "public/marketing-hub/assets/retargeting/ads/B3-p-dg-4x5.jpg"
+  },
+  {
+   "v": "B3",
+   "c": "f",
+   "size": "meta-4x5",
+   "w": 1080,
+   "h": 1350,
+   "phone": "(555) 010-0102",
+   "file": "public/marketing-hub/assets/retargeting/ads/B3-f-meta-4x5.jpg"
+  },
+  {
+   "v": "B3",
+   "c": "f",
+   "size": "meta-9x16",
+   "w": 1080,
+   "h": 1920,
+   "phone": "(555) 010-0102",
+   "file": "public/marketing-hub/assets/retargeting/ads/B3-f-meta-9x16.jpg"
+  },
+  {
+   "v": "B3",
+   "c": "f",
+   "size": "dg-191",
+   "w": 1200,
+   "h": 628,
+   "phone": "(555) 010-0104",
+   "file": "public/marketing-hub/assets/retargeting/ads/B3-f-dg-191.jpg"
+  },
+  {
+   "v": "B3",
+   "c": "f",
+   "size": "dg-1x1",
+   "w": 1200,
+   "h": 1200,
+   "phone": "(555) 010-0104",
+   "file": "public/marketing-hub/assets/retargeting/ads/B3-f-dg-1x1.jpg"
+  },
+  {
+   "v": "B3",
+   "c": "f",
+   "size": "dg-4x5",
+   "w": 960,
+   "h": 1200,
+   "phone": "(555) 010-0104",
+   "file": "public/marketing-hub/assets/retargeting/ads/B3-f-dg-4x5.jpg"
+  },
+  {
+   "v": "B3",
+   "c": "m",
+   "size": "meta-4x5",
+   "w": 1080,
+   "h": 1350,
+   "phone": "(555) 010-0102",
+   "file": "public/marketing-hub/assets/retargeting/ads/B3-m-meta-4x5.jpg"
+  },
+  {
+   "v": "B3",
+   "c": "m",
+   "size": "meta-9x16",
+   "w": 1080,
+   "h": 1920,
+   "phone": "(555) 010-0102",
+   "file": "public/marketing-hub/assets/retargeting/ads/B3-m-meta-9x16.jpg"
+  },
+  {
+   "v": "B3",
+   "c": "m",
+   "size": "dg-191",
+   "w": 1200,
+   "h": 628,
+   "phone": "(555) 010-0104",
+   "file": "public/marketing-hub/assets/retargeting/ads/B3-m-dg-191.jpg"
+  },
+  {
+   "v": "B3",
+   "c": "m",
+   "size": "dg-1x1",
+   "w": 1200,
+   "h": 1200,
+   "phone": "(555) 010-0104",
+   "file": "public/marketing-hub/assets/retargeting/ads/B3-m-dg-1x1.jpg"
+  },
+  {
+   "v": "B3",
+   "c": "m",
+   "size": "dg-4x5",
+   "w": 960,
+   "h": 1200,
+   "phone": "(555) 010-0104",
+   "file": "public/marketing-hub/assets/retargeting/ads/B3-m-dg-4x5.jpg"
   }
  ]
 }
