@@ -19,7 +19,7 @@ window.HUB_CONFIG = {
   data: ['data/registry.js', 'data/microsites.js', 'data/ads-tree.js',
     'data/text/core.js', 'data/text/overview.js', 'data/text/website.js', 'data/text/reference.js', 'data/text/ads.js', 'data/text/google.js', 'data/text/platforms.js', 'data/text/streams.js', 'data/text/terms.js', 'data/text/organic.js', 'data/text/work.js', 'data/text/more.js', 'data/text/people.js', 'data/text/search.js', 'data/text/vault.js', 'data/text/journey.js', 'data/text/share.js', 'data/text/crm.js',
     'data/review-config.js'],
-  dataOptional: ['data/retargeting-creative.js', 'data/instant-form.js', 'data/metrics.js', 'data/ads-metrics.js', 'data/phone-map.js', 'data/backlog-data.js', 'data/work.js', 'data/reviews.js', 'data/statutes.js',
+  dataOptional: ['data/retargeting-creative.js', 'data/instant-form.js', 'data/design-test.js', 'data/metrics.js', 'data/ads-metrics.js', 'data/phone-map.js', 'data/backlog-data.js', 'data/work.js', 'data/reviews.js', 'data/statutes.js',
     'data/organic.js', 'data/ad-copy.js', 'data/google-account.js', 'data/platforms.js', 'data/handoff.js', 'data/stream2.js', 'data/stream3.js', 'data/stream4.js',
     'data/retargeting.js', 'data/stream5.js', 'data/crm.js', 'data/streams.js', 'data/disclaimers.js', 'data/heroes.js', 'data/people.js', 'data/questions.js', 'data/glossary.js', 'data/brand.js', 'data/vault.js', 'data/journey.js'],
   views: ['views/core.js', 'views/overview.js', 'views/website.js', 'views/reference.js', 'views/ads.js', 'views/google.js', 'views/platforms.js', 'views/crm.js',
